@@ -38,6 +38,7 @@ import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductEntity
 import ir.billion.holloopro.data.ProductWithStock
 import ir.billion.holloopro.ui.AppViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import java.math.BigDecimal
 import java.text.NumberFormat
@@ -141,7 +142,7 @@ private fun HolooApp(
     onDeleteProduct: (Long) -> Unit,
     onSetOpeningValuation: (Long, Long) -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
-    onPartyLedger: (Long) -> StateFlow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
+    onPartyLedger: (Long) -> Flow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
     onDeleteParty: (Long) -> Unit,
     onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
     onReverseInvoice: (Long) -> Unit,
@@ -404,7 +405,7 @@ private fun PartiesScreen(
                             Text("مانده جاری: ${formatMoney(balance, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             Text("مانده افتتاحیه: ${formatMoney(party.openingBalanceRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Muted, fontSize = 10.sp)
                             var showHistory by remember(party.id) { mutableStateOf(false) }
-                            val partyRows by onPartyLedger(party.id).collectAsState()
+                            val partyRows by onPartyLedger(party.id).collectAsState(initial = emptyList())
                             TextButton(onClick = { showHistory = !showHistory }) { Text(if (showHistory) "بستن گردش حساب" else "مشاهده ریز گردش حساب", color = Turquoise) }
                             if (showHistory) {
                                 if (partyRows.isEmpty()) Text("برای این شخص گردش ثبت‌شده‌ای وجود ندارد.", color = Muted, fontSize = 10.sp)

@@ -266,7 +266,8 @@ data class InvoiceReturnLineEntity(
     val invoiceLineId: Long,
     val quantityKg: Double,
     val refundAmountRial: Long,
-    val inventoryCostRial: Long
+    val inventoryCostRial: Long,
+    @ColumnInfo(defaultValue = "0") val netSalesRial: Long = 0
 )
 
 data class ReturnableInvoiceLineRow(
@@ -284,3 +285,22 @@ data class ReturnableInvoiceLineRow(
 data class InvoiceReturnSummaryRow(val invoiceId: Long, val returnedRial: Long)
 
 data class InvoiceReturnLineInput(val invoiceLineId: Long, val quantityKg: Double)
+
+data class ProductProfitRow(
+    val productId: Long,
+    val productName: String,
+    val quantitySoldKg: Double,
+    val salesRial: Long,
+    val costRial: Long,
+    val profitRial: Long
+)
+
+data class InvoiceProfitRow(
+    val invoiceId: Long,
+    val invoiceNumber: String,
+    val partyId: Long,
+    val partyName: String,
+    val salesRial: Long,
+    val costRial: Long,
+    val profitRial: Long
+)

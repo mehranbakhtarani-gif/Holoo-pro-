@@ -736,13 +736,15 @@ private fun OpeningValuationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(product.product.name, color = Color.White, fontWeight = FontWeight.Bold)
-                Text("موجودی فعلی: ${formatQuantity(product.stockKg)} کیلوگرم", color = Muted)
+                ChoiceField("انبار", warehouses.firstOrNull { it.id == warehouseId }?.name ?: "انبار اصلی", warehouses.map { it.name }) { selected -> warehouseId = warehouses.firstOrNull { it.name == selected }?.id ?: 1L }
+                val warehouseStock = warehouseStocks.firstOrNull { it.warehouseId == warehouseId && it.productId == product.product.id }?.quantityKg ?: 0.0
+                Text("موجودی فعلی در این انبار: ${formatQuantity(warehouseStock)} کیلوگرم", color = Muted)
                 FormField("بهای هر کیلو (${if (showToman) "تومان" else "ریال"})", cost, KeyboardType.Number) { cost = it }
                 Text("ارزش افتتاحیه: ${formatMoney(estimatedValue, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise)
                 Text("این مبلغ مبنای محاسبه بهای تمام‌شده فروش‌های بعدی است. آن را بر اساس بهای واقعی موجودی در ابتدای استفاده وارد کن.", color = Muted, fontSize = 10.sp)
             }
         },
-        confirmButton = { TextButton(enabled = costRial > 0 && estimatedValue > 0, onClick = { onSave(costRial) }) { Text("ثبت ارزش موجودی") } },
+        confirmButton = { TextButton(enabled = costRial > 0 && estimatedValue > 0, onClick = { onSave(costRial, warehouseId) }) { Text("ثبت ارزش موجودی") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
         containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
     )

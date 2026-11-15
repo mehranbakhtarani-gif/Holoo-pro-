@@ -48,7 +48,7 @@ object BankStatementCsv {
                 }
                 else -> error("مبلغ ردیف ${index + 2} خالی یا نامعتبر است")
             }
-            require(signed != 0L) { "مبلغ ردیف ${index + 2} نباید صفر باشد" }
+            require(signed != 0L && signed != Long.MIN_VALUE) { "مبلغ ردیف ${index + 2} معتبر نیست" }
             BankStatementCsvRow(date, signed, cell(refCol), cell(descCol))
         }.also { require(it.isNotEmpty()) { "هیچ گردش معتبری در فایل پیدا نشد" } }
     }

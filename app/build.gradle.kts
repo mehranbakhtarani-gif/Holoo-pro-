@@ -18,6 +18,25 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val keyPath = System.getenv("HOLLOO_KEYSTORE_PATH")
+            if (!keyPath.isNullOrBlank()) storeFile = file(keyPath)
+            storePassword = System.getenv("HOLLOO_STORE_PASSWORD")
+            keyAlias = System.getenv("HOLLOO_KEY_ALIAS")
+            keyPassword = System.getenv("HOLLOO_KEY_PASSWORD")
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            if (!System.getenv("HOLLOO_KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

@@ -981,7 +981,13 @@ private fun AccountingScreen(
                 val selectedAccountCode = ledgerAccountFilter.substringBefore(" • ").takeIf { ledgerAccountFilter != "همه حساب‌ها" }
                 val fromEpoch = runCatching { java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(ledgerFromFilter)?.time ?: Long.MIN_VALUE }.getOrDefault(Long.MIN_VALUE)
                 val toEpoch = runCatching { java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(ledgerToFilter)?.time?.plus(86_399_999L) ?: Long.MAX_VALUE }.getOrDefault(Long.MAX_VALUE)
+                val selectedOpening = trialBalance.filter { selectedAccountCode == null || it.accountCode == selectedAccountCode }
+                    .sumOf { it.openingDebitRial - it.openingCreditRial }
+                val priorMovement = ledger.filter { (selectedAccountCode == null || it.accountCode == selectedAccountCode) && it.dateEpoch < fromEpoch }
+                    .sumOf { it.debitRial - it.creditRial }
+                val periodOpening = selectedOpening + priorMovement
                 val filteredLedger = ledger.filter { (selectedAccountCode == null || it.accountCode == selectedAccountCode) && it.dateEpoch >= fromEpoch && it.dateEpoch <= toEpoch }.take(100)
+                Text("مانده ابتدای دوره: ${formatMoney(periodOpening, showToman)} ${if (showToman) "تومان" else "ریال"} • ${filteredLedger.size} ردیف", color = Turquoise, fontSize = 10.sp)
                 filteredLedger.forEach { row ->
                     Divider(color = CardBorder)
                     Text("${row.accountCode} • ${row.accountTitle}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)

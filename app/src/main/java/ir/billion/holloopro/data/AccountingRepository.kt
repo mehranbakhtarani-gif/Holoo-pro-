@@ -337,6 +337,17 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun reverseManualVoucher(number: String) {
+        db.withTransaction {
+            val original = db.voucherDao().byNumber(number) ?: error("سند پیدا نشد")
+            require(original.reference.startsWith("MANUAL:")) { "فقط سند دستی قابل برگشت است" }
+            require(db.voucherDao().byReference("REVERSAL:VOUCHER:${original.id}") == null) { "این سند قبلاً برگشت داده شده است" }
+            val lines = db.voucherLineDao().byVoucher(original.id)
+            require(lines.size >= 2) { "ردیف‌های سند پیدا نشد" }
+            val reversalId = db.voucherDao().insert(VoucherEntity(number = "REV-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(6)}", description = "برگشت سند ${original.number}", reference = "REVERSAL:VOUCHER:${original.id}"))
+            db.voucherLineDao().insertAll(lines.map { line -> VoucherLineEntity(voucherId = reversalId, accountId = line.accountId, debitRial = line.creditRial, creditRial = line.debitRial, description = "برگشت سند ${original.number}") })
+        }
+    }
     suspend fun addManualVoucher(description: String, drafts: List<VoucherLineDraft>) {
         require(description.isNotBlank()) { "شرح سند الزامی است" }
         require(drafts.size >= 2) { "سند باید حداقل دو ردیف داشته باشد" }

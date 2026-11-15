@@ -159,6 +159,9 @@ interface VoucherDao {
     @Query("SELECT * FROM vouchers WHERE reference = :reference LIMIT 1")
     suspend fun byReference(reference: String): VoucherEntity?
 
+    @Query("SELECT * FROM vouchers WHERE number = :number LIMIT 1")
+    suspend fun byNumber(number: String): VoucherEntity?
+
     @Query("SELECT COUNT(*) FROM vouchers")
     fun observeCount(): Flow<Int>
 }

@@ -93,6 +93,8 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun updateOpeningBalances(values: Map<String, Pair<Long, Long>>) =
         execute { repository.updateOpeningBalances(values); "مانده افتتاحیه حساب‌ها ذخیره و تراز شد" }
 
+    fun reverseManualVoucher(number: String) = execute { repository.reverseManualVoucher(number); "سند معکوس ثبت شد؛ سند اصلی حفظ شد" }
+
     fun addManualVoucher(description: String, lines: List<ir.billion.holloopro.accounting.VoucherLineDraft>, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addManualVoucher(description, lines); "سند دستی چندردیفی و متوازن ثبت شد" }
 

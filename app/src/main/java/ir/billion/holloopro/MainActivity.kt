@@ -129,6 +129,7 @@ class MainActivity : ComponentActivity() {
                         onAddTreasury = vm::addTreasury,
                         onAddManualVoucher = vm::addManualVoucher,
                         onUpdateOpeningBalances = vm::updateOpeningBalances,
+                        onReverseManualVoucher = vm::reverseManualVoucher,
                         onLoadDemoData = vm::loadDemoData,
                         onAddCheck = vm::addCheck,
                         onUpdateCheckStatus = vm::updateCheckStatus,
@@ -285,7 +286,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -612,6 +613,7 @@ private fun PartiesScreen(
                                     Divider(color = CardBorder)
                                     Text(row.description, color = Color.White, fontSize = 10.sp)
                                     Text("بدهکار ${formatMoney(row.debitRial, showToman)}  |  بستانکار ${formatMoney(row.creditRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 10.sp)
+                    if (row.voucherNumber.startsWith("MAN-")) TextButton(onClick = { onReverseManualVoucher(row.voucherNumber) }) { Text("ثبت سند معکوس") }
                                     Text(java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(java.util.Date(row.createdAt)), color = Muted, fontSize = 9.sp)
                                 }
                             }
@@ -799,7 +801,8 @@ private fun AccountingScreen(
     showToman: Boolean,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
-    onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit
+    onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
+    onReverseManualVoucher: (String) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }

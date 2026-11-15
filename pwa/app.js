@@ -294,7 +294,7 @@ if(page==="treasury"){
  const record={kind,method:d.method,partyId:p.id,partyName:p.name,amount,date:now,note:d.note,reference};
  await ensureBaseAccounts();
  await postVoucherAtomic([["parties",p],["treasury",record],["partyLedger",movement]],{number:"TV-"+now,date:now,description:(kind==="RECEIPT"?"دریافت ":"پرداخت ")+p.name,reference},journal);
-}
+}}
 async function exportBackup(){const data={app:"HOLLOO PRO+ PWA",version:1,exportedAt:new Date().toISOString(),records:{}};for(const s of stores)data.records[s]=await all(s);const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="holloo-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(a.href);toast("فایل پشتیبان آماده شد")}
 async function restoreBackup(file){
  const data=JSON.parse(await file.text());

@@ -276,6 +276,9 @@ class AccountingRepository(private val db: AppDatabase) {
             val inventoryCosts = mutableListOf<Long>()
             resolved.forEachIndexed { index, (line, product, _) ->
                 val existing = db.warehouseStockDao().valuation(warehouseId, line.productId)
+                if (existing == null && db.warehouseStockDao().stockForProduct(warehouseId, line.productId) > 0.000001) {
+                    error("ابتدا بهای افتتاحیه موجودی کالا را در انبار انتخاب‌شده ثبت کنید")
+                }
                 val current = existing?.let { InventoryValuation(it.quantityKg, it.valueRial) }
                     ?: InventoryValuation(0.0, 0L)
                 val next = if (kind == "PURCHASE") {
@@ -961,6 +964,9 @@ class AccountingRepository(private val db: AppDatabase) {
             db.importReceiptDao().insertLines(receiptLines)
             receiptLines.forEach { line ->
                 val oldValuation = db.warehouseStockDao().valuation(1L, line.productId)
+                if (oldValuation == null && db.warehouseStockDao().stockForProduct(1L, line.productId) > 0.000001) {
+                    error("ابتدا بهای افتتاحیه کالای موجود در انبار اصلی را ثبت کنید")
+                }
                 val currentValuation = oldValuation?.let { InventoryValuation(it.quantityKg, it.valueRial) } ?: InventoryValuation(0.0, 0L)
                 val nextValuation = InventoryValuationEngine.receive(currentValuation, line.quantityKg, line.allocatedCostRial)
                 db.warehouseStockDao().upsertValuation(WarehouseValuationEntity(1L, line.productId, nextValuation.quantityKg, nextValuation.valueRial))

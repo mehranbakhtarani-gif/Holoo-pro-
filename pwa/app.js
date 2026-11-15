@@ -132,7 +132,34 @@ async function adjustStockPwa(id){
  ]);
  toast("اصلاح موجودی و سند حسابداری ثبت شد");await render();
 }
-function bindRows(){document.querySelectorAll("[data-stockadjust]").forEach(b=>b.onclick=()=>adjustStockPwa(b.dataset.stockadjust).catch(e=>toast(e.message)));document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const [s,id]=b.dataset.edit.split(":");edit(s,+id)});document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeRow(...b.dataset.del.split(":")))}
+async function receiveImportShipment(id){
+ const shipments=await all("importShipments"),shipment=shipments.find(x=>Number(x.id)===Number(id));
+ if(!shipment)throw Error("محموله پیدا نشد");
+ if(shipment.receivedAt)throw Error("این محموله قبلاً رسید انبار شده است");
+ if(shipment.status!=="رسیده")throw Error("ابتدا وضعیت محموله را به «رسیده» تغییر دهید");
+ const [products,parties,warehouses,stockRows]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock")]);
+ const product=products.find(x=>Number(x.id)===Number(shipment.productId)),party=parties.find(x=>Number(x.id)===Number(shipment.supplierId)),warehouse=warehouses.find(x=>Number(x.id)===Number(shipment.warehouseId));
+ if(!product||!party||!warehouse)throw Error("کالا، تأمین‌کننده یا انبار مقصد محموله پیدا نشد");
+ const costs=calculateImportShipmentCost({currency:shipment.currency,fx:shipment.fx,weight:shipment.weight,goods:shipment.goods,freight:shipment.freight,customs:shipment.customs,other:shipment.other});
+ const currentStock=Number(product.stock||0),currentValue=Number(product.value||0);
+ if(!Number.isFinite(currentStock)||currentStock<0||!Number.isSafeInteger(currentValue)||currentValue<0)throw Error("موجودی کل کالا برای رسید معتبر نیست");
+ const nextStock=currentStock+Number(shipment.weight),nextValue=currentValue+costs.totalCost;
+ if(!Number.isFinite(nextStock)||!Number.isSafeInteger(nextValue))throw Error("موجودی یا ارزش کل کالا از محدوده مجاز خارج می‌شود");
+ const movement=calculateWarehouseStockMovement({product,warehouseId:warehouse.id,warehouseRows:stockRows.filter(x=>Number(x.productId)===Number(product.id)),quantity:Number(shipment.weight),direction:"PURCHASE",lineTotal:costs.totalCost});
+ product.stock=nextStock;product.value=nextValue;product.avg=nextStock>0?nextValue/nextStock:0;
+ const ancillary=costs.totalCost-costs.goodsRial,now=Date.now(),reference="IMPORT-RECEIPT:"+shipment.number;
+ shipment.goodsRial=costs.goodsRial;shipment.totalCost=costs.totalCost;shipment.unitCost=costs.unitCost;shipment.status="رسید انبار شده";shipment.receivedAt=now;shipment.receivedVoucherNumber="IMP-"+now;
+ party.balance=Number(party.balance||0)-costs.goodsRial;
+ const ledger={partyId:party.id,date:now,debitRial:0,creditRial:costs.goodsRial,description:"ثبت بدهی خرید محموله "+shipment.number,referenceId:reference};
+ const journal=[{accountCode:"1301",debitRial:costs.totalCost,creditRial:0,description:"ورود موجودی محموله "+shipment.number}];
+ if(costs.goodsRial>0)journal.push({accountCode:"2101",debitRial:0,creditRial:costs.goodsRial,description:"بدهی بهای کالا به تأمین‌کننده"});
+ if(ancillary>0)journal.push({accountCode:"2102",debitRial:0,creditRial:ancillary,description:"هزینه‌های جانبی واردات پرداختنی"});
+ if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند رسید محموله تراز نیست");
+ await ensureBaseAccounts();
+ await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["parties",party],["partyLedger",ledger]],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal);
+ toast("محموله رسید انبار شد؛ بهای تمام‌شده به موجودی کالا اضافه شد");await render();
+}
+function bindRows(){document.querySelectorAll("[data-stockadjust]").forEach(b=>b.onclick=()=>adjustStockPwa(b.dataset.stockadjust).catch(e=>toast(e.message)));document.querySelectorAll("[data-receive-shipment]").forEach(b=>b.onclick=()=>receiveImportShipment(b.dataset.receiveShipment).catch(e=>toast(e.message)));document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const [s,id]=b.dataset.edit.split(":");edit(s,+id)});document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeRow(...b.dataset.del.split(":")))}
 function partyStatementRows(party,ledger){
  const rows=ledger.filter(r=>Number(r.partyId)===Number(party.id)).sort((a,b)=>Number(a.date||0)-Number(b.date||0));
  const movement=rows.reduce((n,r)=>n+Number(r.debitRial||0)-Number(r.creditRial||0),0);

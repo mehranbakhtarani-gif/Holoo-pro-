@@ -104,7 +104,7 @@ async function adjustStockPwa(id){
   debitCode="5201";creditCode="1301";
  }
  await ensureBaseAccounts();
- const accounts=await all("accounts"),byCode=new Map(accounts.map(x=>[String(x.id??x.code),x]));
+ const accounts=await all("accounts"),byCode=new Map(accounts.map(x=>[HolooFinancialRules.accountKey(x),x]));
  const debit=byCode.get(debitCode),credit=byCode.get(creditCode);
  if(!debit||!credit)throw Error("حساب اصلاح موجودی تعریف نشده است");
  const now=Date.now(),number="ADJ-"+now;
@@ -192,7 +192,7 @@ $("#entryForm").onsubmit=async e=>{e.preventDefault();const form=e.target;const 
 function edit(s,id){all(s).then(a=>{const v=a.find(x=>x.id===id);if(v)openForm(s,v)})}
 async function removeRow(s,id){
  const key=Number(id);
- if(["invoices","vouchers","voucherLines","treasury","partyLedger","stockAdjustments"].includes(s))throw Error("سوابق مالی و اسناد ثبت‌شده قابل حذف فیزیکی نیستند؛ برای اصلاح باید سند معکوس یا عملیات اصلاحی ثبت شود");
+ if(HolooFinancialRules.isProtectedFinancialStore(s))throw Error("سوابق مالی و اسناد ثبت‌شده قابل حذف فیزیکی نیستند؛ برای اصلاح باید سند معکوس یا عملیات اصلاحی ثبت شود");
  if(s==="checks"){
   const check=(await all("checks")).find(x=>Number(x.id)===key);
   if(check&&check.status!=="CANCELLED"&&check.status!=="VOID")throw Error("چک ثبت‌شده را نمی‌توان حذف فیزیکی کرد؛ ابتدا باید از مسیر ابطال یا عودت چک اقدام شود");
@@ -275,19 +275,11 @@ if(page==="imports"){const ps=await all("parties"),p=ps.find(x=>x.id===num("supp
 if(page==="checks"){const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId"));if(!p)throw Error("طرف حساب انتخاب نشده");const amount=num("amount"),due=new Date(d.due+"T12:00:00").getTime(),issue=new Date(d.issue+"T12:00:00").getTime();if(amount<=0||due<issue)throw Error("مبلغ یا تاریخ چک نامعتبر است");await put("checks",{number:d.number,kind:d.kind==="دریافتی"?"RECEIVED":"PAYABLE",partyId:p.id,partyName:p.name,amount,issue,due,bank:d.bank,status:"OPEN",note:d.note})}
 if(page==="treasury"){
  const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),amount=num("amount");
- if(!p||!Number.isSafeInteger(amount)||amount<=0)throw Error("طرف حساب و مبلغ صحیح و مثبت (ریال) الزامی است");
- if((d.kind==="دریافت"&&p.kind==="SUPPLIER")||(d.kind==="پرداخت"&&p.kind==="CUSTOMER"))throw Error("نوع طرف حساب با دریافت یا پرداخت انتخاب‌شده سازگار نیست");
- if(d.method!=="صندوق"&&d.method!=="بانک")throw Error("روش دریافت یا پرداخت معتبر نیست");
- const currentBalance=Number(p.balance||0);if(!Number.isSafeInteger(currentBalance))throw Error("مانده طرف حساب باید عدد صحیح ریالی باشد");
- const now=Date.now(),kind=d.kind==="دریافت"?"RECEIPT":d.kind==="پرداخت"?"PAYMENT":null;
- if(!kind)throw Error("نوع عملیات خزانه معتبر نیست");
- if(kind==="RECEIPT"){
-  if(currentBalance<=0)throw Error("این طرف حساب مانده بستانکار دارد یا بدهکار نیست؛ دریافت وجه به‌عنوان تسویه مطالبات مجاز نیست");
-  if(amount>currentBalance)throw Error("مبلغ دریافت از مانده بدهکار طرف حساب بیشتر است؛ دریافت علی‌الحساب هنوز پشتیبانی نمی‌شود");
- }else{
-  if(currentBalance>=0)throw Error("این طرف حساب مانده بدهکار ندارد؛ پرداخت وجه به‌عنوان تسویه بدهی مجاز نیست");
-  if(amount>-currentBalance)throw Error("مبلغ پرداخت از مانده بدهی طرف حساب بیشتر است؛ پرداخت علی‌الحساب هنوز پشتیبانی نمی‌شود");
- }
+ if(!p)throw Error("طرف حساب را انتخاب کنید");
+ const kind=d.kind==="دریافت"?"RECEIPT":d.kind==="پرداخت"?"PAYMENT":null;
+ const currentBalance=Number(p.balance||0);
+ HolooFinancialRules.validateTreasurySettlement({kind,amount,balance:currentBalance,method:d.method,partyKind:p.kind});
+ const now=Date.now();
  await ensureBaseAccounts();
  const cashAccount=d.method==="بانک"?"1102":"1101";
  const journal=kind==="RECEIPT"?[

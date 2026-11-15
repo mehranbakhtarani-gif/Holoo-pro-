@@ -21,7 +21,9 @@ data class ProductEntity(
 
 data class ProductWithStock(
     @androidx.room.Embedded val product: ProductEntity,
-    val stockKg: Double
+    val stockKg: Double,
+    val inventoryValueRial: Long = 0,
+    val averageCostPerKgRial: Long = 0
 )
 
 @Entity(tableName = "parties", indices = [Index(value = ["name"])])

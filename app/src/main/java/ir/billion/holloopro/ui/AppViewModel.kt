@@ -51,6 +51,11 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
 
     fun deleteProduct(id: Long) = execute { repository.deleteProduct(id); "کالا حذف شد" }
 
+    fun setOpeningInventoryValuation(productId: Long, costPerKgRial: Long) = execute {
+        repository.setOpeningInventoryValuation(productId, costPerKgRial)
+        "بهای افتتاحیه موجودی ثبت شد"
+    }
+
     fun saveParty(id: Long?, name: String, kind: String, phone: String, address: String, openingBalance: Long) =
         execute {
             if (id == null) repository.addParty(name, kind, phone, address, openingBalance)

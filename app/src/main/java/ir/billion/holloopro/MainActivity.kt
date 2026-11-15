@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
                         message,
                         onSaveProduct = vm::saveProduct,
                         onDeleteProduct = vm::deleteProduct,
+                        onSetOpeningValuation = vm::setOpeningInventoryValuation,
                         onSaveParty = vm::saveParty,
                         onDeleteParty = vm::deleteParty,
                         onCreateInvoice = vm::createMultiLineInvoice,
@@ -132,6 +133,7 @@ private fun HolooApp(
     message: String?,
     onSaveProduct: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit,
     onDeleteProduct: (Long) -> Unit,
+    onSetOpeningValuation: (Long, Long) -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
     onDeleteParty: (Long) -> Unit,
     onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long) -> Unit,
@@ -212,7 +214,7 @@ private fun HolooApp(
             }
             when (screen) {
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman)
-                Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct)
+                Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
@@ -293,9 +295,11 @@ private fun StatCard(label: String, value: String, symbol: String, modifier: Mod
 private fun InventoryScreen(
     products: List<ProductWithStock>, showToman: Boolean,
     onSave: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit,
-    onDelete: (Long) -> Unit
+    onDelete: (Long) -> Unit,
+    onSetOpeningValuation: (Long, Long) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
+    var valuationProduct by remember { mutableStateOf<ProductWithStock?>(null) }
     var editing by remember { mutableStateOf<ProductEntity?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("کالا و انبار", "تعریف، ویرایش و کنترل موجودی کالاهای نخ") { editing = null; dialog = true }
@@ -309,6 +313,13 @@ private fun InventoryScreen(
                             Text("${item.product.sku}  •  ${item.product.yarnType}  •  ${item.product.denier}D", color = Muted, fontSize = 11.sp)
                             Text("${item.product.groupName}  •  ${item.product.color}  •  ${if (item.product.twisted) "تاب‌دار" else "بدون‌تاب"}", color = Muted, fontSize = 11.sp)
                             Text("موجودی: ${formatQuantity(item.stockKg)} کیلوگرم", color = Turquoise, fontSize = 13.sp)
+                            if (item.inventoryValueRial > 0) {
+                                Text("ارزش موجودی: ${formatMoney(item.inventoryValueRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Color.White, fontSize = 11.sp)
+                                Text("میانگین بهای هر کیلو: ${formatMoney(item.averageCostPerKgRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Muted, fontSize = 10.sp)
+                            } else if (item.stockKg > 0.000001) {
+                                Text("بهای موجودی قدیمی ثبت نشده", color = Color(0xFFFFC078), fontSize = 10.sp)
+                                TextButton(onClick = { valuationProduct = item }) { Text("ثبت بهای افتتاحیه", color = Turquoise) }
+                            }
                         }
                         Column {
                             TextButton(onClick = { editing = item.product; dialog = true }) { Text("ویرایش", color = Turquoise) }
@@ -320,6 +331,46 @@ private fun InventoryScreen(
         }
     }
     if (dialog) ProductDialog(existing = editing, onDismiss = { dialog = false; editing = null }, onSave = { id,a,b,c,d,e,f,g,h -> onSave(id,a,b,c,d,e,f,g,h); dialog = false; editing = null })
+    valuationProduct?.let { item -> OpeningValuationDialog(
+        product = item,
+        showToman = showToman,
+        onDismiss = { valuationProduct = null },
+        onSave = { costPerKgRial -> onSetOpeningValuation(item.product.id, costPerKgRial); valuationProduct = null }
+    ) }
+}
+
+
+@Composable
+private fun OpeningValuationDialog(
+    product: ProductWithStock,
+    showToman: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (Long) -> Unit
+) {
+    var cost by remember(product.product.id) { mutableStateOf("") }
+    val costRial = (cost.toBigDecimalOrNull() ?: BigDecimal.ZERO)
+        .multiply(if (showToman) BigDecimal.TEN else BigDecimal.ONE)
+        .setScale(0, java.math.RoundingMode.HALF_UP).toLong()
+    val estimatedValue = runCatching {
+        BigDecimal.valueOf(product.stockKg).multiply(BigDecimal.valueOf(costRial))
+            .setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
+    }.getOrDefault(0L)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("بهای افتتاحیه موجودی") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(product.product.name, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("موجودی فعلی: ${formatQuantity(product.stockKg)} کیلوگرم", color = Muted)
+                FormField("بهای هر کیلو (${if (showToman) "تومان" else "ریال"})", cost, KeyboardType.Number) { cost = it }
+                Text("ارزش افتتاحیه: ${formatMoney(estimatedValue, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise)
+                Text("این مبلغ مبنای محاسبه بهای تمام‌شده فروش‌های بعدی است. آن را بر اساس بهای واقعی موجودی در ابتدای استفاده وارد کن.", color = Muted, fontSize = 10.sp)
+            }
+        },
+        confirmButton = { TextButton(enabled = costRial > 0 && estimatedValue > 0, onClick = { onSave(costRial) }) { Text("ثبت ارزش موجودی") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+    )
 }
 
 @Composable

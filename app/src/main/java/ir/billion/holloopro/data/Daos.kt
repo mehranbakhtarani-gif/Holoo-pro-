@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProductDao {
-    @Query("SELECT p.*, COALESCE(SUM(sm.quantityKg), 0.0) AS stockKg FROM products p LEFT JOIN stock_movements sm ON sm.productId = p.id GROUP BY p.id ORDER BY p.name")
+    @Query("SELECT p.*, COALESCE(SUM(sm.quantityKg), 0.0) AS stockKg, COALESCE(pv.valueRial, 0) AS inventoryValueRial, CASE WHEN COALESCE(pv.quantityKg, 0) > 0 THEN CAST(pv.valueRial / pv.quantityKg AS INTEGER) ELSE 0 END AS averageCostPerKgRial FROM products p LEFT JOIN stock_movements sm ON sm.productId = p.id LEFT JOIN product_valuations pv ON pv.productId = p.id GROUP BY p.id ORDER BY p.name")
     fun observeWithStock(): Flow<List<ProductWithStock>>
 
     @Query("SELECT * FROM products WHERE id = :id LIMIT 1")

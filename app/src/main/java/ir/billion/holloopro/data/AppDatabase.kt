@@ -26,9 +26,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CheckEntity::class,
         InvoiceSettlementEntity::class,
         InvoiceReturnEntity::class,
-        InvoiceReturnLineEntity::class
+        InvoiceReturnLineEntity::class,
+        WarehouseEntity::class,
+        WarehouseStockMovementEntity::class,
+        WarehouseValuationEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -48,6 +51,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun checkDao(): CheckDao
     abstract fun invoiceSettlementDao(): InvoiceSettlementDao
     abstract fun invoiceReturnDao(): InvoiceReturnDao
+    abstract fun warehouseDao(): WarehouseDao
+    abstract fun warehouseStockDao(): WarehouseStockDao
 
     companion object {
         private const val DATABASE_NAME = "holoo_pro_plus.db"
@@ -130,6 +135,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE invoices ADD COLUMN warehouseId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE TABLE IF NOT EXISTS warehouses (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, address TEXT NOT NULL, isDefault INTEGER NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_warehouses_name ON warehouses(name)")
+                db.execSQL("INSERT INTO warehouses (id, name, address, isDefault, createdAt) VALUES (1, 'انبار اصلی', '', 1, CAST(strftime('%s','now') AS INTEGER) * 1000)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS warehouse_stock_movements (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, warehouseId INTEGER NOT NULL, productId INTEGER NOT NULL, quantityKg REAL NOT NULL, kind TEXT NOT NULL, referenceId INTEGER NOT NULL, note TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_warehouse_stock_movements_warehouseId_productId_createdAt ON warehouse_stock_movements(warehouseId, productId, createdAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_warehouse_stock_movements_productId ON warehouse_stock_movements(productId)")
+                db.execSQL("INSERT INTO warehouse_stock_movements (warehouseId, productId, quantityKg, kind, referenceId, note, createdAt) SELECT 1, productId, quantityKg, kind, referenceId, note, createdAt FROM stock_movements")
+                db.execSQL("CREATE TABLE IF NOT EXISTS warehouse_valuations (warehouseId INTEGER NOT NULL, productId INTEGER NOT NULL, quantityKg REAL NOT NULL, valueRial INTEGER NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(warehouseId, productId))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_warehouse_valuations_productId ON warehouse_valuations(productId)")
+                db.execSQL("INSERT INTO warehouse_valuations (warehouseId, productId, quantityKg, valueRial, updatedAt) SELECT 1, productId, quantityKg, valueRial, updatedAt FROM product_valuations")
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase =
@@ -138,7 +159,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     DATABASE_NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12).build().also { INSTANCE = it }
             }
     }
 }

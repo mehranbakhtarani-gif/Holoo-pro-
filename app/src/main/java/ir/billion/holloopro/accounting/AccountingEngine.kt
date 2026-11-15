@@ -34,7 +34,7 @@ object InventoryValuationEngine {
         require(current.quantityKg >= 0.0 && current.quantityKg.isFinite())
         require(current.valueRial >= 0)
         require(receivedKg > 0.0 && receivedKg.isFinite())
-        require(receivedCostRial > 0)
+        require(receivedCostRial >= 0)
         val newQuantity = current.quantityKg + receivedKg
         require(newQuantity.isFinite() && newQuantity > 0.0)
         return InventoryValuation(

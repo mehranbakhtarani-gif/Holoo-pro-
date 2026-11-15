@@ -949,12 +949,17 @@ class AccountingRepository(private val db: AppDatabase) {
             var inserted = 0
             var skipped = 0
             rows.forEach { row ->
+                require(row.transactionDateEpoch > 0L) { "تاریخ یکی از ردیف‌های صورت‌حساب معتبر نیست" }
+                require(row.signedAmountRial != 0L && row.signedAmountRial != Long.MIN_VALUE) {
+                    "مبلغ یکی از ردیف‌های صورت‌حساب معتبر نیست"
+                }
                 val reference = row.bankReference.trim()
                 val description = row.description.trim()
-                val duplicate = (reference.isNotBlank() || description.isNotBlank()) &&
-                    db.bankStatementDao().countDuplicate(
-                        normalizedBank, row.transactionDateEpoch, row.signedAmountRial, reference, description
-                    ) > 0
+                // Blank references/descriptions are not an exemption: the same bank/date/amount
+                // tuple must not be imported twice, including duplicate rows within this CSV.
+                val duplicate = db.bankStatementDao().countDuplicate(
+                    normalizedBank, row.transactionDateEpoch, row.signedAmountRial, reference, description
+                ) > 0
                 if (duplicate) {
                     skipped++
                 } else {
@@ -963,8 +968,8 @@ class AccountingRepository(private val db: AppDatabase) {
                             bankName = normalizedBank,
                             transactionDateEpoch = row.transactionDateEpoch,
                             signedAmountRial = row.signedAmountRial,
-                            bankReference = row.bankReference.trim(),
-                            description = row.description.trim()
+                            bankReference = reference,
+                            description = description
                         )
                     )
                     inserted++

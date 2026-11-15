@@ -530,7 +530,7 @@ private fun BankStatementPeriodDialog(
     val opening = openingText.toLongOrNull()
     val closing = closingText.toLongOrNull()
     val valid = bank.isNotBlank() && start != null && end != null && end >= start &&
-        opening != null && opening >= 0L && closing != null && closing >= 0L
+        opening != null && closing != null
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("ثبت دوره صورت‌حساب بانکی") },
@@ -539,8 +539,8 @@ private fun BankStatementPeriodDialog(
                 FormField("نام بانک / حساب", bank) { bank = it }
                 FormField("از تاریخ (YYYY-MM-DD)", startText) { startText = it }
                 FormField("تا تاریخ (YYYY-MM-DD)", endText) { endText = it }
-                FormField("مانده افتتاحیه به ریال", openingText, KeyboardType.Number) { openingText = it }
-                FormField("مانده اختتامیه طبق بانک به ریال", closingText, KeyboardType.Number) { closingText = it }
+                FormField("مانده افتتاحیه به ریال", openingText) { openingText = it }
+                FormField("مانده اختتامیه طبق بانک به ریال", closingText) { closingText = it }
                 Text("مانده محاسباتی از افتتاحیه به‌علاوه گردش‌های واردشده در بازه محاسبه و با مانده اعلامی بانک مقایسه می‌شود.", color = Muted, fontSize = 10.sp)
             }
         },

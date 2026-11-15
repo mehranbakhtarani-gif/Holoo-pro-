@@ -192,6 +192,32 @@ function bindBankReconciliation(){
  if(autoButton)autoButton.onclick=async()=>{try{const count=await autoReconcileBankStatementLines();toast(count+" گردش بانکی به‌صورت خودکار تطبیق داده شد");await render()}catch(error){toast(error.message||"تطبیق خودکار ناموفق بود")}};
  document.querySelectorAll("[data-bank-match]").forEach(button=>button.onclick=async()=>{const select=$('[data-bank-match-select="'+button.dataset.bankMatch+'"]');try{if(!select||!select.value)throw Error("گردش بانکی را برای تطبیق انتخاب کنید");await matchBankStatementLine(button.dataset.bankMatch,select.value);toast("ردیف صورت‌حساب تطبیق داده شد");await render()}catch(error){toast(error.message||"تطبیق ناموفق بود")}});
 }
+async function convertSalesOrderToInvoice(id){
+ const orders=await all("salesOrders"),order=orders.find(x=>Number(x.id)===Number(id));
+ if(!order||order.status!=="APPROVED")throw Error("فقط سفارش تأییدشده قابل تبدیل به فاکتور است");
+ if(order.kind==="QUOTE"&&order.validUntil&&order.validUntil<Date.now())throw Error("اعتبار پیش‌فاکتور تمام شده است");
+ await openForm("invoices");
+ const form=$("#entryForm");
+ form.elements.kind.value="فروش";form.elements.partyId.value=String(order.partyId);form.elements.currency.value=order.currency||"IRR";form.elements.fxRateRialPerUnit.value=order.fxRateRialPerUnit||1;form.elements.warehouseId.value=String(order.warehouseId);form.elements.priceTier.value=order.priceTier||0;form.elements.commissionPartyId.value=order.commissionPartyId?String(order.commissionPartyId):"";form.elements.commissionRate.value=order.commissionRate||0;form.elements.discount.value=order.discount||0;form.elements.tax.value=order.tax||0;form.elements.orderId.value=String(order.id);
+ const rows=$("#invoiceLineRows");
+ while(rows.children.length<(order.lines||[]).length)$("#addInvoiceLine").click();
+ for(let i=0;i<order.lines.length;i++){const row=rows.children[i],line=order.lines[i];row.querySelector('[name="lineProduct"]').value=String(line.productId);row.querySelector('[name="lineQty"]').value=line.qty;row.querySelector('[name="lineBonusQty"]').value=line.bonusQty||0;row.querySelector('[name="linePrice"]').value=line.price;row.querySelector('[name="lineDiscount"]').value=line.discountRial||0}
+ $("#modalTitle").textContent="صدور فاکتور از "+(order.kind==="QUOTE"?"پیش‌فاکتور ":"سفارش ")+order.number;
+}
+async function updateSalesOrderStatus(id,next){
+ const orders=await all("salesOrders"),order=orders.find(x=>Number(x.id)===Number(id));
+ if(!order)throw Error("سفارش پیدا نشد");
+ if(next==="APPROVED"){
+  if(order.status!=="DRAFT")throw Error("فقط پیش‌نویس قابل تأیید است");
+  if(order.kind==="QUOTE"&&order.validUntil&&order.validUntil<Date.now())throw Error("اعتبار پیش‌فاکتور تمام شده است");
+ }else if(next==="CANCELLED"){
+  if(!["DRAFT","APPROVED"].includes(order.status))throw Error("این سفارش قابل لغو نیست");
+ }else throw Error("وضعیت سفارش نامعتبر است");
+ order.status=next;order.updatedAt=Date.now();await put("salesOrders",order);
+}
+function bindSalesOrders(){
+ document.querySelectorAll("[data-order-action]").forEach(button=>button.onclick=async()=>{try{const action=button.dataset.orderAction,id=button.dataset.orderId;if(action==="INVOICE")await convertSalesOrderToInvoice(id);else{await updateSalesOrderStatus(id,action);toast(action==="APPROVED"?"سفارش تأیید شد":"سفارش لغو شد");await render()}}catch(error){toast(error.message||"عملیات سفارش ناموفق بود")}});
+}
 function bindRows(){document.querySelectorAll("[data-stockadjust]").forEach(b=>b.onclick=()=>adjustStockPwa(b.dataset.stockadjust).catch(e=>toast(e.message)));document.querySelectorAll("[data-receive-shipment]").forEach(b=>b.onclick=()=>receiveImportShipment(b.dataset.receiveShipment).catch(e=>toast(e.message)));document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const [s,id]=b.dataset.edit.split(":");edit(s,+id)});document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeRow(...b.dataset.del.split(":")))}
 function partyStatementRows(party,ledger){
  const rows=ledger.filter(r=>Number(r.partyId)===Number(party.id)).sort((a,b)=>Number(a.date||0)-Number(b.date||0));
@@ -218,6 +244,15 @@ if(currentPage==="checks"){
  }));
 }
 if(currentPage==="treasury"){html=head("treasury","ثبت دریافت / پرداخت")+table(["نوع","روش","طرف حساب","ارز","مبلغ ارزی","معادل ریالی","تاریخ","شرح"],treasury.slice().reverse().map(x=>'<tr><td>'+(x.kind==="RECEIPT"?"دریافت":"پرداخت")+'</td><td>'+h(x.method)+'</td><td>'+h(x.partyName)+'</td><td>'+h(x.currency||"IRR")+'</td><td>'+(x.foreignAmountMinor?fmtForeign(x.foreignAmountMinor/100):"—")+'</td><td>'+money(x.amount)+' '+moneyUnit()+'</td><td>'+date(x.date)+'</td><td>'+h(x.note)+'</td></tr>'))}
+if(currentPage==="salesOrders"){
+ const orders=await all("salesOrders");
+ html=head("salesOrders","ثبت پیش‌فاکتور / سفارش")+table(["شماره","نوع سند","مشتری","انبار","ارز","تعداد کل","هدیه","مبلغ نهایی","پورسانت","اعتبار تا","وضعیت","عملیات"],orders.slice().reverse().map(x=>{
+  const status=x.status==="DRAFT"?"پیش‌نویس":x.status==="APPROVED"?"تأییدشده":x.status==="INVOICED"?"تبدیل به فاکتور":"لغوشده";
+  const expired=x.kind==="QUOTE"&&x.validUntil&&x.validUntil<Date.now()&&["DRAFT","APPROVED"].includes(x.status);
+  const actions=x.status==="DRAFT"?actButtons("salesOrders",x.id)+' <button class="ghost" data-order-action="APPROVED" data-order-id="'+x.id+'">تأیید</button> <button class="ghost" data-order-action="CANCELLED" data-order-id="'+x.id+'">لغو</button>':x.status==="APPROVED"?(expired?'<span class="hint">منقضی‌شده</span>':'<button class="btn secondary" data-order-action="INVOICE" data-order-id="'+x.id+'">تبدیل به فاکتور</button>')+' <button class="ghost" data-order-action="CANCELLED" data-order-id="'+x.id+'">لغو</button>':x.status==="INVOICED"?"فاکتور: "+h(x.invoiceNumber||""):"—";
+  return '<tr><td>'+h(x.number)+'</td><td>'+(x.kind==="QUOTE"?"پیش‌فاکتور":"سفارش فروش")+'</td><td>'+h(x.partyName)+'</td><td>'+h(x.warehouseName)+'</td><td>'+h(x.currency)+'</td><td>'+fmt(x.paidQty)+'</td><td>'+fmt(x.bonusQty)+'</td><td>'+money(x.total)+' '+moneyUnit()+'</td><td>'+money(x.commissionAmount||0)+' '+moneyUnit()+'</td><td>'+date(x.validUntil)+'</td><td>'+(expired?"منقضی‌شده":status)+'</td><td>'+actions+'</td></tr>';
+ }));
+}
 if(currentPage==="bankReconciliation"){
  const [statements,lines,treasury]=await Promise.all([all("bankStatements"),all("bankStatementLines"),all("treasury")]);
  const matchedIds=lines.filter(x=>x.status==="MATCHED"&&x.matchedTreasuryId).map(x=>Number(x.matchedTreasuryId));
@@ -271,7 +306,7 @@ const addVoucherRow=()=>{const row=document.createElement("div");row.className="
 if(voucherRows){addVoucherRow();addVoucherRow();$("#addVoucherLine").onclick=addVoucherRow;voucherRows.onclick=e=>{if(e.target.classList.contains("remove-voucher-line")){if(voucherRows.children.length>2)e.target.closest(".card").remove();else toast("سند حداقل باید دو ردیف داشته باشد")}}}
 if(manualForm)manualForm.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(manualForm)),rows=Array.from(voucherRows.querySelectorAll(".card")).map(row=>({accountCode:row.querySelector('[name="accountCode"]').value,debitRial:Number(row.querySelector('[name="debitRial"]').value),creditRial:Number(row.querySelector('[name="creditRial"]').value),description:d.description.trim()}));const debit=rows.reduce((n,x)=>n+x.debitRial,0),credit=rows.reduce((n,x)=>n+x.creditRial,0);if(!d.description.trim()||rows.length<2||rows.some(x=>!Number.isSafeInteger(x.debitRial)||!Number.isSafeInteger(x.creditRial)||x.debitRial<0||x.creditRial<0||((x.debitRial>0)===(x.creditRial>0)))||debit!==credit||debit<=0){toast("شرح، حداقل دو ردیف و تساوی جمع بدهکار و بستانکار الزامی است");return}const voucherNumber="MAN-"+Date.now();try{await postVoucherAtomic([],{number:voucherNumber,date:Date.now(),description:d.description.trim(),reference:"MANUAL:"+voucherNumber},rows);toast("سند دستی چندردیفی و متوازن ثبت شد");render()}catch(err){toast(err.message||"ثبت سند ناموفق بود")}};
 const openingForm=$("#openingBalancesForm");if(openingForm)openingForm.onsubmit=async e=>{e.preventDefault();const values=Object.fromEntries(new FormData(openingForm)),updates=accounts.map(a=>({...a,openingDebitRial:Number(values["od_"+a.id]||0),openingCreditRial:Number(values["oc_"+a.id]||0)}));const debit=updates.reduce((n,a)=>n+a.openingDebitRial,0),credit=updates.reduce((n,a)=>n+a.openingCreditRial,0);if(updates.some(a=>!Number.isSafeInteger(a.openingDebitRial)||!Number.isSafeInteger(a.openingCreditRial)||a.openingDebitRial<0||a.openingCreditRial<0)||debit!==credit){toast("مانده‌های افتتاحیه معتبر نیستند یا تراز نیستند");return}try{await putMany(updates.map(a=>["accounts",a]));toast("مانده افتتاحیه حساب‌ها ذخیره شد");render()}catch(err){toast(err.message||"ذخیره افتتاحیه ناموفق بود")}};
-const exportFinance=$("#exportFinanceCsv");if(exportFinance)exportFinance.onclick=()=>{const rows=[["نوع","شماره/شرح","طرف حساب","کالا","فروش/مبلغ","بهای تمام‌شده","سود ناخالص","تاریخ"],...sales.map(x=>["فروش",x.number,x.partyName,x.product,x.total||0,x.cogs||0,(x.total||0)-(x.cogs||0),new Date(x.date||Date.now()).toISOString()]),...treasury.map(x=>[x.kind==="RECEIPT"?"دریافت":"پرداخت",x.note||"",x.partyName||"", "",x.amount||0,"","",new Date(x.date||Date.now()).toISOString()])];const csv="\\uFEFF"+rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\\r\\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="holloo-finance-report.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};const add=$("#addBtn");if(add)add.onclick=()=>openForm(currentPage);const s=$("#search");if(s)s.oninput=e=>{searchText=e.target.value;render()};bindRows();bindBankReconciliation();
+const exportFinance=$("#exportFinanceCsv");if(exportFinance)exportFinance.onclick=()=>{const rows=[["نوع","شماره/شرح","طرف حساب","کالا","فروش/مبلغ","بهای تمام‌شده","سود ناخالص","تاریخ"],...sales.map(x=>["فروش",x.number,x.partyName,x.product,x.total||0,x.cogs||0,(x.total||0)-(x.cogs||0),new Date(x.date||Date.now()).toISOString()]),...treasury.map(x=>[x.kind==="RECEIPT"?"دریافت":"پرداخت",x.note||"",x.partyName||"", "",x.amount||0,"","",new Date(x.date||Date.now()).toISOString()])];const csv="\\uFEFF"+rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\\r\\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="holloo-finance-report.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};const add=$("#addBtn");if(add)add.onclick=()=>openForm(currentPage);const s=$("#search");if(s)s.oninput=e=>{searchText=e.target.value;render()};bindRows();bindSalesOrders();bindBankReconciliation();
 document.querySelectorAll("[data-check-status]").forEach(b=>b.onclick=async()=>{
  const currentChecks=await all("checks"),c=currentChecks.find(x=>String(x.id)===String(b.dataset.checkId));if(!c||c.status!=="OPEN")return;
  const next=b.dataset.checkStatus;if(!["CLEARED","BOUNCED","CANCELLED","ENDORSED"].includes(next))return;

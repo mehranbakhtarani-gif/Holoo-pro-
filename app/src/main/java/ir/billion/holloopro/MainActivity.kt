@@ -31,6 +31,7 @@ import ir.billion.holloopro.accounting.Money
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.AccountBalanceRow
+import ir.billion.holloopro.data.LedgerRow
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.InvoiceLineInput
 import ir.billion.holloopro.data.PartyEntity
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
                     val imports by vm.imports.collectAsState()
                     val treasury by vm.treasury.collectAsState()
                     val accountBalances by vm.accountBalances.collectAsState()
+                    val ledger by vm.ledger.collectAsState()
                     val profitLoss by vm.profitLoss.collectAsState()
                     val productCount by vm.productCount.collectAsState()
                     val partyCount by vm.partyCount.collectAsState()
@@ -73,7 +75,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, partyBalances, invoices, imports, treasury, accountBalances, profitLoss,
+                        products, parties, partyBalances, invoices, imports, treasury, accountBalances, ledger, profitLoss,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -126,6 +128,7 @@ private fun HolooApp(
     imports: List<ImportOrderEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
+    ledger: List<LedgerRow>,
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     productCount: Int,
     partyCount: Int,
@@ -220,7 +223,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, profitLoss, parties, showToman, onAddTreasury)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, ledger, profitLoss, parties, showToman, onAddTreasury)
             }
         }
     }
@@ -574,6 +577,7 @@ private fun AccountingScreen(
     invoices: List<InvoiceEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
+    ledger: List<LedgerRow>,
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     parties: List<PartyEntity>,
     showToman: Boolean,
@@ -640,7 +644,15 @@ private fun AccountingScreen(
                 Text("۱۱۰۱ صندوق  •  ۱۱۰۲ بانک", color = Color.White, fontSize = 12.sp)
                 Text("۱۱۰۳ دریافتنی  •  ۱۳۰۱ موجودی کالا", color = Color.White, fontSize = 12.sp)
                 Text("۲۱۰۱ پرداختنی  •  ۴۱۰۱ فروش", color = Color.White, fontSize = 12.sp)
-                Text("اسناد فاکتور و دریافت/پرداخت به‌صورت دوبل ثبت می‌شوند. دفتر کل تفصیلی، چک و گزارش سود نهایی هنوز در برنامه توسعه هستند.", color = Muted, fontSize = 11.sp)
+                Text("گردش دفتر کل (آخرین اسناد)", color = Turquoise, fontWeight = FontWeight.Bold)
+                if (ledger.isEmpty()) Text("هنوز سندی برای نمایش وجود ندارد", color = Muted, fontSize = 11.sp)
+                ledger.take(30).forEach { row ->
+                    Divider(color = CardBorder)
+                    Text("${row.accountCode} • ${row.accountTitle}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("${row.voucherNumber} • ${row.voucherDescription}", color = Muted, fontSize = 10.sp)
+                    Text("بدهکار ${formatMoney(row.debitRial, showToman)}  |  بستانکار ${formatMoney(row.creditRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 10.sp)
+                }
+                Text("اسناد فاکتور و دریافت/پرداخت به‌صورت دوبل ثبت می‌شوند.", color = Muted, fontSize = 11.sp)
             }
         }
     }

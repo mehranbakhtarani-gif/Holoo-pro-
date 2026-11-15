@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check JavaScript syntax
-        run: node --check pwa/app.js && node --check pwa/sw.js
+        run: node --check pwa/financial-rules.js && node --check pwa/app.js && node --check pwa/sw.js && node --test pwa/financial-rules.test.cjs
       - name: Package PWA
         run: zip -qr HOLLOO-PRO-PLUS-PWA.zip pwa
       - name: Upload PWA package

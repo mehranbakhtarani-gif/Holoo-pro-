@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import ir.billion.holloopro.accounting.LandedCostCalculator
 import ir.billion.holloopro.accounting.Money
 import ir.billion.holloopro.data.ImportOrderEntity
+import ir.billion.holloopro.data.AccountBalanceRow
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.InvoiceLineInput
 import ir.billion.holloopro.data.PartyEntity
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
                     val invoices by vm.invoices.collectAsState()
                     val imports by vm.imports.collectAsState()
                     val treasury by vm.treasury.collectAsState()
+                    val accountBalances by vm.accountBalances.collectAsState()
                     val productCount by vm.productCount.collectAsState()
                     val partyCount by vm.partyCount.collectAsState()
                     val invoiceCount by vm.invoiceCount.collectAsState()
@@ -69,7 +71,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, partyBalances, invoices, imports, treasury,
+                        products, parties, partyBalances, invoices, imports, treasury, accountBalances,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -119,6 +121,7 @@ private fun HolooApp(
     invoices: List<InvoiceEntity>,
     imports: List<ImportOrderEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
+    accountBalances: List<AccountBalanceRow>,
     productCount: Int,
     partyCount: Int,
     invoiceCount: Int,
@@ -210,7 +213,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(parties, imports, showToman, onAddImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, parties, showToman, onAddTreasury)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, parties, showToman, onAddTreasury)
             }
         }
     }
@@ -419,6 +422,7 @@ private fun AccountingScreen(
     voucherCount: Int,
     invoices: List<InvoiceEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
+    accountBalances: List<AccountBalanceRow>,
     parties: List<PartyEntity>,
     showToman: Boolean,
     onAddTreasury: (String, String, Long, Long, String, String) -> Unit
@@ -454,6 +458,24 @@ private fun AccountingScreen(
                         color = Turquoise,
                         fontSize = 12.sp
                     )
+                }
+            }
+        }
+        item {
+            GlassCard {
+                Text("تراز گردش حساب‌ها", color = Turquoise, fontWeight = FontWeight.Bold)
+                if (accountBalances.isEmpty()) Text("پس از ثبت نخستین سند، گردش حساب‌ها نمایش داده می‌شود.", color = Muted, fontSize = 11.sp)
+                accountBalances.forEach { account ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("${account.accountCode} • ${account.accountTitle}", color = Color.White, fontSize = 11.sp)
+                            Text(account.accountType, color = Muted, fontSize = 9.sp)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("بدهکار ${formatMoney(account.debitRial, showToman)}", color = Turquoise, fontSize = 10.sp)
+                            Text("بستانکار ${formatMoney(account.creditRial, showToman)}", color = Muted, fontSize = 10.sp)
+                        }
+                    }
                 }
             }
         }

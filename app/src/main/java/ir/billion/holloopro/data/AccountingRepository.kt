@@ -21,6 +21,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val voucherCount = db.voucherDao().observeCount()
     val importCount = db.importOrderDao().observeCount()
     val treasury = db.treasuryDao().observeAll()
+    val accountBalances = db.accountDao().observeBalances()
 
     suspend fun addProduct(
         sku: String, name: String, groupName: String, yarnType: String,

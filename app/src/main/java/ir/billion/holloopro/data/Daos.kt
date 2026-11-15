@@ -111,6 +111,9 @@ interface PartyLedgerDao {
 
 @Dao
 interface AccountDao {
+    @Query("SELECT a.id AS accountId, a.code AS accountCode, a.title AS accountTitle, a.type AS accountType, COALESCE(SUM(vl.debitRial), 0) AS debitRial, COALESCE(SUM(vl.creditRial), 0) AS creditRial FROM accounts a LEFT JOIN voucher_lines vl ON vl.accountId = a.id GROUP BY a.id ORDER BY a.code")
+    fun observeBalances(): Flow<List<AccountBalanceRow>>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnore(account: AccountEntity): Long
 

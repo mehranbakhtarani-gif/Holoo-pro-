@@ -150,3 +150,13 @@ data class PartyBalanceRow(
     val partyKind: String,
     val balanceRial: Long
 )
+
+
+data class AccountBalanceRow(
+    val accountId: Long,
+    val accountCode: String,
+    val accountTitle: String,
+    val accountType: String,
+    val debitRial: Long,
+    val creditRial: Long
+)

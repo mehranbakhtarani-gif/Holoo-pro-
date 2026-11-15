@@ -137,7 +137,7 @@ const renderFilteredLedger=()=>{
  let running=opening;
  const body=filtered.map(x=>{running+=x.debit-x.credit;return '<tr><td>'+date(x.date)+'</td><td>'+h(x.number)+'</td><td>'+h(x.description)+'</td><td>'+h(x.accountCode)+'</td><td>'+h(x.accountTitle)+'</td><td>'+money(x.debit)+'</td><td>'+money(x.credit)+'</td><td>'+money(running)+' '+moneyUnit()+'</td></tr>'}).join("");
  const heading='<p class="hint">مانده ابتدای دوره: '+money(opening)+' '+moneyUnit()+' • '+filtered.length+' ردیف</p>';
- ledgerTable.innerHTML=heading+table(["تاریخ","شماره سند","شرح","کد حساب","عنوان حساب","بدهکار","بستانکار","مانده تجمعی"],body?body:'<tr><td colspan="8">برای این فیلتر گردش ثبت نشده است</td></tr>');
+ ledgerTable.innerHTML=heading+table(["تاریخ","شماره سند","شرح","کد حساب","عنوان حساب","بدهکار","بستانکار","مانده تجمعی"],body?[body]:[]);
 };
 [ledgerAccountFilter,ledgerFrom,ledgerTo].forEach(el=>{if(el)el.addEventListener("change",renderFilteredLedger)});
 renderFilteredLedger();

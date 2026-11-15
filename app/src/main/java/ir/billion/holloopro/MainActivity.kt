@@ -229,6 +229,7 @@ class MainActivity : ComponentActivity() {
                         onAllocateTreasury = vm::allocateTreasuryToInvoice,
                         onRemoveInvoiceSettlement = vm::removeInvoiceSettlement,
                         onAddImport = vm::addImport,
+                        onEditImport = vm::updateImportOrder,
                         onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
                         onAddManualVoucher = vm::addManualVoucher,
@@ -342,6 +343,7 @@ private fun HolooApp(
     onAllocateTreasury: (Long, Long, Long, () -> Unit) -> Unit,
     onRemoveInvoiceSettlement: (Long, () -> Unit) -> Unit,
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
+    onEditImport: (Long, Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
@@ -441,7 +443,7 @@ private fun HolooApp(
                 Screen.INVENTORY -> InventoryScreen(warehouses, warehouseStocks, products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onEditInvoice, onShareInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
-                Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
+                Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onEditImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
@@ -1514,12 +1516,14 @@ private fun InvoiceReturnDialog(
 private fun ImportsScreen(
     products: List<ProductWithStock>, parties: List<PartyEntity>, imports: List<ImportOrderEntity>, showToman: Boolean,
     onAdd: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
+    onEdit: (Long, Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
     onReceive: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
+    var editingOrder by remember { mutableStateOf<ImportOrderEntity?>(null) }
     var receivingOrder by remember { mutableStateOf<ImportOrderEntity?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        SectionHeader("واردات نخ از چین", "ارز، کانتینر، هزینه‌ها و سررسید تأمین‌کننده") { dialog = true }
+        SectionHeader("واردات نخ از چین", "ارز، کانتینر، هزینه‌ها و سررسید تأمین‌کننده") { editingOrder = null; dialog = true }
         if (imports.isEmpty()) EmptyState("سفارشی ثبت نشده است", "اطلاعات خرید خارجی و هزینه‌های حمل را وارد کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
             items(imports, key = { it.id }) { order ->
@@ -1548,12 +1552,15 @@ private fun ImportsScreen(
                     Text("بهای تمام‌شده هر کیلو: ${formatMoney(perKg, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise)
                     Text("سررسید تسویه: ${java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date(order.supplierDueAt))}", color = Muted, fontSize = 11.sp)
                     if (order.status != "RECEIVED") {
-                        Button(
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { editingOrder = order; dialog = true }, modifier = Modifier.weight(1f)) { Text("ویرایش سفارش") }
+                            Button(
                             onClick = { receivingOrder = order },
                             enabled = products.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)
-                        ) { Text("دریافت محموله و ورود به انبار") }
+                            ) { Text("دریافت محموله و ورود به انبار") }
+                        }
                     } else {
                         Text("موجودی وارد انبار شده و سند بهای تمام‌شده صادر شده است.", color = Muted, fontSize = 10.sp)
                     }
@@ -1561,7 +1568,11 @@ private fun ImportsScreen(
             }
         }
     }
-    if (dialog) ImportDialog(parties, onDismiss = { dialog = false }, onSave = { a,b,c,d,e,f,g,h,i,j -> onAdd(a,b,c,d,e,f,g,h,i,j) { dialog = false } })
+    if (dialog) ImportDialog(parties, existing = editingOrder, onDismiss = { dialog = false; editingOrder = null }, onSave = { a,b,c,d,e,f,g,h,i,j ->
+        val current = editingOrder
+        if (current == null) onAdd(a,b,c,d,e,f,g,h,i,j) { dialog = false }
+        else onEdit(current.id, a,b,c,d,e,f,g,h,i,j) { dialog = false; editingOrder = null }
+    })
     receivingOrder?.let { order ->
         ImportReceiptDialog(
             order = order, products = products,
@@ -2266,23 +2277,23 @@ private fun InvoiceDialog(warehouses: List<WarehouseEntity>, parties: List<Party
 }
 @Composable
 private fun ImportDialog(
-    parties: List<PartyEntity>, onDismiss: () -> Unit,
+    parties: List<PartyEntity>, existing: ImportOrderEntity? = null, onDismiss: () -> Unit,
     onSave: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit
 ) {
     val suppliers = parties.filter { it.kind != "CUSTOMER" }
-    var supplierId by remember { mutableStateOf(suppliers.firstOrNull()?.id ?: 0L) }
-    var currency by remember { mutableStateOf("USD") }
-    var rate by remember { mutableStateOf("600000") }
-    var container by remember { mutableStateOf("") }
-    var weight by remember { mutableStateOf("") }
-    var goods by remember { mutableStateOf("") }
-    var freight by remember { mutableStateOf("0") }
-    var customs by remember { mutableStateOf("0") }
-    var other by remember { mutableStateOf("0") }
-    var creditDays by remember { mutableStateOf("90") }
+    var supplierId by remember(existing?.id) { mutableStateOf(existing?.supplierId ?: suppliers.firstOrNull()?.id ?: 0L) }
+    var currency by remember(existing?.id) { mutableStateOf(existing?.currency ?: "USD") }
+    var rate by remember(existing?.id) { mutableStateOf((existing?.fxRateToRial ?: 600000L).toString()) }
+    var container by remember(existing?.id) { mutableStateOf(existing?.containerCode ?: "") }
+    var weight by remember(existing?.id) { mutableStateOf(existing?.grossWeightKg?.toString() ?: "") }
+    var goods by remember(existing?.id) { mutableStateOf(existing?.goodsAmountMinor?.toString() ?: "") }
+    var freight by remember(existing?.id) { mutableStateOf((existing?.freightRial ?: 0L).toString()) }
+    var customs by remember(existing?.id) { mutableStateOf((existing?.customsRial ?: 0L).toString()) }
+    var other by remember(existing?.id) { mutableStateOf((existing?.otherCostsRial ?: 0L).toString()) }
+    var creditDays by remember(existing?.id) { mutableStateOf(existing?.let { ((it.supplierDueAt - it.orderedAt) / 86_400_000L).coerceAtLeast(0).toString() } ?: "90") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("سفارش واردات نخ") },
+        title = { Text(if (existing == null) "سفارش واردات نخ" else "ویرایش سفارش " + existing.containerCode) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 ChoiceField("تأمین‌کننده", suppliers.firstOrNull { it.id == supplierId }?.name ?: "انتخاب تأمین‌کننده", suppliers.map { it.name }) {
@@ -2307,7 +2318,7 @@ private fun ImportDialog(
                     freight.toLongOrNull() ?: 0L, customs.toLongOrNull() ?: 0L,
                     other.toLongOrNull() ?: 0L, creditDays.toIntOrNull() ?: 0
                 )
-            }) { Text("ثبت سفارش") }
+            }) { Text(if (existing == null) "ثبت سفارش" else "ذخیره تغییرات") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
         containerColor = Color(0xFF15324D),

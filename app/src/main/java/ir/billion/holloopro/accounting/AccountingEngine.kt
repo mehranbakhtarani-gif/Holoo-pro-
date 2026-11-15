@@ -123,12 +123,14 @@ object AccountingEngine {
         kind: String,
         subtotalRial: Long,
         discountRial: Long,
-        taxRial: Long
+        taxRial: Long,
+        extraCostsRial: Long = 0
     ): List<VoucherLineDraft> {
         require(kind == "SALE" || kind == "PURCHASE")
-        require(subtotalRial > 0 && discountRial >= 0 && discountRial < subtotalRial && taxRial >= 0)
+        require(subtotalRial > 0 && discountRial >= 0 && discountRial < subtotalRial && taxRial >= 0 && extraCostsRial >= 0)
+        require(kind == "PURCHASE" || extraCostsRial == 0L) { "هزینه جانبی فقط برای خرید قابل ثبت است" }
         val netGoods = Math.subtractExact(subtotalRial, discountRial)
-        val total = Math.addExact(netGoods, taxRial)
+        val total = Math.addExact(Math.addExact(netGoods, taxRial), extraCostsRial)
         require(total > 0)
         val lines = if (kind == "SALE") {
             buildList {

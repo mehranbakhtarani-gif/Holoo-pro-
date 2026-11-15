@@ -29,6 +29,7 @@ import ir.billion.holloopro.accounting.Money
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.PartyEntity
+import ir.billion.holloopro.data.ProductEntity
 import ir.billion.holloopro.data.ProductWithStock
 import ir.billion.holloopro.ui.AppViewModel
 import kotlinx.coroutines.flow.StateFlow
@@ -68,9 +69,10 @@ class MainActivity : ComponentActivity() {
                         products, parties, partyBalances, invoices, imports, treasury,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
-                        onAddProduct = vm::addProduct,
+                        onSaveProduct = vm::saveProduct,
                         onDeleteProduct = vm::deleteProduct,
-                        onAddParty = vm::addParty,
+                        onSaveParty = vm::saveParty,
+                        onDeleteParty = vm::deleteParty,
                         onCreateInvoice = vm::createInvoice,
                         onReverseInvoice = vm::reverseInvoice,
                         onAddImport = vm::addImport,
@@ -120,9 +122,10 @@ private fun HolooApp(
     voucherCount: Int,
     importCount: Int,
     message: String?,
-    onAddProduct: (String, String, String, String, String, Int, Boolean, String) -> Unit,
+    onSaveProduct: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit,
     onDeleteProduct: (Long) -> Unit,
-    onAddParty: (String, String, String, String, Long) -> Unit,
+    onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
+    onDeleteParty: (Long) -> Unit,
     onCreateInvoice: (String, Long, Long, Double, Long, Long, Long) -> Unit,
     onReverseInvoice: (Long) -> Unit,
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit,
@@ -200,8 +203,8 @@ private fun HolooApp(
             }
             when (screen) {
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman)
-                Screen.INVENTORY -> InventoryScreen(products, showToman, onAddProduct, onDeleteProduct)
-                Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onAddParty)
+                Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct)
+                Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(parties, imports, showToman, onAddImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, parties, showToman, onAddTreasury)
@@ -279,14 +282,14 @@ private fun StatCard(label: String, value: String, symbol: String, modifier: Mod
 
 @Composable
 private fun InventoryScreen(
-    products: List<ProductWithStock>,
-    showToman: Boolean,
-    onAdd: (String, String, String, String, String, Int, Boolean, String) -> Unit,
+    products: List<ProductWithStock>, showToman: Boolean,
+    onSave: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit,
     onDelete: (Long) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<ProductEntity?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        SectionHeader("کالا و انبار", "تعریف کالاهای نخ و کنترل موجودی") { dialog = true }
+        SectionHeader("کالا و انبار", "تعریف، ویرایش و کنترل موجودی کالاهای نخ") { editing = null; dialog = true }
         if (products.isEmpty()) EmptyState("هنوز کالایی ثبت نشده است", "برای شروع، کالای نخ جدید اضافه کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
             items(products, key = { it.product.id }) { item ->
@@ -294,46 +297,55 @@ private fun InventoryScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(item.product.name, color = Color.White, fontWeight = FontWeight.Bold)
-                            Text(
-                                "${item.product.sku}  •  ${item.product.yarnType}  •  ${item.product.denier}D",
-                                color = Muted, fontSize = 11.sp
-                            )
-                            Text(
-                                "${item.product.groupName}  •  ${item.product.color}  •  ${if (item.product.twisted) "تاب‌دار" else "بدون‌تاب"}",
-                                color = Muted, fontSize = 11.sp
-                            )
+                            Text("${item.product.sku}  •  ${item.product.yarnType}  •  ${item.product.denier}D", color = Muted, fontSize = 11.sp)
+                            Text("${item.product.groupName}  •  ${item.product.color}  •  ${if (item.product.twisted) "تاب‌دار" else "بدون‌تاب"}", color = Muted, fontSize = 11.sp)
                             Text("موجودی: ${formatQuantity(item.stockKg)} کیلوگرم", color = Turquoise, fontSize = 13.sp)
                         }
-                        TextButton(onClick = { onDelete(item.product.id) }) { Text("حذف", color = Color(0xFFFF9D9D)) }
+                        Column {
+                            TextButton(onClick = { editing = item.product; dialog = true }) { Text("ویرایش", color = Turquoise) }
+                            TextButton(onClick = { onDelete(item.product.id) }) { Text("حذف", color = Color(0xFFFF9D9D)) }
+                        }
                     }
                 }
             }
         }
     }
-    if (dialog) ProductDialog(onDismiss = { dialog = false }, onSave = { a,b,c,d,e,f,g,h -> onAdd(a,b,c,d,e,f,g,h); dialog = false })
+    if (dialog) ProductDialog(existing = editing, onDismiss = { dialog = false; editing = null }, onSave = { id,a,b,c,d,e,f,g,h -> onSave(id,a,b,c,d,e,f,g,h); dialog = false; editing = null })
 }
 
 @Composable
-private fun PartiesScreen(parties: List<PartyEntity>, balances: List<ir.billion.holloopro.data.PartyBalanceRow>, showToman: Boolean, onAdd: (String, String, String, String, Long) -> Unit) {
+private fun PartiesScreen(
+    parties: List<PartyEntity>, balances: List<ir.billion.holloopro.data.PartyBalanceRow>, showToman: Boolean,
+    onSave: (Long?, String, String, String, String, Long) -> Unit, onDelete: (Long) -> Unit
+) {
     var dialog by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<PartyEntity?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        SectionHeader("اشخاص و طرف حساب", "مشتری، تأمین‌کننده و مانده افتتاحیه") { dialog = true }
+        SectionHeader("اشخاص و طرف حساب", "ثبت، ویرایش و مشاهده مانده مشتری و تأمین‌کننده") { editing = null; dialog = true }
         if (parties.isEmpty()) EmptyState("فهرست اشخاص خالی است", "مشتری‌ها و تأمین‌کنندگان را ثبت کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
             items(parties, key = { it.id }) { party ->
                 GlassCard {
-                    Text(party.name, color = Color.White, fontWeight = FontWeight.Bold)
-                    Text(partyKind(party.kind), color = Turquoise, fontSize = 11.sp)
-                    if (party.phone.isNotBlank()) Text(party.phone, color = Muted, fontSize = 12.sp)
-                    if (party.address.isNotBlank()) Text(party.address, color = Muted, fontSize = 11.sp)
-                    val balance = balances.firstOrNull { it.partyId == party.id }?.balanceRial ?: party.openingBalanceRial
-                    Text("مانده جاری: ${formatMoney(balance, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text("مانده افتتاحیه: ${formatMoney(party.openingBalanceRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Muted, fontSize = 10.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(party.name, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(partyKind(party.kind), color = Turquoise, fontSize = 11.sp)
+                            if (party.phone.isNotBlank()) Text(party.phone, color = Muted, fontSize = 12.sp)
+                            if (party.address.isNotBlank()) Text(party.address, color = Muted, fontSize = 11.sp)
+                            val balance = balances.firstOrNull { it.partyId == party.id }?.balanceRial ?: party.openingBalanceRial
+                            Text("مانده جاری: ${formatMoney(balance, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("مانده افتتاحیه: ${formatMoney(party.openingBalanceRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Muted, fontSize = 10.sp)
+                        }
+                        Column {
+                            TextButton(onClick = { editing = party; dialog = true }) { Text("ویرایش", color = Turquoise) }
+                            TextButton(onClick = { onDelete(party.id) }) { Text("حذف", color = Color(0xFFFF9D9D)) }
+                        }
+                    }
                 }
             }
         }
     }
-    if (dialog) PartyDialog(onDismiss = { dialog = false }, onSave = { a,b,c,d,e -> onAdd(a,b,c,d,e); dialog = false })
+    if (dialog) PartyDialog(existing = editing, onDismiss = { dialog = false; editing = null }, onSave = { id,a,b,c,d,e -> onSave(id,a,b,c,d,e); dialog = false; editing = null })
 }
 
 @Composable
@@ -507,73 +519,43 @@ private fun EmptyState(title: String, subtitle: String) {
 }
 
 @Composable
-private fun ProductDialog(
-    onDismiss: () -> Unit,
-    onSave: (String, String, String, String, String, Int, Boolean, String) -> Unit
-) {
-    var sku by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    var group by remember { mutableStateOf("نخ پلی‌استر") }
-    var yarnType by remember { mutableStateOf("FDY") }
-    var color by remember { mutableStateOf("") }
-    var denier by remember { mutableStateOf("60") }
-    var twisted by remember { mutableStateOf(false) }
-    var notes by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("تعریف کالای نخ") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                FormField("کد یکتا", sku) { sku = it }
-                FormField("نام کالا", name) { name = it }
-                FormField("گروه کالا", group) { group = it }
-                ChoiceField("نوع نخ", yarnType, listOf("FDY", "DTY", "POY", "MX")) { yarnType = it }
-                FormField("رنگ", color) { color = it }
-                FormField("دنیر", denier, KeyboardType.Number) { denier = it }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = twisted, onCheckedChange = { twisted = it })
-                    Text("تاب‌دار", color = Color.White)
-                }
-                FormField("توضیحات", notes) { notes = it }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(sku, name, group, yarnType, color, denier.toIntOrNull() ?: 0, twisted, notes) }) { Text("ثبت کالا") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
-        containerColor = Color(0xFF15324D),
-        titleContentColor = Color.White,
-        textContentColor = Color.White
-    )
+private fun ProductDialog(existing: ProductEntity? = null, onDismiss: () -> Unit, onSave: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit) {
+    var sku by remember(existing?.id) { mutableStateOf(existing?.sku ?: "") }
+    var name by remember(existing?.id) { mutableStateOf(existing?.name ?: "") }
+    var group by remember(existing?.id) { mutableStateOf(existing?.groupName ?: "نخ پلی‌استر") }
+    var yarnType by remember(existing?.id) { mutableStateOf(existing?.yarnType ?: "FDY") }
+    var color by remember(existing?.id) { mutableStateOf(existing?.color ?: "") }
+    var denier by remember(existing?.id) { mutableStateOf((existing?.denier ?: 60).toString()) }
+    var twisted by remember(existing?.id) { mutableStateOf(existing?.twisted ?: false) }
+    var notes by remember(existing?.id) { mutableStateOf(existing?.notes ?: "") }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (existing == null) "تعریف کالای نخ" else "ویرایش کالای نخ") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            FormField("کد یکتا", sku) { sku = it }; FormField("نام کالا", name) { name = it }; FormField("گروه کالا", group) { group = it }
+            ChoiceField("نوع نخ", yarnType, listOf("FDY", "DTY", "POY", "MX")) { yarnType = it }
+            FormField("رنگ", color) { color = it }; FormField("دنیر", denier, KeyboardType.Number) { denier = it }
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = twisted, onCheckedChange = { twisted = it }); Text("تاب‌دار", color = Color.White) }
+            FormField("توضیحات", notes) { notes = it }
+        } },
+        confirmButton = { TextButton(onClick = { onSave(existing?.id, sku, name, group, yarnType, color, denier.toIntOrNull() ?: 0, twisted, notes) }) { Text("ذخیره") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }, containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White)
 }
 
 @Composable
-private fun PartyDialog(onDismiss: () -> Unit, onSave: (String, String, String, String, Long) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var kind by remember { mutableStateOf("CUSTOMER") }
-    var phone by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-    var opening by remember { mutableStateOf("0") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("ثبت طرف حساب") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                FormField("نام شخص یا شرکت", name) { name = it }
-                ChoiceField("نوع", partyKind(kind), listOf("مشتری", "تأمین‌کننده", "هر دو")) {
-                    kind = when (it) { "مشتری" -> "CUSTOMER"; "تأمین‌کننده" -> "SUPPLIER"; else -> "BOTH" }
-                }
-                FormField("تلفن", phone, KeyboardType.Phone) { phone = it }
-                FormField("نشانی", address) { address = it }
-                FormField("مانده افتتاحیه (ریال)", opening, KeyboardType.Number) { opening = it }
-            }
-        },
-        confirmButton = { TextButton(onClick = { onSave(name, kind, phone, address, opening.toLongOrNull() ?: 0L) }) { Text("ثبت شخص") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
-        containerColor = Color(0xFF15324D),
-        titleContentColor = Color.White,
-        textContentColor = Color.White
-    )
+private fun PartyDialog(existing: PartyEntity? = null, onDismiss: () -> Unit, onSave: (Long?, String, String, String, String, Long) -> Unit) {
+    var name by remember(existing?.id) { mutableStateOf(existing?.name ?: "") }
+    var kind by remember(existing?.id) { mutableStateOf(existing?.kind ?: "CUSTOMER") }
+    var phone by remember(existing?.id) { mutableStateOf(existing?.phone ?: "") }
+    var address by remember(existing?.id) { mutableStateOf(existing?.address ?: "") }
+    var opening by remember(existing?.id) { mutableStateOf((existing?.openingBalanceRial ?: 0L).toString()) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (existing == null) "ثبت طرف حساب" else "ویرایش طرف حساب") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            FormField("نام شخص یا شرکت", name) { name = it }
+            ChoiceField("نوع", partyKind(kind), listOf("مشتری", "تأمین‌کننده", "هر دو")) { kind = when (it) { "مشتری" -> "CUSTOMER"; "تأمین‌کننده" -> "SUPPLIER"; else -> "BOTH" } }
+            FormField("تلفن", phone, KeyboardType.Phone) { phone = it }; FormField("نشانی", address) { address = it }
+            FormField("مانده افتتاحیه (ریال)", opening, KeyboardType.Number) { opening = it }
+        } },
+        confirmButton = { TextButton(onClick = { onSave(existing?.id, name, kind, phone, address, opening.toLongOrNull() ?: 0L) }) { Text("ذخیره") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }, containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White)
 }
 
 @Composable

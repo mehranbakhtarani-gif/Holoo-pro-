@@ -128,3 +128,15 @@ data class ImportOrderEntity(
     val supplierDueAt: Long,
     val status: String = "ORDERED"
 )
+
+@Entity(tableName = "treasury_entries", indices = [Index(value = ["partyId", "createdAt"])])
+data class TreasuryEntryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val kind: String,
+    val method: String,
+    val partyId: Long,
+    val amountRial: Long,
+    val referenceNumber: String = "",
+    val note: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+)

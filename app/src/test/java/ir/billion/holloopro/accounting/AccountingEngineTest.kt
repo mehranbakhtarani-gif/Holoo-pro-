@@ -35,6 +35,15 @@ class AccountingEngineTest {
         assertEquals(12_350L, Money.tomanToRial(BigDecimal("1235")))
     }
 
+    @Test fun receiptAndPaymentUseBalancedCashOrBankEntries() {
+        val receipt = AccountingEngine.treasuryVoucherLines("RECEIPT", "CASH", 900_000)
+        val payment = AccountingEngine.treasuryVoucherLines("PAYMENT", "BANK", 900_000)
+        assertTrue(AccountingEngine.isBalanced(receipt))
+        assertTrue(AccountingEngine.isBalanced(payment))
+        assertEquals("1101", receipt.first().accountCode)
+        assertEquals("2101", payment.first().accountCode)
+    }
+
     @Test fun landedCostIncludesAllCostsAndCurrencyConversion() {
         val total = LandedCostCalculator.totalCostRial(
             goodsAmountMinor = 100,

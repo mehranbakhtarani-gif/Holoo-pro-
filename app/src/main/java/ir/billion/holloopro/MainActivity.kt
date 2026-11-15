@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
                     val parties by vm.parties.collectAsState()
                     val invoices by vm.invoices.collectAsState()
                     val imports by vm.imports.collectAsState()
+                    val treasury by vm.treasury.collectAsState()
                     val productCount by vm.productCount.collectAsState()
                     val partyCount by vm.partyCount.collectAsState()
                     val invoiceCount by vm.invoiceCount.collectAsState()
@@ -63,7 +64,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, invoices, imports,
+                        products, parties, invoices, imports, treasury,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onAddProduct = vm::addProduct,
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
                         onCreateInvoice = vm::createInvoice,
                         onReverseInvoice = vm::reverseInvoice,
                         onAddImport = vm::addImport,
+                        onAddTreasury = vm::addTreasury,
                         onClearMessage = vm::clearMessage
                     )
                 }
@@ -109,6 +111,7 @@ private fun HolooApp(
     parties: List<PartyEntity>,
     invoices: List<InvoiceEntity>,
     imports: List<ImportOrderEntity>,
+    treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     productCount: Int,
     partyCount: Int,
     invoiceCount: Int,
@@ -121,6 +124,7 @@ private fun HolooApp(
     onCreateInvoice: (String, Long, Long, Double, Long, Long, Long) -> Unit,
     onReverseInvoice: (Long) -> Unit,
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit,
+    onAddTreasury: (String, String, Long, Long, String, String) -> Unit,
     onClearMessage: () -> Unit
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -198,7 +202,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, onAddParty)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(parties, imports, showToman, onAddImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, showToman)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, parties, showToman, onAddTreasury)
             }
         }
     }
@@ -392,23 +396,64 @@ private fun ImportsScreen(
 }
 
 @Composable
-private fun AccountingScreen(voucherCount: Int, invoices: List<InvoiceEntity>, showToman: Boolean) {
+private fun AccountingScreen(
+    voucherCount: Int,
+    invoices: List<InvoiceEntity>,
+    treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
+    parties: List<PartyEntity>,
+    showToman: Boolean,
+    onAddTreasury: (String, String, Long, Long, String, String) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
     val sales = invoices.filter { it.kind == "SALE" && it.status == "POSTED" }.sumOf { it.totalRial }
     val purchases = invoices.filter { it.kind == "PURCHASE" && it.status == "POSTED" }.sumOf { it.totalRial }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("دفتر و حسابداری دوبل", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("دفتر و حسابداری دوبل", modifier = Modifier.weight(1f), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Button(onClick = { showDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) {
+                    Text("دریافت/پرداخت")
+                }
+            }
+        }
         item { StatCard("اسناد صادرشده", voucherCount.toString(), "≋", Modifier.fillMaxWidth()) }
         item { SummaryCard("جمع فاکتورهای فروش ثبت‌شده", sales, showToman) }
         item { SummaryCard("جمع فاکتورهای خرید ثبت‌شده", purchases, showToman) }
+        item {
+            GlassCard {
+                Text("گردش صندوق و بانک", color = Turquoise, fontWeight = FontWeight.Bold)
+                if (treasury.isEmpty()) Text("هنوز دریافت یا پرداختی ثبت نشده است", color = Muted, fontSize = 11.sp)
+                treasury.take(8).forEach { entry ->
+                    val party = parties.firstOrNull { it.id == entry.partyId }?.name ?: "طرف حساب"
+                    Text(
+                        "${if (entry.kind == "RECEIPT") "دریافت از" else "پرداخت به"} $party • ${if (entry.method == "CASH") "صندوق" else "بانک"}",
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        "${formatMoney(entry.amountRial, showToman)} ${if (showToman) "تومان" else "ریال"}",
+                        color = Turquoise,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
         item {
             GlassCard {
                 Text("کدینگ پایه", color = Turquoise, fontWeight = FontWeight.Bold)
                 Text("۱۱۰۱ صندوق  •  ۱۱۰۲ بانک", color = Color.White, fontSize = 12.sp)
                 Text("۱۱۰۳ دریافتنی  •  ۱۳۰۱ موجودی کالا", color = Color.White, fontSize = 12.sp)
                 Text("۲۱۰۱ پرداختنی  •  ۴۱۰۱ فروش", color = Color.White, fontSize = 12.sp)
-                Text("اسناد فاکتور به‌صورت دوبل و متوازن صادر می‌شوند. دریافت/پرداخت مستقل، دفتر کل کامل و گزارش سود نهایی هنوز در برنامه توسعه هستند.", color = Muted, fontSize = 11.sp)
+                Text("اسناد فاکتور و دریافت/پرداخت به‌صورت دوبل ثبت می‌شوند. دفتر کل تفصیلی، چک و گزارش سود نهایی هنوز در برنامه توسعه هستند.", color = Muted, fontSize = 11.sp)
             }
         }
+    }
+    if (showDialog) {
+        TreasuryDialog(
+            parties,
+            onDismiss = { showDialog = false },
+            onSave = { a, b, c, d, e, f -> onAddTreasury(a, b, c, d, e, f); showDialog = false }
+        )
     }
 }
 
@@ -622,6 +667,52 @@ private fun ImportDialog(
                     other.toLongOrNull() ?: 0L, creditDays.toIntOrNull() ?: 0
                 )
             }) { Text("ثبت سفارش") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
+    )
+}
+
+@Composable
+private fun TreasuryDialog(
+    parties: List<PartyEntity>,
+    onDismiss: () -> Unit,
+    onSave: (String, String, Long, Long, String, String) -> Unit
+) {
+    var kind by remember { mutableStateOf("RECEIPT") }
+    var method by remember { mutableStateOf("CASH") }
+    val eligible = parties.filter { if (kind == "RECEIPT") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
+    var partyId by remember { mutableStateOf(eligible.firstOrNull()?.id ?: 0L) }
+    var amount by remember { mutableStateOf("") }
+    var reference by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ثبت دریافت یا پرداخت") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = kind == "RECEIPT", onClick = { kind = "RECEIPT"; partyId = parties.firstOrNull { it.kind != "SUPPLIER" }?.id ?: 0L }, label = { Text("دریافت") })
+                    FilterChip(selected = kind == "PAYMENT", onClick = { kind = "PAYMENT"; partyId = parties.firstOrNull { it.kind != "CUSTOMER" }?.id ?: 0L }, label = { Text("پرداخت") })
+                }
+                ChoiceField("طرف حساب", eligible.firstOrNull { it.id == partyId }?.name ?: "انتخاب طرف حساب", eligible.map { it.name }) {
+                    partyId = eligible.firstOrNull { p -> p.name == it }?.id ?: 0L
+                }
+                ChoiceField("محل ثبت", if (method == "CASH") "صندوق" else "بانک", listOf("صندوق", "بانک")) {
+                    method = if (it == "صندوق") "CASH" else "BANK"
+                }
+                FormField("مبلغ (تومان)", amount, KeyboardType.Number) { amount = it }
+                FormField("شماره پیگیری/رسید", reference) { reference = it }
+                FormField("شرح", note) { note = it }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val rial = (amount.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
+                onSave(kind, method, partyId, rial, reference, note)
+            }) { Text("ثبت سند") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
         containerColor = Color(0xFF15324D),

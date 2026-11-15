@@ -138,3 +138,12 @@ interface ImportOrderDao {
     @Query("SELECT COUNT(*) FROM import_orders")
     fun observeCount(): Flow<Int>
 }
+
+@Dao
+interface TreasuryDao {
+    @Query("SELECT * FROM treasury_entries ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<TreasuryEntryEntity>>
+
+    @Insert
+    suspend fun insert(entry: TreasuryEntryEntity): Long
+}

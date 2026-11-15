@@ -8,6 +8,7 @@ import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductWithStock
+import ir.billion.holloopro.data.TreasuryEntryEntity
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,8 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         repository.parties.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val invoices: StateFlow<List<InvoiceEntity>> =
         repository.invoices.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val treasury: StateFlow<List<TreasuryEntryEntity>> =
+        repository.treasury.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val imports: StateFlow<List<ImportOrderEntity>> =
         repository.imports.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val productCount = repository.productCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
@@ -45,6 +48,9 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         execute { repository.createAndPostInvoice(kind, partyId, productId, quantity, price, discount, tax); "فاکتور ثبت و سند حسابداری صادر شد" }
 
     fun reverseInvoice(id: Long) = execute { repository.reverseInvoice(id); "فاکتور برگشت شد" }
+
+    fun addTreasury(kind: String, method: String, partyId: Long, amountRial: Long, reference: String, note: String) =
+        execute { repository.addTreasuryEntry(kind, method, partyId, amountRial, reference, note); "دریافت/پرداخت و سند حسابداری ثبت شد" }
 
     fun addImport(
         supplierId: Long, currency: String, rate: Long, container: String, weight: Double,

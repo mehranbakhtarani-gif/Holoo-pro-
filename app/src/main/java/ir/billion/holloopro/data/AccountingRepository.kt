@@ -17,6 +17,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val invoiceCount = db.invoiceDao().observeCount()
     val voucherCount = db.voucherDao().observeCount()
     val importCount = db.importOrderDao().observeCount()
+    val treasury = db.treasuryDao().observeAll()
 
     suspend fun addProduct(
         sku: String, name: String, groupName: String, yarnType: String,
@@ -199,6 +200,57 @@ class AccountingRepository(private val db: AppDatabase) {
                 )
             }
             db.invoiceDao().update(invoice.copy(status = "REVERSED"))
+        }
+    }
+
+    suspend fun addTreasuryEntry(
+        kind: String, method: String, partyId: Long, amountRial: Long,
+        referenceNumber: String, note: String
+    ) {
+        require(kind == "RECEIPT" || kind == "PAYMENT")
+        require(method == "CASH" || method == "BANK")
+        require(amountRial > 0) { "مبلغ باید بیشتر از صفر باشد" }
+        db.withTransaction {
+            val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
+            if (kind == "RECEIPT") require(party.kind != "SUPPLIER") { "برای دریافت، مشتری انتخاب کنید" }
+            else require(party.kind != "CUSTOMER") { "برای پرداخت، تأمین‌کننده انتخاب کنید" }
+            ensureBaseAccounts()
+            val drafts = AccountingEngine.treasuryVoucherLines(kind, method, amountRial)
+            val accountLines = drafts.map { draft ->
+                val account = db.accountDao().byCode(draft.accountCode) ?: error("حساب ${draft.accountCode} تعریف نشده")
+                account to draft
+            }
+            val entryId = db.treasuryDao().insert(
+                TreasuryEntryEntity(
+                    kind = kind, method = method, partyId = partyId,
+                    amountRial = amountRial, referenceNumber = referenceNumber.trim(), note = note.trim()
+                )
+            )
+            val voucherId = db.voucherDao().insert(
+                VoucherEntity(
+                    number = "T-${System.currentTimeMillis()}",
+                    description = if (kind == "RECEIPT") "دریافت از ${party.name}" else "پرداخت به ${party.name}",
+                    reference = "TREASURY:$entryId"
+                )
+            )
+            db.voucherLineDao().insertAll(
+                accountLines.map { (account, draft) ->
+                    VoucherLineEntity(
+                        voucherId = voucherId, accountId = account.id,
+                        debitRial = draft.debitRial, creditRial = draft.creditRial,
+                        description = if (method == "CASH") "صندوق" else "بانک"
+                    )
+                }
+            )
+            db.partyLedgerDao().insert(
+                PartyLedgerEntity(
+                    partyId = partyId,
+                    debitRial = if (kind == "PAYMENT") amountRial else 0,
+                    creditRial = if (kind == "RECEIPT") amountRial else 0,
+                    description = if (kind == "RECEIPT") "رسید دریافت" else "حواله پرداخت",
+                    referenceId = entryId
+                )
+            )
         }
     }
 

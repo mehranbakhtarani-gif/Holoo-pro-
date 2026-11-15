@@ -22,6 +22,20 @@ object AccountingEngine {
     fun requireBalanced(lines: List<VoucherLineDraft>) {
         require(isBalanced(lines)) { "سند حسابداری تراز نیست یا ردیف نامعتبر دارد" }
     }
+
+    fun treasuryVoucherLines(kind: String, method: String, amountRial: Long): List<VoucherLineDraft> {
+        require(kind == "RECEIPT" || kind == "PAYMENT")
+        require(method == "CASH" || method == "BANK")
+        require(amountRial > 0)
+        val cashOrBank = if (method == "CASH") "1101" else "1102"
+        val lines = if (kind == "RECEIPT") {
+            listOf(VoucherLineDraft(cashOrBank, debitRial = amountRial), VoucherLineDraft("1103", creditRial = amountRial))
+        } else {
+            listOf(VoucherLineDraft("2101", debitRial = amountRial), VoucherLineDraft(cashOrBank, creditRial = amountRial))
+        }
+        requireBalanced(lines)
+        return lines
+    }
 }
 
 object Money {

@@ -149,6 +149,12 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun unmatchBankStatementLine(statementLineId: Long) =
         execute { repository.unmatchBankStatementLine(statementLineId); "تطبیق گردش بانکی لغو شد" }
 
+    fun matchBankStatementLineToCheck(statementLineId: Long, checkId: Long) =
+        execute { repository.matchBankStatementLineToCheck(statementLineId, checkId); "گردش بانکی با چک تسویه‌شده تطبیق داده شد" }
+
+    fun addBankFee(bankName: String, dateEpoch: Long, amountRial: Long, reference: String, description: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.addBankFee(bankName, dateEpoch, amountRial, reference, description); "کارمزد بانکی و سند هزینه آن ثبت شد" }
+
     fun updateCheckStatus(id: Long, status: String) = execute { repository.updateCheckStatus(id, status); "وضعیت چک تغییر کرد" }
 
     fun addImport(

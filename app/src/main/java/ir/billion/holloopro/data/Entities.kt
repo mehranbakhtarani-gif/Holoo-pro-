@@ -349,6 +349,8 @@ data class BankStatementLineEntity(
     val bankReference: String = "",
     val description: String = "",
     val matchedTreasuryEntryId: Long? = null,
+    val matchedCheckId: Long? = null,
+    val matchedVoucherId: Long? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
 

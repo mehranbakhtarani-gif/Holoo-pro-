@@ -831,6 +831,52 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun matchBankStatementLineToCheck(statementLineId: Long, checkId: Long) {
+        db.withTransaction {
+            val line = db.bankStatementDao().getById(statementLineId) ?: error("ردیف صورت‌حساب بانکی پیدا نشد")
+            require(line.matchedTreasuryEntryId == null && line.matchedCheckId == null && line.matchedVoucherId == null) {
+                "این گردش قبلاً تطبیق داده شده است"
+            }
+            val check = db.checkDao().getById(checkId) ?: error("چک پیدا نشد")
+            require(check.status == "CLEARED") { "فقط چک‌های تسویه‌شده قابل تطبیق هستند" }
+            require(db.bankStatementDao().countCheckMatches(checkId) == 0) { "این چک قبلاً با گردش دیگری تطبیق داده شده است" }
+            val expected = if (check.kind == "RECEIVED") check.amountRial else Math.negateExact(check.amountRial)
+            require(line.signedAmountRial == expected) { "مبلغ یا جهت گردش بانکی با چک انتخاب‌شده یکسان نیست" }
+            db.bankStatementDao().update(line.copy(matchedCheckId = checkId))
+        }
+    }
+
+    suspend fun addBankFee(
+        bankName: String, transactionDateEpoch: Long, amountRial: Long,
+        bankReference: String, description: String
+    ) {
+        require(bankName.isNotBlank()) { "نام بانک الزامی است" }
+        require(transactionDateEpoch > 0L) { "تاریخ کارمزد معتبر نیست" }
+        require(amountRial > 0L && amountRial != Long.MIN_VALUE) { "مبلغ کارمزد باید مثبت باشد" }
+        db.withTransaction {
+            ensureBaseAccounts()
+            val bank = db.accountDao().byCode("1102") ?: error("حساب بانک تعریف نشده است")
+            val fee = db.accountDao().byCode("5203") ?: error("حساب کارمزد بانکی تعریف نشده است")
+            val ref = "BANK_FEE:" + UUID.randomUUID().toString()
+            val voucherId = db.voucherDao().insert(VoucherEntity(
+                number = "BF-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(6),
+                dateEpoch = transactionDateEpoch,
+                description = if (description.isBlank()) "کارمزد بانکی - $bankName" else description.trim(),
+                reference = ref
+            ))
+            db.voucherLineDao().insertAll(listOf(
+                VoucherLineEntity(voucherId = voucherId, accountId = fee.id, debitRial = amountRial, creditRial = 0L, description = "هزینه کارمزد بانکی"),
+                VoucherLineEntity(voucherId = voucherId, accountId = bank.id, debitRial = 0L, creditRial = amountRial, description = "کسر از حساب بانکی")
+            ))
+            db.bankStatementDao().insert(BankStatementLineEntity(
+                bankName = bankName.trim(), transactionDateEpoch = transactionDateEpoch,
+                signedAmountRial = Math.negateExact(amountRial), bankReference = bankReference.trim(),
+                description = if (description.isBlank()) "کارمزد بانکی" else description.trim(),
+                matchedVoucherId = voucherId
+            ))
+        }
+    }
+
     suspend fun addCheck(
         checkNumber: String, kind: String, partyId: Long, amountRial: Long,
         issueDateEpoch: Long, dueDateEpoch: Long, bankName: String, note: String
@@ -1085,7 +1131,8 @@ class AccountingRepository(private val db: AppDatabase) {
             AccountEntity(code = "5101", title = "بهای تمام‌شده کالای فروش‌رفته", type = "EXPENSE"),
             AccountEntity(code = "4201", title = "مازاد و افزایش موجودی انبار", type = "REVENUE"),
             AccountEntity(code = "5201", title = "کسری و کاهش موجودی انبار", type = "EXPENSE"),
-            AccountEntity(code = "5202", title = "اختلاف بهای برگشت خرید", type = "EXPENSE")
+            AccountEntity(code = "5202", title = "اختلاف بهای برگشت خرید", type = "EXPENSE"),
+            AccountEntity(code = "5203", title = "کارمزد خدمات بانکی", type = "EXPENSE")
         )
         accounts.forEach { db.accountDao().insertIgnore(it) }
     }

@@ -21,9 +21,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ImportOrderEntity::class,
         TreasuryEntryEntity::class,
         ImportReceiptEntity::class,
-        ImportReceiptLineEntity::class
+        ImportReceiptLineEntity::class,
+        ProductValuationEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun invoiceDao(): InvoiceDao
     abstract fun invoiceLineDao(): InvoiceLineDao
     abstract fun stockDao(): StockDao
+    abstract fun productValuationDao(): ProductValuationDao
     abstract fun partyLedgerDao(): PartyLedgerDao
     abstract fun accountDao(): AccountDao
     abstract fun voucherDao(): VoucherDao
@@ -67,6 +69,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS product_valuations (productId INTEGER NOT NULL PRIMARY KEY, quantityKg REAL NOT NULL, valueRial INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")
+                db.execSQL("ALTER TABLE invoice_lines ADD COLUMN inventoryCostRial INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase =
@@ -75,7 +84,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     DATABASE_NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { INSTANCE = it }
             }
     }
 }

@@ -59,7 +59,8 @@ data class InvoiceLineEntity(
     val productId: Long,
     val quantityKg: Double,
     val unitPriceRial: Long,
-    val lineTotalRial: Long
+    val lineTotalRial: Long,
+    val inventoryCostRial: Long = 0
 )
 
 @Entity(tableName = "stock_movements", indices = [Index(value = ["productId", "createdAt"])])
@@ -150,6 +151,15 @@ data class ImportReceiptLineEntity(
     val productId: Long,
     val quantityKg: Double,
     val allocatedCostRial: Long
+)
+
+
+@Entity(tableName = "product_valuations")
+data class ProductValuationEntity(
+    @androidx.room.PrimaryKey val productId: Long,
+    val quantityKg: Double,
+    val valueRial: Long,
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "treasury_entries", indices = [Index(value = ["partyId", "createdAt"])])

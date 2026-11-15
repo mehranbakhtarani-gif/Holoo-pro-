@@ -3,6 +3,8 @@ package ir.billion.holloopro.data
 import androidx.room.withTransaction
 import ir.billion.holloopro.accounting.AccountingEngine
 import ir.billion.holloopro.accounting.LandedCostCalculator
+import ir.billion.holloopro.accounting.InventoryValuation
+import ir.billion.holloopro.accounting.InventoryValuationEngine
 import ir.billion.holloopro.accounting.VoucherLineDraft
 import java.math.BigDecimal
 import java.util.Locale
@@ -205,9 +207,30 @@ class AccountingRepository(private val db: AppDatabase) {
                 val product = db.productDao().getById(line.productId) ?: error("یکی از کالاهای فاکتور پیدا نشد")
                 Triple(line, product, amounts[index])
             }
+            val lineCosts = if (kind == "PURCHASE") {
+                AccountingEngine.allocateLandedCost(total, amounts.mapIndexed { index, amount -> (index + 1L) to amount.toDouble() })
+            } else emptyMap()
+            val inventoryCosts = mutableListOf<Long>()
+            resolved.forEachIndexed { index, (line, product, _) ->
+                val existing = db.productValuationDao().get(line.productId)
+                val current = existing?.let { InventoryValuation(it.quantityKg, it.valueRial) }
+                    ?: InventoryValuation(0.0, 0L)
+                val next = if (kind == "PURCHASE") {
+                    InventoryValuationEngine.receive(current, line.quantityKg, lineCosts[index + 1L] ?: error("تخصیص بهای خرید ناموفق بود"))
+                } else {
+                    require(existing != null && current.quantityKg > 0.0) {
+                        "بهای موجودی «" + product.name + "» مشخص نیست؛ ابتدا رسید واردات یا خرید دارای بهای ثبت‌شده ایجاد کنید"
+                    }
+                    val issue = InventoryValuationEngine.issue(current, line.quantityKg)
+                    inventoryCosts.add(issue.cogsRial)
+                    issue.remaining
+                }
+                if (kind == "PURCHASE") inventoryCosts.add(lineCosts[index + 1L] ?: 0L)
+                db.productValuationDao().upsert(ProductValuationEntity(line.productId, next.quantityKg, next.valueRial))
+            }
             val number = "HP-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8)
             val invoiceId = db.invoiceDao().insert(InvoiceEntity(number = number, kind = kind, partyId = partyId, subtotalRial = subtotal, discountRial = discountRial, taxRial = taxRial, totalRial = total, status = "POSTED"))
-            db.invoiceLineDao().insertAll(resolved.map { (line, _, amount) -> InvoiceLineEntity(invoiceId = invoiceId, productId = line.productId, quantityKg = line.quantityKg, unitPriceRial = line.unitPriceRial, lineTotalRial = amount) })
+            db.invoiceLineDao().insertAll(resolved.mapIndexed { index, (line, _, amount) -> InvoiceLineEntity(invoiceId = invoiceId, productId = line.productId, quantityKg = line.quantityKg, unitPriceRial = line.unitPriceRial, lineTotalRial = amount, inventoryCostRial = inventoryCosts[index]) })
             resolved.forEach { (line, _, _) -> db.stockDao().insert(StockMovementEntity(productId = line.productId, quantityKg = if (kind == "SALE") -line.quantityKg else line.quantityKg, kind = if (kind == "SALE") "SALE" else "PURCHASE", referenceId = invoiceId, note = number)) }
             ensureBaseAccounts()
             val debitCode = if (kind == "SALE") "1103" else "1301"
@@ -217,7 +240,20 @@ class AccountingRepository(private val db: AppDatabase) {
             val debitAccount = db.accountDao().byCode(debitCode) ?: error("حساب بدهکار تعریف نشده")
             val creditAccount = db.accountDao().byCode(creditCode) ?: error("حساب بستانکار تعریف نشده")
             val voucherId = db.voucherDao().insert(VoucherEntity(number = "S-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8), description = if (kind == "SALE") "ثبت فروش چندردیفی " + number else "ثبت خرید چندردیفی " + number, reference = "INVOICE:" + invoiceId))
-            db.voucherLineDao().insertAll(listOf(VoucherLineEntity(voucherId = voucherId, accountId = debitAccount.id, debitRial = total, creditRial = 0), VoucherLineEntity(voucherId = voucherId, accountId = creditAccount.id, debitRial = 0, creditRial = total)))
+            val voucherLines = mutableListOf(
+                VoucherLineEntity(voucherId = voucherId, accountId = debitAccount.id, debitRial = total, creditRial = 0),
+                VoucherLineEntity(voucherId = voucherId, accountId = creditAccount.id, debitRial = 0, creditRial = total)
+            )
+            if (kind == "SALE") {
+                val cogs = inventoryCosts.fold(0L) { sum, value -> Math.addExact(sum, value) }
+                if (cogs > 0) {
+                    val inventoryAccount = db.accountDao().byCode("1301") ?: error("حساب موجودی تعریف نشده")
+                    val cogsAccount = db.accountDao().byCode("5101") ?: error("حساب بهای تمام‌شده تعریف نشده")
+                    voucherLines += VoucherLineEntity(voucherId = voucherId, accountId = cogsAccount.id, debitRial = cogs, creditRial = 0, description = "بهای تمام‌شده فروش")
+                    voucherLines += VoucherLineEntity(voucherId = voucherId, accountId = inventoryAccount.id, debitRial = 0, creditRial = cogs, description = "خروج بهای کالا از انبار")
+                }
+            }
+            db.voucherLineDao().insertAll(voucherLines)
             db.partyLedgerDao().insert(PartyLedgerEntity(partyId = partyId, debitRial = if (kind == "SALE") total else 0, creditRial = if (kind == "PURCHASE") total else 0, description = if (kind == "SALE") "فاکتور فروش " + number else "فاکتور خرید " + number, referenceId = invoiceId))
         }
     }
@@ -401,6 +437,10 @@ class AccountingRepository(private val db: AppDatabase) {
             }
             db.importReceiptDao().insertLines(receiptLines)
             receiptLines.forEach { line ->
+                val oldValuation = db.productValuationDao().get(line.productId)
+                val currentValuation = oldValuation?.let { InventoryValuation(it.quantityKg, it.valueRial) } ?: InventoryValuation(0.0, 0L)
+                val nextValuation = InventoryValuationEngine.receive(currentValuation, line.quantityKg, line.allocatedCostRial)
+                db.productValuationDao().upsert(ProductValuationEntity(line.productId, nextValuation.quantityKg, nextValuation.valueRial))
                 db.stockDao().insert(StockMovementEntity(
                     productId = line.productId, quantityKg = line.quantityKg,
                     kind = "IMPORT_RECEIPT", referenceId = receiptId,
@@ -447,7 +487,8 @@ class AccountingRepository(private val db: AppDatabase) {
             AccountEntity(code = "1301", title = "موجودی کالا", type = "ASSET"),
             AccountEntity(code = "2101", title = "حساب‌های پرداختنی تأمین‌کنندگان", type = "LIABILITY"),
             AccountEntity(code = "2102", title = "هزینه‌های حمل و گمرک پرداختنی", type = "LIABILITY"),
-            AccountEntity(code = "4101", title = "فروش کالا", type = "REVENUE")
+            AccountEntity(code = "4101", title = "فروش کالا", type = "REVENUE"),
+            AccountEntity(code = "5101", title = "بهای تمام‌شده کالای فروش‌رفته", type = "EXPENSE")
         )
         accounts.forEach { db.accountDao().insertIgnore(it) }
     }

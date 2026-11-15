@@ -92,6 +92,15 @@ interface InvoiceLineDao {
 }
 
 @Dao
+interface ProductValuationDao {
+    @Query("SELECT * FROM product_valuations WHERE productId = :productId LIMIT 1")
+    suspend fun get(productId: Long): ProductValuationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(valuation: ProductValuationEntity)
+}
+
+@Dao
 interface StockDao {
     @Query("SELECT COALESCE(SUM(quantityKg), 0.0) FROM stock_movements WHERE productId = :productId")
     suspend fun stockForProduct(productId: Long): Double

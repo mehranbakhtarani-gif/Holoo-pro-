@@ -13,6 +13,18 @@ class InvoiceSettlementAllocatorTest {
         assertEquals(900L, total)
     }
 
+    @Test fun allocatesOnePaymentAcrossMultiplePurchaseInvoices() {
+        val purchases = listOf(
+            InvoiceSettlementCapacity(11L, 9L, "PURCHASE", "POSTED", 700L),
+            InvoiceSettlementCapacity(12L, 9L, "PURCHASE", "POSTED", 800L)
+        )
+        val total = InvoiceSettlementAllocator.validate(
+            "PAYMENT", 9L, 1_000L, 0L, purchases,
+            listOf(InvoiceSettlementAllocationInput(11L, 500L), InvoiceSettlementAllocationInput(12L, 500L))
+        )
+        assertEquals(1_000L, total)
+    }
+
     @Test fun allowsPartialAllocationAcrossInvoices() {
         val total = InvoiceSettlementAllocator.validate("RECEIPT", 7L, 1_000L, 0L, listOf(saleA, saleB), listOf(InvoiceSettlementAllocationInput(1L, 200L), InvoiceSettlementAllocationInput(2L, 100L)))
         assertEquals(300L, total)

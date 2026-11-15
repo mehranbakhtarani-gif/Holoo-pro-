@@ -224,7 +224,54 @@ if(voucherRows){addVoucherRow();addVoucherRow();$("#addVoucherLine").onclick=add
 if(manualForm)manualForm.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(manualForm)),rows=Array.from(voucherRows.querySelectorAll(".card")).map(row=>({accountCode:row.querySelector('[name="accountCode"]').value,debitRial:Number(row.querySelector('[name="debitRial"]').value),creditRial:Number(row.querySelector('[name="creditRial"]').value),description:d.description.trim()}));const debit=rows.reduce((n,x)=>n+x.debitRial,0),credit=rows.reduce((n,x)=>n+x.creditRial,0);if(!d.description.trim()||rows.length<2||rows.some(x=>!Number.isSafeInteger(x.debitRial)||!Number.isSafeInteger(x.creditRial)||x.debitRial<0||x.creditRial<0||((x.debitRial>0)===(x.creditRial>0)))||debit!==credit||debit<=0){toast("شرح، حداقل دو ردیف و تساوی جمع بدهکار و بستانکار الزامی است");return}const voucherNumber="MAN-"+Date.now();try{await postVoucherAtomic([],{number:voucherNumber,date:Date.now(),description:d.description.trim(),reference:"MANUAL:"+voucherNumber},rows);toast("سند دستی چندردیفی و متوازن ثبت شد");render()}catch(err){toast(err.message||"ثبت سند ناموفق بود")}};
 const openingForm=$("#openingBalancesForm");if(openingForm)openingForm.onsubmit=async e=>{e.preventDefault();const values=Object.fromEntries(new FormData(openingForm)),updates=accounts.map(a=>({...a,openingDebitRial:Number(values["od_"+a.id]||0),openingCreditRial:Number(values["oc_"+a.id]||0)}));const debit=updates.reduce((n,a)=>n+a.openingDebitRial,0),credit=updates.reduce((n,a)=>n+a.openingCreditRial,0);if(updates.some(a=>!Number.isSafeInteger(a.openingDebitRial)||!Number.isSafeInteger(a.openingCreditRial)||a.openingDebitRial<0||a.openingCreditRial<0)||debit!==credit){toast("مانده‌های افتتاحیه معتبر نیستند یا تراز نیستند");return}try{await putMany(updates.map(a=>["accounts",a]));toast("مانده افتتاحیه حساب‌ها ذخیره شد");render()}catch(err){toast(err.message||"ذخیره افتتاحیه ناموفق بود")}};
 const exportFinance=$("#exportFinanceCsv");if(exportFinance)exportFinance.onclick=()=>{const rows=[["نوع","شماره/شرح","طرف حساب","کالا","فروش/مبلغ","بهای تمام‌شده","سود ناخالص","تاریخ"],...sales.map(x=>["فروش",x.number,x.partyName,x.product,x.total||0,x.cogs||0,(x.total||0)-(x.cogs||0),new Date(x.date||Date.now()).toISOString()]),...treasury.map(x=>[x.kind==="RECEIPT"?"دریافت":"پرداخت",x.note||"",x.partyName||"", "",x.amount||0,"","",new Date(x.date||Date.now()).toISOString()])];const csv="\\uFEFF"+rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\\r\\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="holloo-finance-report.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};const add=$("#addBtn");if(add)add.onclick=()=>openForm(currentPage);const s=$("#search");if(s)s.oninput=e=>{searchText=e.target.value;render()};bindRows();
-document.querySelectorAll("[data-check-status]").forEach(b=>b.onclick=async()=>{const c=checks.find(x=>String(x.id)===String(b.dataset.checkId));if(!c||c.status!=="OPEN")return;const next=b.dataset.checkStatus;if(!["CLEARED","BOUNCED","CANCELLED"].includes(next))return;const label=next==="CLEARED"?"تسویه":next==="BOUNCED"?"برگشت":"ابطال";if(!confirm("وضعیت چک "+c.number+" به «"+label+"» تغییر کند؟ این تغییر نهایی است."))return;try{c.status=next;await put("checks",c);toast("وضعیت چک به‌روزرسانی شد");render()}catch(err){toast(err.message||"تغییر وضعیت انجام نشد")}})}
+document.querySelectorAll("[data-check-status]").forEach(b=>b.onclick=async()=>{
+ const c=checks.find(x=>String(x.id)===String(b.dataset.checkId));if(!c||c.status!=="OPEN")return;
+ const next=b.dataset.checkStatus;if(!["CLEARED","BOUNCED","CANCELLED","ENDORSED"].includes(next))return;
+ const label=next==="CLEARED"?(c.kind==="RECEIVED"?"وصول":"پرداخت"):next==="BOUNCED"?"برگشت":next==="ENDORSED"?"ظهرنویسی":"ابطال";
+ if(!confirm("وضعیت چک "+c.number+" به «"+label+"» تغییر کند؟"))return;
+ try{
+  const parties=await all("parties"),party=parties.find(x=>Number(x.id)===Number(c.partyId));
+  if(!party)throw Error("طرف حساب چک پیدا نشد");
+  const amount=Number(c.amount);if(!Number.isSafeInteger(amount)||amount<=0)throw Error("مبلغ چک معتبر نیست");
+  if(next==="CLEARED"){
+   if(c.kind==="RECEIVED"&&party.kind==="SUPPLIER")throw Error("چک دریافتی از تأمین‌کننده از این مسیر قابل وصول نیست");
+   if(c.kind==="PAYABLE"&&party.kind==="CUSTOMER")throw Error("چک پرداختی باید برای تأمین‌کننده باشد");
+   const now=Date.now(),reference="CHECK:CLEAR:"+c.id;
+   const vouchers=await all("vouchers");if(vouchers.some(v=>v.reference===reference))throw Error("برای این چک قبلاً سند وصول/پرداخت ثبت شده است");
+   const kind=c.kind==="RECEIVED"?"RECEIPT":"PAYMENT",partyAccount=kind==="RECEIPT"?"1103":"2101";
+   const journal=kind==="RECEIPT"?[
+    {accountCode:"1102",debitRial:amount,creditRial:0,description:"وصول چک "+c.number},
+    {accountCode:partyAccount,debitRial:0,creditRial:amount,description:"تسویه چک دریافتی"}
+   ]:[
+    {accountCode:partyAccount,debitRial:amount,creditRial:0,description:"تسویه چک پرداختی"},
+    {accountCode:"1102",debitRial:0,creditRial:amount,description:"پرداخت چک "+c.number}
+   ];
+   party.balance=Number(party.balance||0)+(kind==="RECEIPT"?-amount:amount);
+   const ledger={partyId:party.id,date:now,debitRial:kind==="PAYMENT"?amount:0,creditRial:kind==="RECEIPT"?amount:0,description:(kind==="RECEIPT"?"وصول چک ":"پرداخت چک ")+c.number,referenceId:reference};
+   const treasuryRecord={kind,method:"بانک",partyId:party.id,partyName:party.name,amount,currency:"IRR",foreignAmountMinor:null,fxRateRialPerUnit:1,date:now,note:"تسویه چک "+c.number,reference,checkId:c.id};
+   c.status="CLEARED";c.clearedAt=now;c.voucherNumber="CH-"+now;
+   await ensureBaseAccounts();
+   await postVoucherAtomic([["checks",c],["parties",party],["treasury",treasuryRecord],["partyLedger",ledger]],{number:c.voucherNumber,date:now,description:(kind==="RECEIPT"?"وصول چک ":"پرداخت چک ")+c.number,reference},journal);
+  }else if(next==="ENDORSED"){
+   if(c.kind!=="RECEIVED")throw Error("فقط چک دریافتی قابل ظهرنویسی است");
+   if(party.kind==="SUPPLIER")throw Error("طرف حساب صادرکننده چک باید مشتری باشد");
+   const target=parties.find(x=>Number(x.id)===Number(c.endorseToPartyId));
+   if(!target||target.id===party.id||target.kind==="CUSTOMER")throw Error("ذی‌نفع ظهرنویسی را در فرم چک انتخاب کنید");
+   const now=Date.now(),reference="CHECK:ENDORSE:"+c.id,vouchers=await all("vouchers");
+   if(vouchers.some(v=>v.reference===reference))throw Error("برای این چک قبلاً سند ظهرنویسی ثبت شده است");
+   party.balance=Number(party.balance||0)-amount;target.balance=Number(target.balance||0)+amount;
+   const sourceLedger={partyId:party.id,date:now,debitRial:0,creditRial:amount,description:"ظهرنویسی چک "+c.number,referenceId:reference};
+   const targetLedger={partyId:target.id,date:now,debitRial:amount,creditRial:0,description:"دریافت چک ظهرنویسی‌شده "+c.number,referenceId:reference};
+   const journal=[{accountCode:"2101",debitRial:amount,creditRial:0,description:"تسویه بدهی به "+target.name+" با چک ظهرنویسی‌شده"},{accountCode:"1103",debitRial:0,creditRial:amount,description:"کاهش مطالبات از "+party.name}];
+   c.status="ENDORSED";c.endorsedAt=now;c.endorsedToPartyName=target.name;c.voucherNumber="END-"+now;
+   await ensureBaseAccounts();
+   await postVoucherAtomic([["checks",c],["parties",party],["parties",target],["partyLedger",sourceLedger],["partyLedger",targetLedger]],{number:c.voucherNumber,date:now,description:"ظهرنویسی چک "+c.number,reference},journal);
+  }else{
+   c.status=next;c.statusChangedAt=Date.now();await put("checks",c);
+  }
+  toast("وضعیت چک و سوابق مالی به‌روزرسانی شد");render();
+ }catch(err){toast(err.message||"تغییر وضعیت چک انجام نشد")}
+});
 const fields={
 products:[["sku","کد کالا","text",1],["name","نام کالا","text",1],["group","گروه","text"],["yarn","نوع نخ (FDY / DTY / POY)","text"],["color","رنگ","text"],["denier","دنیر","number"],["twisted","نوع تاب","select",0,["بدون‌تاب","تاب‌دار"]],["notes","توضیحات","text"]],
 parties:[["name","نام شخص / شرکت","text",1],["kind","نوع طرف حساب","select",1,["مشتری","تأمین‌کننده","هر دو"]],["phone","تلفن","tel"],["address","نشانی","text"],["balance","مانده افتتاحیه (ریال)","number"]],
@@ -380,7 +427,7 @@ if(page==="depreciations"){const assets=await all("fixedAssets"),asset=assets.fi
 if(page==="fixedAssets"){const cost=num("cost"),residual=num("residual"),lifeMonths=num("lifeMonths");if(!d.name||!Number.isSafeInteger(cost)||cost<=0||!Number.isSafeInteger(residual)||residual<0||residual>cost||!Number.isInteger(lifeMonths)||lifeMonths<=0)throw Error("اطلاعات دارایی و عمر مفید معتبر نیست");await put("fixedAssets",{id:item?.id,name:d.name,category:d.category,cost,residual,lifeMonths,monthlyDepreciation:Math.round((cost-residual)/lifeMonths),acquired:d.acquired?new Date(d.acquired+"T12:00:00").getTime():Date.now()});return}
 if(page==="imports"){const ps=await all("parties"),p=ps.find(x=>x.id===num("supplierId"));if(!p)throw Error("تأمین‌کننده انتخاب نشده");const fx=num("fx"),goods=num("goods"),weight=num("weight");if(fx<=0||goods<=0||weight<=0)throw Error("نرخ ارز، مبلغ کالا و وزن باید مثبت باشند");await put("imports",{supplierId:p.id,supplierName:p.name,currency:d.currency,fx,container:d.container,weight,goods,extra:Math.round(goods*fx)+num("freight")+num("customs")+num("other"),due:new Date(d.due+"T12:00:00").getTime(),status:"ثبت سفارش"})}
 if(page==="checks"){
- const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId"));
+ const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId"));if(item&&item.status!=="OPEN")throw Error("چک وصول‌شده، پرداخت‌شده یا ظهرنویسی‌شده قابل ویرایش نیست");
  if(!p)throw Error("طرف حساب انتخاب نشده");
  const kind=d.kind==="دریافتی"?"RECEIVED":"PAYABLE",amount=num("amount"),due=new Date(d.due+"T12:00:00").getTime(),issue=new Date(d.issue+"T12:00:00").getTime();
  if(!Number.isSafeInteger(amount)||amount<=0||!Number.isFinite(due)||!Number.isFinite(issue)||due<issue)throw Error("مبلغ یا تاریخ چک نامعتبر است");

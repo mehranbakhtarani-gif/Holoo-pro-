@@ -48,7 +48,7 @@ object DatabaseBackup {
                     require(cursor.moveToFirst() && cursor.getString(0) == "ok") { "سلامت فایل پشتیبان تأیید نشد" }
                 }
                 checkDb.rawQuery("PRAGMA user_version", null).use { cursor ->
-                    require(cursor.moveToFirst() && cursor.getInt(0) in 1..6) { "نسخه پایگاه داده با این برنامه سازگار نیست" }
+                    require(cursor.moveToFirst() && cursor.getInt(0) in 1..7) { "نسخه پایگاه داده با این برنامه سازگار نیست" }
                 }
                 checkDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='products'", null).use { cursor ->
                     require(cursor.moveToFirst()) { "این فایل، پشتیبان HOLLOO PRO+ نیست" }

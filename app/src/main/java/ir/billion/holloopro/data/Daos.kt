@@ -253,6 +253,9 @@ interface InvoiceSettlementDao {
     @Query("SELECT treasuryEntryId AS entryId, COALESCE(SUM(amountRial), 0) AS allocatedRial FROM invoice_settlements GROUP BY treasuryEntryId")
     fun observeTreasuryAllocations(): Flow<List<TreasuryAllocationRow>>
 
+    @Query("SELECT s.id AS settlementId, s.invoiceId AS invoiceId, s.treasuryEntryId AS treasuryEntryId, s.amountRial AS amountRial, s.createdAt AS createdAt, t.kind AS entryKind, t.method AS method, t.referenceNumber AS referenceNumber, t.createdAt AS entryCreatedAt FROM invoice_settlements s INNER JOIN treasury_entries t ON t.id = s.treasuryEntryId ORDER BY s.createdAt DESC, s.id DESC")
+    fun observeDetails(): Flow<List<InvoiceSettlementDetailRow>>
+
     @Insert
     suspend fun insert(settlement: InvoiceSettlementEntity): Long
 

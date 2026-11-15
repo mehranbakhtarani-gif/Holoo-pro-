@@ -18,6 +18,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val suppliers = db.partyDao().observeSuppliers()
     val invoices = db.invoiceDao().observeAll()
     val invoiceSettlements = db.invoiceDao().observeSettlementTotals()
+    val settlementDetails = db.invoiceSettlementDao().observeDetails()
     val treasuryAllocations = db.invoiceSettlementDao().observeTreasuryAllocations()
     val imports = db.importOrderDao().observeAll()
     val productCount = db.productDao().observeCount()
@@ -262,6 +263,9 @@ class AccountingRepository(private val db: AppDatabase) {
             ensureBaseAccounts()
             val invoice = db.invoiceDao().getById(invoiceId) ?: error("فاکتور پیدا نشد")
             require(invoice.status == "POSTED") { "فقط فاکتور ثبت‌شده قابل برگشت است" }
+            require(db.invoiceDao().settledForInvoice(invoiceId) == 0L) {
+                "این فاکتور تسویه تخصیص‌یافته دارد؛ ابتدا تخصیص‌های دریافت/پرداخت را لغو کن"
+            }
             val lines = db.invoiceLineDao().byInvoice(invoiceId)
             require(lines.isNotEmpty()) { "ردیف‌های فاکتور برای برگشت پیدا نشد" }
             var purchaseReversalInventoryCost = 0L

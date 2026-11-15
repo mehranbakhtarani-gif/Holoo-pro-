@@ -244,3 +244,5 @@ data class InvoiceSettlementEntity(
 data class InvoiceSettlementRow(val invoiceId: Long, val paidRial: Long)
 
 data class TreasuryAllocationRow(val entryId: Long, val allocatedRial: Long)
+
+data class InvoiceSettlementDetailRow(val settlementId: Long, val invoiceId: Long, val treasuryEntryId: Long, val amountRial: Long, val createdAt: Long, val entryKind: String, val method: String, val referenceNumber: String, val entryCreatedAt: Long)

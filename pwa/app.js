@@ -343,7 +343,15 @@ if(page==="allocations"){
  }else await put("treasuryAllocations",allocation);
  return
 }
-if(page==="warehouseTransfers"){const [warehouses,items]=await Promise.all([all("warehouses"),all("products")]);fields.warehouseTransfers.find(x=>x[0]==="productId")[4]=items.map(x=>x.name+"|"+x.id);fields.warehouseTransfers.find(x=>x[0]==="sourceWarehouseId")[4]=warehouses.map(x=>x.name+"|"+x.id);fields.warehouseTransfers.find(x=>x[0]==="destinationWarehouseId")[4]=warehouses.map(x=>x.name+"|"+x.id)}if(page==="importShipments"){
+if(page==="warehouseTransfers"){
+ const [products,warehouses,stockRows]=await Promise.all([all("products"),all("warehouses"),all("warehouseStock")]);
+ const product=products.find(x=>x.id===num("productId")),source=warehouses.find(x=>x.id===num("sourceWarehouseId")),destination=warehouses.find(x=>x.id===num("destinationWarehouseId"));
+ if(!product||!source||!destination)throw Error("کالا و هر دو انبار را انتخاب کنید");
+ const movement=calculateWarehouseTransfer({product,source,destination,quantity:num("quantity"),sourceRows:stockRows,destinationRows:stockRows});
+ const row={productId:product.id,productName:product.name,sourceWarehouseId:source.id,sourceWarehouseName:source.name,destinationWarehouseId:destination.id,destinationWarehouseName:destination.name,quantity:movement.quantity,value:movement.value,date:Date.now()};
+ await putMany([["warehouseStock",movement.sourceRecord],["warehouseStock",movement.destinationRecord],["warehouseTransfers",row]]);return
+}
+if(page==="warehouses"){const name=String(d.name||"").trim();if(!name)throw Error("نام انبار الزامی است");const rows=await all("warehouses");if(rows.some(x=>x.name===name&&x.id!==item?.id))throw Error("نام انبار تکراری است");await put("warehouses",{id:item?.id,name,address:d.address,manager:d.manager,createdAt:item?.createdAt||Date.now()});return}if(page==="importShipments"){
  if(item?.receivedAt)throw Error("محموله رسیدشده قابل ویرایش نیست؛ برای اصلاح سند برگشت ثبت کنید");
  const ps=await all("parties"),products=await all("products"),warehouses=await all("warehouses");
  const p=ps.find(x=>x.id===num("supplierId")),product=products.find(x=>x.id===num("productId")),warehouse=warehouses.find(x=>x.id===num("warehouseId"));

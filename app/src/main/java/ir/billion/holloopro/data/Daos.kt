@@ -257,6 +257,41 @@ interface TreasuryDao {
 
 
 @Dao
+interface WarehouseDao {
+    @Query("SELECT * FROM warehouses ORDER BY isDefault DESC, name")
+    fun observeAll(): Flow<List<WarehouseEntity>>
+
+    @Query("SELECT * FROM warehouses WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): WarehouseEntity?
+
+    @Insert
+    suspend fun insert(warehouse: WarehouseEntity): Long
+}
+
+@Dao
+interface WarehouseStockDao {
+    @Query("SELECT w.id AS warehouseId, w.name AS warehouseName, p.id AS productId, p.name AS productName, COALESCE(SUM(m.quantityKg), 0.0) AS quantityKg, COALESCE(v.valueRial, 0) AS valueRial, CASE WHEN COALESCE(v.quantityKg, 0) > 0 THEN CAST(v.valueRial / v.quantityKg AS INTEGER) ELSE 0 END AS averageCostPerKgRial FROM warehouses w CROSS JOIN products p LEFT JOIN warehouse_stock_movements m ON m.warehouseId = w.id AND m.productId = p.id LEFT JOIN warehouse_valuations v ON v.warehouseId = w.id AND v.productId = p.id GROUP BY w.id, p.id ORDER BY w.isDefault DESC, w.name, p.name")
+    fun observeStocks(): Flow<List<WarehouseStockRow>>
+
+    @Query("SELECT COALESCE(SUM(quantityKg), 0.0) FROM warehouse_stock_movements WHERE warehouseId = :warehouseId AND productId = :productId")
+    suspend fun stockForProduct(warehouseId: Long, productId: Long): Double
+
+    @Query("SELECT * FROM warehouse_valuations WHERE warehouseId = :warehouseId AND productId = :productId LIMIT 1")
+    suspend fun valuation(warehouseId: Long, productId: Long): WarehouseValuationEntity?
+
+    @Query("SELECT COALESCE(SUM(quantityKg), 0.0) AS quantityKg, COALESCE(SUM(valueRial), 0) AS valueRial FROM warehouse_valuations WHERE productId = :productId")
+    suspend fun aggregateValuation(productId: Long): InventoryValuationAggregate
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertValuation(valuation: WarehouseValuationEntity)
+
+    @Insert
+    suspend fun insertMovement(movement: WarehouseStockMovementEntity)
+}
+
+data class InventoryValuationAggregate(val quantityKg: Double, val valueRial: Long)
+
+@Dao
 interface InvoiceReturnDao {
     @Insert
     suspend fun insert(returnEntry: InvoiceReturnEntity): Long

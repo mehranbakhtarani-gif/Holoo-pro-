@@ -852,7 +852,30 @@ private fun AccountingScreen(
         item { StatCard("اسناد صادرشده", voucherCount.toString(), "≋", Modifier.fillMaxWidth()) }
         item { SummaryCard("درآمد فروش (بدون مالیات)", profitLoss.salesRial, showToman) }
         item { SummaryCard("بهای تمام‌شده کالای فروش‌رفته", profitLoss.costOfGoodsSoldRial, showToman) }
-        item { SummaryCard("سود ناخالص", profitLoss.salesRial - profitLoss.costOfGoodsSoldRial, showToman) }
+        item { SummaryCard("سود ناخالص فاکتورها", profitLoss.salesRial - profitLoss.costOfGoodsSoldRial, showToman) }
+        item {
+            val revenue = trialBalance.filter { it.accountType == "REVENUE" }.sumOf { it.endingCreditRial - it.endingDebitRial }
+            val expense = trialBalance.filter { it.accountType == "EXPENSE" }.sumOf { it.endingDebitRial - it.endingCreditRial }
+            val netProfit = revenue - expense
+            val assets = trialBalance.filter { it.accountType == "ASSET" }.sumOf { it.endingDebitRial - it.endingCreditRial }
+            val liabilities = trialBalance.filter { it.accountType == "LIABILITY" }.sumOf { it.endingCreditRial - it.endingDebitRial }
+            val equity = trialBalance.filter { it.accountType == "EQUITY" }.sumOf { it.endingCreditRial - it.endingDebitRial } + netProfit
+            GlassCard {
+                Text("صورت سود و زیان تجمیعی", color = Turquoise, fontWeight = FontWeight.Bold)
+                Text("درآمدها: ${formatMoney(revenue, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Color.White)
+                Text("هزینه‌ها: ${formatMoney(expense, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Color.White)
+                Text("سود / زیان خالص: ${formatMoney(netProfit, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontWeight = FontWeight.Bold)
+                Text("مبنای محاسبه: مانده حساب‌های درآمد و هزینه از اسناد ثبت‌شده؛ گزارش تجمیعی تا این لحظه.", color = Muted, fontSize = 10.sp)
+            }
+            GlassCard {
+                Text("ترازنامه", color = Turquoise, fontWeight = FontWeight.Bold)
+                Text("دارایی‌ها: ${formatMoney(assets, showToman)}", color = Color.White)
+                Text("بدهی‌ها: ${formatMoney(liabilities, showToman)}", color = Color.White)
+                Text("حقوق مالکانه با احتساب سود/زیان جاری: ${formatMoney(equity, showToman)}", color = Color.White)
+                val difference = assets - liabilities - equity
+                Text("اختلاف تراز: ${formatMoney(kotlin.math.abs(difference), showToman)} ${if (difference == 0L) "• تراز است" else "• نیازمند بررسی"}", color = if (difference == 0L) Turquoise else Color(0xFFFF9D9D), fontWeight = FontWeight.Bold)
+            }
+        }
         item { SummaryCard("جمع فاکتورهای فروش ثبت‌شده", sales, showToman) }
         item { SummaryCard("جمع فاکتورهای خرید ثبت‌شده", purchases, showToman) }
         item {
@@ -937,10 +960,19 @@ private fun AccountingScreen(
         }
         item {
             GlassCard {
-                Text("کدینگ پایه", color = Turquoise, fontWeight = FontWeight.Bold)
-                Text("۱۱۰۱ صندوق  •  ۱۱۰۲ بانک", color = Color.White, fontSize = 12.sp)
-                Text("۱۱۰۳ دریافتنی  •  ۱۳۰۱ موجودی کالا", color = Color.White, fontSize = 12.sp)
-                Text("۲۱۰۱ پرداختنی  •  ۴۱۰۱ فروش", color = Color.White, fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("کدینگ و گروه‌بندی حساب‌ها", color = Turquoise, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { showNewAccount = true }) { Text("افزودن حساب", color = Turquoise) }
+                }
+                trialBalance.groupBy { it.accountType }.forEach { (type, rows) ->
+                    Text(accountTypeLabel(type), color = Turquoise, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    rows.forEach { account ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("${account.accountCode} • ${account.accountTitle}", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { accountEditor = account }) { Text("ویرایش", color = Muted) }
+                        }
+                    }
+                }
                 Text("گردش دفتر کل (آخرین اسناد)", color = Turquoise, fontWeight = FontWeight.Bold)
                 if (ledger.isEmpty()) Text("هنوز سندی برای نمایش وجود ندارد", color = Muted, fontSize = 11.sp)
                 ChoiceField("حساب دفتر", ledgerAccountFilter, listOf("همه حساب‌ها") + trialBalance.map { it.accountCode + " • " + it.accountTitle }) { ledgerAccountFilter = it }
@@ -983,6 +1015,8 @@ private fun AccountingScreen(
             onSave = { values -> onUpdateOpeningBalances(values); showOpeningDialog = false }
         )
     }
+    if (showNewAccount) AccountEditorDialog(null, onDismiss = { showNewAccount = false }, onSave = { code, title, type -> onSaveAccount(code, title, type) { showNewAccount = false } })
+    accountEditor?.let { account -> AccountEditorDialog(account, onDismiss = { accountEditor = null }, onSave = { code, title, type -> onSaveAccount(code, title, type) { accountEditor = null } }) }
     reversalTarget?.let { number ->
         AlertDialog(
             onDismissRequest = { reversalTarget = null },
@@ -997,6 +1031,48 @@ private fun AccountingScreen(
             containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
         )
     }
+}
+
+@Composable
+private fun AccountEditorDialog(
+    account: AccountTrialBalanceRow?,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String) -> Unit
+) {
+    var code by remember(account?.accountId) { mutableStateOf(account?.accountCode ?: "") }
+    var title by remember(account?.accountId) { mutableStateOf(account?.accountTitle ?: "") }
+    var type by remember(account?.accountId) { mutableStateOf(account?.accountType ?: "ASSET") }
+    var expanded by remember { mutableStateOf(false) }
+    val types = listOf("ASSET" to "دارایی", "LIABILITY" to "بدهی", "EQUITY" to "حقوق مالکانه", "REVENUE" to "درآمد", "EXPENSE" to "هزینه")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (account == null) "افزودن حساب جدید" else "ویرایش حساب") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(code, { if (account == null) code = it.filter(Char::isDigit) }, label = { Text("کد حساب") }, enabled = account == null, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(title, { title = it }, label = { Text("عنوان حساب") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Box {
+                    OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) { Text(types.firstOrNull { it.first == type }?.second ?: type) }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        types.forEach { item -> DropdownMenuItem(text = { Text(item.second) }, onClick = { type = item.first; expanded = false }) }
+                    }
+                }
+                Text("کد حساب پس از ثبت قابل تغییر نیست تا اسناد قبلی به حساب اشتباه متصل نشوند.", color = Muted, fontSize = 10.sp)
+            }
+        },
+        confirmButton = { TextButton(enabled = code.length >= 3 && title.isNotBlank(), onClick = { onSave(code, title, type) }) { Text("ذخیره") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+    )
+}
+
+private fun accountTypeLabel(type: String): String = when (type) {
+    "ASSET" -> "دارایی‌ها"
+    "LIABILITY" -> "بدهی‌ها"
+    "EQUITY" -> "حقوق مالکانه"
+    "REVENUE" -> "درآمدها"
+    "EXPENSE" -> "هزینه‌ها"
+    else -> type
 }
 
 @Composable

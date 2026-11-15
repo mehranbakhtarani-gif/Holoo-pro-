@@ -394,6 +394,7 @@ private fun HolooApp(
 @Composable
 private fun BankReconciliationSection(
     bankStatements: List<BankStatementLineEntity>,
+    bankStatementPeriods: List<BankStatementPeriodEntity>,
     treasury: List<TreasuryEntryEntity>,
     checks: List<CheckEntity>,
     showToman: Boolean,

@@ -232,13 +232,13 @@ class AccountingRepository(private val db: AppDatabase) {
 
     suspend fun createAndPostInvoice(
         kind: String, partyId: Long, productId: Long, quantityKg: Double,
-        unitPriceRial: Long, discountRial: Long, taxRial: Long, extraCostsRial: Long = 0
+        unitPriceRial: Long, discountRial: Long, taxRial: Long, extraCostsRial: Long = 0, warehouseId: Long = 1L
     ) = createAndPostMultiLineInvoice(
         kind, partyId, listOf(InvoiceLineInput(productId, quantityKg, unitPriceRial)),
-        discountRial, taxRial, extraCostsRial
+        discountRial, taxRial, extraCostsRial, warehouseId
     )
 
-    suspend fun createAndPostMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discountRial: Long, taxRial: Long, extraCostsRial: Long = 0) {
+    suspend fun createAndPostMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discountRial: Long, taxRial: Long, extraCostsRial: Long = 0, warehouseId: Long = 1L) {
         require(kind == "SALE" || kind == "PURCHASE")
         require(lines.isNotEmpty()) { "فاکتور باید حداقل یک ردیف کالا داشته باشد" }
         require(discountRial >= 0 && taxRial >= 0 && extraCostsRial >= 0)
@@ -253,12 +253,13 @@ class AccountingRepository(private val db: AppDatabase) {
         require(total > 0) { "مبلغ فاکتور باید بیشتر از صفر باشد" }
         db.withTransaction {
             val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
+            db.warehouseDao().getById(warehouseId) ?: error("انبار انتخاب‌شده پیدا نشد")
             if (kind == "SALE") require(party.kind != "SUPPLIER") { "برای فروش، مشتری انتخاب کنید" } else require(party.kind != "CUSTOMER") { "برای خرید، تأمین‌کننده انتخاب کنید" }
             val requestedByProduct = AccountingEngine.aggregateQuantities(lines.map { it.productId to it.quantityKg })
             if (kind == "SALE") {
                 requestedByProduct.forEach { (productId, requestedKg) ->
                     val product = db.productDao().getById(productId) ?: error("یکی از کالاهای فاکتور پیدا نشد")
-                    val available = db.stockDao().stockForProduct(productId)
+                    val available = db.warehouseStockDao().stockForProduct(warehouseId, productId)
                     require(available.isFinite() && available + 0.000001 >= requestedKg) {
                         "موجودی " + product.name + " کافی نیست؛ موجودی: " + available +
                             " کیلوگرم، مقدار درخواستی: " + requestedKg + " کیلوگرم"
@@ -274,7 +275,7 @@ class AccountingRepository(private val db: AppDatabase) {
             } else emptyMap()
             val inventoryCosts = mutableListOf<Long>()
             resolved.forEachIndexed { index, (line, product, _) ->
-                val existing = db.productValuationDao().get(line.productId)
+                val existing = db.warehouseStockDao().valuation(warehouseId, line.productId)
                 val current = existing?.let { InventoryValuation(it.quantityKg, it.valueRial) }
                     ?: InventoryValuation(0.0, 0L)
                 val next = if (kind == "PURCHASE") {
@@ -288,12 +289,18 @@ class AccountingRepository(private val db: AppDatabase) {
                     issue.remaining
                 }
                 if (kind == "PURCHASE") inventoryCosts.add(lineCosts[index + 1L] ?: 0L)
-                db.productValuationDao().upsert(ProductValuationEntity(line.productId, next.quantityKg, next.valueRial))
+                db.warehouseStockDao().upsertValuation(WarehouseValuationEntity(warehouseId, line.productId, next.quantityKg, next.valueRial))
+                syncGlobalValuation(line.productId)
             }
             val number = "HP-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8)
-            val invoiceId = db.invoiceDao().insert(InvoiceEntity(number = number, kind = kind, partyId = partyId, subtotalRial = subtotal, discountRial = discountRial, taxRial = taxRial, totalRial = total, status = "POSTED", extraCostsRial = extraCostsRial))
+            val invoiceId = db.invoiceDao().insert(InvoiceEntity(number = number, kind = kind, partyId = partyId, subtotalRial = subtotal, discountRial = discountRial, taxRial = taxRial, totalRial = total, status = "POSTED", extraCostsRial = extraCostsRial, warehouseId = warehouseId))
             db.invoiceLineDao().insertAll(resolved.mapIndexed { index, (line, _, amount) -> InvoiceLineEntity(invoiceId = invoiceId, productId = line.productId, quantityKg = line.quantityKg, unitPriceRial = line.unitPriceRial, lineTotalRial = amount, inventoryCostRial = inventoryCosts[index]) })
-            resolved.forEach { (line, _, _) -> db.stockDao().insert(StockMovementEntity(productId = line.productId, quantityKg = if (kind == "SALE") -line.quantityKg else line.quantityKg, kind = if (kind == "SALE") "SALE" else "PURCHASE", referenceId = invoiceId, note = number)) }
+            resolved.forEach { (line, _, _) ->
+                val movementQuantity = if (kind == "SALE") -line.quantityKg else line.quantityKg
+                val movementKind = if (kind == "SALE") "SALE" else "PURCHASE"
+                db.stockDao().insert(StockMovementEntity(productId = line.productId, quantityKg = movementQuantity, kind = movementKind, referenceId = invoiceId, note = number))
+                db.warehouseStockDao().insertMovement(WarehouseStockMovementEntity(warehouseId = warehouseId, productId = line.productId, quantityKg = movementQuantity, kind = movementKind, referenceId = invoiceId, note = number))
+            }
             ensureBaseAccounts()
             val drafts = AccountingEngine.invoicePostingLines(kind, subtotal, discountRial, taxRial, extraCostsRial)
             val voucherId = db.voucherDao().insert(VoucherEntity(number = "S-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8), description = if (kind == "SALE") "ثبت فروش چندردیفی " + number else "ثبت خرید چندردیفی " + number, reference = "INVOICE:" + invoiceId))

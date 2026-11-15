@@ -549,6 +549,58 @@ private fun BankReconciliationSection(
 }
 
 @Composable
+private fun BankCsvImportPreviewDialog(
+    rows: List<BankStatementCsvRow>,
+    bankName: String,
+    onBankNameChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val dateFormat = remember { java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("پیش‌نمایش ورود گردش بانکی") },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = bankName,
+                    onValueChange = onBankNameChange,
+                    label = { Text("نام بانک / حساب") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("تعداد ردیف‌های قابل ورود: ${rows.size}", color = Turquoise, fontWeight = FontWeight.Bold)
+                Text("نمونه پنج گردش اول؛ مبالغ مثبت واریز و مبالغ منفی برداشت هستند. مبالغ فایل باید به ریال باشند.", color = Muted, fontSize = 10.sp)
+                rows.take(5).forEach { row ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "${dateFormat.format(java.util.Date(row.transactionDateEpoch))} • ${if (row.signedAmountRial >= 0) "واریز" else "برداشت"} • ${formatMoney(kotlin.math.abs(row.signedAmountRial), false)} ریال",
+                            color = Color.White,
+                            fontSize = 11.sp
+                        )
+                        if (row.bankReference.isNotBlank() || row.description.isNotBlank()) {
+                            Text("${row.bankReference} ${row.description}".trim(), color = Muted, fontSize = 10.sp)
+                        }
+                    }
+                    Divider(color = CardBorder)
+                }
+                Text("ردیف‌های تکراری بر اساس بانک، تاریخ، مبلغ و شماره مرجع دوباره ثبت نمی‌شوند.", color = Muted, fontSize = 10.sp)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = bankName.isNotBlank(), onClick = onConfirm) { Text("ثبت گردش‌ها") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
+    )
+}
+
+@Composable
 private fun BankStatementPeriodDialog(
     onDismiss: () -> Unit,
     onSave: (String, Long, Long, Long, Long) -> Unit

@@ -267,6 +267,9 @@ interface BankStatementDao {
     @Query("SELECT * FROM bank_statement_lines WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): BankStatementLineEntity?
 
+    @Query("SELECT COUNT(*) FROM bank_statement_lines WHERE matchedTreasuryEntryId = :treasuryEntryId")
+    suspend fun countMatches(treasuryEntryId: Long): Int
+
     @Update
     suspend fun update(line: BankStatementLineEntity)
 }

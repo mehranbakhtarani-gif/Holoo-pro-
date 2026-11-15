@@ -75,6 +75,8 @@ private val CardBorder = Color(0x5536D6C5)
 class MainActivity : ComponentActivity() {
     private lateinit var exportBackupLauncher: androidx.activity.result.ActivityResultLauncher<String>
     private lateinit var importBackupLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
+    private lateinit var exportReportsLauncher: androidx.activity.result.ActivityResultLauncher<String>
+    private var pendingReportsCsv: String = ""
 
     private val vm by viewModels<AppViewModel> {
         AppViewModel.Factory((application as HolooApplication).repository)
@@ -87,6 +89,15 @@ class MainActivity : ComponentActivity() {
                 runCatching { DatabaseBackup.export(this@MainActivity, (application as HolooApplication).database, uri) }
                     .onSuccess { Toast.makeText(this@MainActivity, "پشتیبان با موفقیت ذخیره شد", Toast.LENGTH_LONG).show() }
                     .onFailure { Toast.makeText(this@MainActivity, "خطا در پشتیبان‌گیری: ${it.message}", Toast.LENGTH_LONG).show() }
+            }
+        }
+        exportReportsLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                runCatching {
+                    val output = contentResolver.openOutputStream(uri) ?: error("امکان ایجاد فایل وجود ندارد")
+                    output.bufferedWriter(Charsets.UTF_8).use { it.write(pendingReportsCsv) }
+                }.onSuccess { Toast.makeText(this@MainActivity, "گزارش‌ها ذخیره شدند", Toast.LENGTH_LONG).show() }
+                    .onFailure { Toast.makeText(this@MainActivity, "خروجی گزارش ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
             }
         }
         importBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -142,6 +153,10 @@ class MainActivity : ComponentActivity() {
                         onAdjustStock = vm::adjustStock,
                         onCreateWarehouse = vm::createWarehouse,
                         onTransferStock = vm::transferStock,
+                        onExportReports = {
+                            pendingReportsCsv = buildReportsCsv(productProfitability, invoiceProfitability, warehouseKardex)
+                            exportReportsLauncher.launch("holoo-reports.csv")
+                        },
                         onSaveParty = vm::saveParty,
                         onPartyLedger = vm::partyLedger,
                         onDeleteParty = vm::deleteParty,
@@ -230,6 +245,7 @@ private fun HolooApp(
     onAdjustStock: (Long, Double, Long, Long) -> Unit,
     onCreateWarehouse: (String, String, () -> Unit) -> Unit,
     onTransferStock: (Long, Long, Long, Double, () -> Unit) -> Unit,
+    onExportReports: () -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
     onPartyLedger: (Long) -> Flow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
     onDeleteParty: (Long) -> Unit,
@@ -332,7 +348,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -1190,6 +1206,7 @@ private fun AccountingScreen(
     invoiceProfitability: List<InvoiceProfitRow>,
     parties: List<PartyEntity>,
     showToman: Boolean,
+    onExportReports: () -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
     onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
@@ -1221,6 +1238,7 @@ private fun AccountingScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("دفتر و حسابداری دوبل", modifier = Modifier.weight(1f), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = onExportReports) { Text("خروجی گزارش") }
                     OutlinedButton(onClick = { showOpeningDialog = true }) { Text("مانده افتتاحیه") }
                     OutlinedButton(onClick = { showManualDialog = true }) { Text("سند دستی") }
                     Button(onClick = { showDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) {
@@ -1916,6 +1934,41 @@ private fun partyKind(kind: String): String = when (kind) {
     "CUSTOMER" -> "مشتری"
     "SUPPLIER" -> "تأمین‌کننده"
     else -> "مشتری و تأمین‌کننده"
+}
+
+private fun buildReportsCsv(
+    products: List<ProductProfitRow>,
+    invoices: List<InvoiceProfitRow>,
+    kardex: List<WarehouseKardexRow>
+): String {
+    fun csv(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+    val out = StringBuilder("\uFEFF")
+    out.appendLine("گزارش سودآوری کالا")
+    out.appendLine("کالا,مقدار خالص فروش (کیلوگرم),فروش خالص (ریال),بهای تمام‌شده (ریال),سود (ریال)")
+    products.forEach { row ->
+        out.appendLine(listOf(csv(row.productName), row.quantitySoldKg.toString(), row.salesRial.toString(), row.costRial.toString(), row.profitRial.toString()).joinToString(","))
+    }
+    out.appendLine()
+    out.appendLine("گزارش سودآوری فاکتور")
+    out.appendLine("شماره فاکتور,طرف حساب,فروش خالص (ریال),بهای تمام‌شده (ریال),سود (ریال)")
+    invoices.forEach { row ->
+        out.appendLine(listOf(csv(row.invoiceNumber), csv(row.partyName), row.salesRial.toString(), row.costRial.toString(), row.profitRial.toString()).joinToString(","))
+    }
+    out.appendLine()
+    out.appendLine("سودآوری طرف حساب")
+    out.appendLine("طرف حساب,سود (ریال)")
+    invoices.groupBy { it.partyId }.map { (_, rows) -> rows.first().partyName to rows.sumOf { it.profitRial } }
+        .sortedByDescending { it.second }.forEach { (name, profit) ->
+            out.appendLine(listOf(csv(name), profit.toString()).joinToString(","))
+        }
+    out.appendLine()
+    out.appendLine("کاردکس انبارها")
+    out.appendLine("تاریخ,انبار,کالا,نوع گردش,مقدار (کیلوگرم),مرجع,شرح")
+    kardex.forEach { row ->
+        val date = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(java.util.Date(row.createdAt))
+        out.appendLine(listOf(csv(date), csv(row.warehouseName), csv(row.productName), csv(row.kind), row.quantityKg.toString(), row.referenceId.toString(), csv(row.note)).joinToString(","))
+    }
+    return out.toString()
 }
 
 private fun formatMoney(rial: Long, showToman: Boolean): String {

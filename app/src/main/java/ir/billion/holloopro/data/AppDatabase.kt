@@ -19,9 +19,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         VoucherEntity::class,
         VoucherLineEntity::class,
         ImportOrderEntity::class,
-        TreasuryEntryEntity::class
+        TreasuryEntryEntity::class,
+        ImportReceiptEntity::class,
+        ImportReceiptLineEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -53,6 +55,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS import_receipts (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, importOrderId INTEGER NOT NULL, goodsCostRial INTEGER NOT NULL, totalCostRial INTEGER NOT NULL, receivedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_import_receipts_importOrderId ON import_receipts(importOrderId)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS import_receipt_lines (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, receiptId INTEGER NOT NULL, productId INTEGER NOT NULL, quantityKg REAL NOT NULL, allocatedCostRial INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_import_receipt_lines_receiptId ON import_receipt_lines(receiptId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_import_receipt_lines_productId ON import_receipt_lines(productId)")
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase =
@@ -61,7 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     DATABASE_NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
             }
     }
 }

@@ -119,6 +119,9 @@ interface PartyLedgerDao {
 
     @Query("SELECT COALESCE(SUM(debitRial - creditRial), 0) + (SELECT openingBalanceRial FROM parties WHERE id = :partyId) FROM party_ledger WHERE partyId = :partyId")
     suspend fun balanceRial(partyId: Long): Long
+
+    @Query("SELECT id, partyId, debitRial, creditRial, description, referenceId, createdAt FROM party_ledger WHERE partyId = :partyId ORDER BY createdAt DESC, id DESC")
+    fun observeForParty(partyId: Long): Flow<List<PartyLedgerRow>>
 }
 
 @Dao

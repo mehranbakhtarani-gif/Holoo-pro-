@@ -197,3 +197,5 @@ data class AccountBalanceRow(
 data class ProfitLossRow(val salesRial: Long, val costOfGoodsSoldRial: Long)
 
 data class LedgerRow(val voucherNumber: String, val dateEpoch: Long, val voucherDescription: String, val accountCode: String, val accountTitle: String, val debitRial: Long, val creditRial: Long)
+
+data class PartyLedgerRow(val id: Long, val partyId: Long, val debitRial: Long, val creditRial: Long, val description: String, val referenceId: Long, val createdAt: Long)

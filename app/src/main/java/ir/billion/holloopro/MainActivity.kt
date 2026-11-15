@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
                         onDeleteProduct = vm::deleteProduct,
                         onSetOpeningValuation = vm::setOpeningInventoryValuation,
                         onSaveParty = vm::saveParty,
+                        onPartyLedger = vm::partyLedger,
                         onDeleteParty = vm::deleteParty,
                         onCreateInvoice = vm::createMultiLineInvoice,
                         onReverseInvoice = vm::reverseInvoice,
@@ -140,6 +141,7 @@ private fun HolooApp(
     onDeleteProduct: (Long) -> Unit,
     onSetOpeningValuation: (Long, Long) -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
+    onPartyLedger: (Long) -> StateFlow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
     onDeleteParty: (Long) -> Unit,
     onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
     onReverseInvoice: (Long) -> Unit,
@@ -220,7 +222,7 @@ private fun HolooApp(
             when (screen) {
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman)
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation)
-                Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty)
+                Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, ledger, profitLoss, parties, showToman, onAddTreasury)
@@ -381,7 +383,8 @@ private fun OpeningValuationDialog(
 @Composable
 private fun PartiesScreen(
     parties: List<PartyEntity>, balances: List<ir.billion.holloopro.data.PartyBalanceRow>, showToman: Boolean,
-    onSave: (Long?, String, String, String, String, Long) -> Unit, onDelete: (Long) -> Unit
+    onSave: (Long?, String, String, String, String, Long) -> Unit, onDelete: (Long) -> Unit,
+    onPartyLedger: (Long) -> StateFlow<List<ir.billion.holloopro.data.PartyLedgerRow>>
 ) {
     var dialog by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<PartyEntity?>(null) }
@@ -400,6 +403,18 @@ private fun PartiesScreen(
                             val balance = balances.firstOrNull { it.partyId == party.id }?.balanceRial ?: party.openingBalanceRial
                             Text("مانده جاری: ${formatMoney(balance, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             Text("مانده افتتاحیه: ${formatMoney(party.openingBalanceRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Muted, fontSize = 10.sp)
+                            var showHistory by remember(party.id) { mutableStateOf(false) }
+                            val partyRows by onPartyLedger(party.id).collectAsState()
+                            TextButton(onClick = { showHistory = !showHistory }) { Text(if (showHistory) "بستن گردش حساب" else "مشاهده ریز گردش حساب", color = Turquoise) }
+                            if (showHistory) {
+                                if (partyRows.isEmpty()) Text("برای این شخص گردش ثبت‌شده‌ای وجود ندارد.", color = Muted, fontSize = 10.sp)
+                                partyRows.forEach { row ->
+                                    Divider(color = CardBorder)
+                                    Text(row.description, color = Color.White, fontSize = 10.sp)
+                                    Text("بدهکار ${formatMoney(row.debitRial, showToman)}  |  بستانکار ${formatMoney(row.creditRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 10.sp)
+                                    Text(java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(java.util.Date(row.createdAt)), color = Muted, fontSize = 9.sp)
+                                }
+                            }
                         }
                         Column {
                             TextButton(onClick = { editing = party; dialog = true }) { Text("ویرایش", color = Turquoise) }

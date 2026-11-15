@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1d31"><meta name="description" content="مدیریت حسابداری، انبار و واردات نخ">
+<link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./style.css"><title>HOLLOO PRO+</title>
+</head>
+<body>
+<div class="app-shell">
+<header class="topbar"><div class="brand"><div class="brand-mark">H+</div><div><strong>HOLLOO PRO+</strong><small>مدیریت مالی و بازرگانی نخ</small></div></div><div class="head-actions"><button class="ghost" id="exportBtn">پشتیبان</button><button class="ghost" id="importBtn">بازیابی</button><button class="unit" id="unitBtn">تومان</button><input id="restoreFile" type="file" accept="application/json" hidden></div></header>
+<div class="layout"><aside class="sidebar" id="sidebar">
+<button class="nav active" data-page="home"><span>⌂</span>خانه</button>
+<button class="nav" data-page="inventory"><span>▦</span>کالا و انبار</button>
+<button class="nav" data-page="parties"><span>♙</span>اشخاص</button>
+<button class="nav" data-page="invoices"><span>▤</span>فاکتورها</button>
+<button class="nav" data-page="imports"><span>▣</span>واردات نخ</button>
+<button class="nav" data-page="checks"><span>▧</span>چک‌ها</button>
+<button class="nav" data-page="treasury"><span>◈</span>دریافت و پرداخت</button>
+<button class="nav" data-page="accounting"><span>≋</span>گزارش مالی</button>
+<div class="side-note">اطلاعات این نسخه روی همین دستگاه ذخیره می‌شود.</div></aside>
+<main id="main" class="main"><div class="loading">در حال آماده‌سازی دفتر شما…</div></main></div>
+<nav class="mobile-nav" id="mobileNav"></nav>
+</div>
+<div class="toast" id="toast" role="status"></div><div class="modal-backdrop" id="modal" hidden><section class="modal"><div class="modal-head"><h2 id="modalTitle"></h2><button class="close" id="closeModal">×</button></div><form id="entryForm"><div id="formFields" class="form-grid"></div><div class="modal-actions"><button type="button" class="btn secondary" id="cancelModal">انصراف</button><button type="submit" class="btn primary">ذخیره</button></div></form></section></div>
+<script src="./app.js" defer></script>
+</body></html>

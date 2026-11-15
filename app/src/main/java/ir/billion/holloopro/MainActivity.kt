@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ir.billion.holloopro.accounting.LandedCostCalculator
 import ir.billion.holloopro.accounting.Money
+import ir.billion.holloopro.data.CheckEntity
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.AccountBalanceRow
@@ -68,6 +69,7 @@ class MainActivity : ComponentActivity() {
                     val treasury by vm.treasury.collectAsState()
                     val accountBalances by vm.accountBalances.collectAsState()
                     val ledger by vm.ledger.collectAsState()
+                    val checks by vm.checks.collectAsState()
                     val profitLoss by vm.profitLoss.collectAsState()
                     val productCount by vm.productCount.collectAsState()
                     val partyCount by vm.partyCount.collectAsState()
@@ -76,7 +78,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, partyBalances, invoices, imports, treasury, accountBalances, ledger, profitLoss,
+                        products, parties, partyBalances, invoices, imports, treasury, accountBalances, ledger, checks, profitLoss,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -90,6 +92,8 @@ class MainActivity : ComponentActivity() {
                         onAddImport = vm::addImport,
                         onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
+                        onAddCheck = vm::addCheck,
+                        onUpdateCheckStatus = vm::updateCheckStatus,
                         onClearMessage = vm::clearMessage
                     )
                 }
@@ -118,7 +122,8 @@ private enum class Screen(val title: String, val symbol: String) {
     PARTIES("اشخاص", "♙"),
     INVOICES("فاکتورها", "▤"),
     IMPORTS("واردات نخ", "▣"),
-    ACCOUNTING("حسابداری", "≋")
+    ACCOUNTING("حسابداری", "≋"),
+    CHECKS("چک‌ها", "▣")
 }
 
 @Composable
@@ -131,6 +136,7 @@ private fun HolooApp(
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
     ledger: List<LedgerRow>,
+    checks: List<CheckEntity>,
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     productCount: Int,
     partyCount: Int,
@@ -149,6 +155,8 @@ private fun HolooApp(
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
+    onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
+    onUpdateCheckStatus: (Long, String) -> Unit,
     onClearMessage: () -> Unit
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -227,12 +235,88 @@ private fun HolooApp(
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, ledger, profitLoss, parties, showToman, onAddTreasury)
+                Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
     }
 }
 
 @Composable
+@Composable
+private fun ChecksScreen(
+    checks: List<CheckEntity>, parties: List<PartyEntity>, showToman: Boolean,
+    onAdd: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
+    onUpdateStatus: (Long, String) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        SectionHeader("مدیریت چک‌ها", "چک‌های دریافتی و پرداختی، سررسید و وضعیت وصول") { showDialog = true }
+        if (checks.isEmpty()) EmptyState("چکی ثبت نشده است", "چک‌های دریافتی مشتری و پرداختی تأمین‌کننده را ثبت کن")
+        else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
+            items(checks, key = { it.id }) { item ->
+                val party = parties.firstOrNull { it.id == item.partyId }?.name ?: "طرف حساب"
+                val overdue = item.status == "OPEN" && item.dueDateEpoch < System.currentTimeMillis()
+                GlassCard {
+                    Column {
+                        Text((if (item.kind == "RECEIVED") "چک دریافتی • " else "چک پرداختی • ") + party, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("شماره " + item.checkNumber + " • " + item.bankName, color = Muted, fontSize = 11.sp)
+                        Text(formatMoney(item.amountRial, showToman) + " " + (if (showToman) "تومان" else "ریال"), color = Turquoise, fontWeight = FontWeight.Bold)
+                        Text("سررسید: " + java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date(item.dueDateEpoch)), color = if (overdue) Color(0xFFFF9D9D) else Muted, fontSize = 11.sp)
+                        Text(when (item.status) { "CLEARED" -> "وصول/پرداخت‌شده"; "BOUNCED" -> "برگشتی"; "CANCELLED" -> "باطل‌شده"; else -> if (overdue) "سررسید گذشته" else "باز" }, color = if (overdue) Color(0xFFFF9D9D) else Turquoise, fontSize = 11.sp)
+                        if (item.status == "OPEN") Row {
+                            TextButton(onClick = { onUpdateStatus(item.id, "CLEARED") }) { Text("تسویه شد", color = Turquoise) }
+                            TextButton(onClick = { onUpdateStatus(item.id, "BOUNCED") }) { Text("برگشتی", color = Color(0xFFFF9D9D)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (showDialog) CheckDialog(parties, onDismiss = { showDialog = false }, onSave = { a,b,c,d,e,f,g,h -> onAdd(a,b,c,d,e,f,g,h) { showDialog = false } })
+}
+
+@Composable
+private fun CheckDialog(
+    parties: List<PartyEntity>, onDismiss: () -> Unit,
+    onSave: (String, String, Long, Long, Long, Long, String, String) -> Unit
+) {
+    var number by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf("RECEIVED") }
+    val eligible = parties.filter { if (kind == "RECEIVED") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
+    var partyId by remember { mutableStateOf(eligible.firstOrNull()?.id ?: 0L) }
+    var amount by remember { mutableStateOf("") }
+    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    var issueDate by remember { mutableStateOf(dateFormat.format(java.util.Date())) }
+    var dueDate by remember { mutableStateOf(issueDate) }
+    var bank by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    val issueAt = runCatching { dateFormat.parse(issueDate)?.time }.getOrNull() ?: 0L
+    val dueAt = runCatching { dateFormat.parse(dueDate)?.time }.getOrNull() ?: 0L
+    val valid = number.isNotBlank() && partyId > 0 && (amount.toLongOrNull() ?: 0L) > 0 && issueAt > 0 && dueAt >= issueAt
+    AlertDialog(
+        onDismissRequest = onDismiss, title = { Text("ثبت چک") },
+        text = {
+            Column(Modifier.heightIn(max = 470.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = kind == "RECEIVED", onClick = { kind = "RECEIVED"; partyId = parties.firstOrNull { it.kind != "SUPPLIER" }?.id ?: 0L }, label = { Text("دریافتی") })
+                    FilterChip(selected = kind == "PAYABLE", onClick = { kind = "PAYABLE"; partyId = parties.firstOrNull { it.kind != "CUSTOMER" }?.id ?: 0L }, label = { Text("پرداختی") })
+                }
+                FormField("شماره چک", number) { number = it }
+                ChoiceField("طرف حساب", parties.firstOrNull { it.id == partyId }?.name ?: "انتخاب طرف حساب", eligible.map { it.name }) { name -> partyId = eligible.firstOrNull { it.name == name }?.id ?: 0L }
+                FormField("مبلغ (ریال)", amount, KeyboardType.Number) { amount = it }
+                FormField("تاریخ صدور (YYYY-MM-DD)", issueDate) { issueDate = it }
+                FormField("تاریخ سررسید (YYYY-MM-DD)", dueDate) { dueDate = it }
+                FormField("بانک", bank) { bank = it }
+                FormField("توضیحات", note) { note = it }
+                Text("ثبت چک به‌تنهایی به معنی وصول یا پرداخت وجه نیست.", color = Muted, fontSize = 10.sp)
+            }
+        },
+        confirmButton = { TextButton(enabled = valid, onClick = { onSave(number, kind, partyId, amount.toLong(), issueAt, dueAt, bank, note) }) { Text("ثبت") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+    )
+}
+
 private fun HomeScreen(
     productCount: Int, partyCount: Int, invoiceCount: Int, voucherCount: Int, importCount: Int, showToman: Boolean
 ) {

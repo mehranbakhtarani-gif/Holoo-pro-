@@ -379,7 +379,7 @@ private fun InvoicesScreen(
             }
         }
     }
-    if (dialog) InvoiceDialog(parties, products, onDismiss = { dialog = false }, onSave = { a,b,c,d,e,f,g -> onCreate(a,b,c,d,e,f,g); dialog = false })
+    if (dialog) InvoiceDialog(parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax -> onCreate(kind, partyId, lines, discount, tax); dialog = false })
 }
 
 @Composable

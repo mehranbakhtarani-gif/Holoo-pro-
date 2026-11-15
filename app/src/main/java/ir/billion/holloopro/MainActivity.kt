@@ -783,8 +783,8 @@ private fun AccountingScreen(
         }
         item {
             GlassCard {
-                Text("تراز آزمایشی تجمعی • ۴ ستونی", color = Turquoise, fontWeight = FontWeight.Bold)
-                Text("گردش بدهکار، گردش بستانکار، مانده بدهکار و مانده بستانکار هر حساب", color = Muted, fontSize = 10.sp)
+                Text("تراز آزمایشی • ۸ ستونی", color = Turquoise, fontWeight = FontWeight.Bold)
+                Text("افتتاحیه، گردش دوره و مانده پایان دوره هر حساب", color = Muted, fontSize = 10.sp)
                 val debitTurnover = trialBalance.sumOf { it.debitTurnoverRial }
                 val creditTurnover = trialBalance.sumOf { it.creditTurnoverRial }
                 val endingDebit = trialBalance.sumOf { it.endingDebitRial }
@@ -802,12 +802,16 @@ private fun AccountingScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("${row.accountCode} • ${row.accountTitle}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("بدهکار: ${formatMoney(row.debitTurnoverRial, showToman)}", color = Muted, fontSize = 9.sp)
-                            Text("بستانکار: ${formatMoney(row.creditTurnoverRial, showToman)}", color = Muted, fontSize = 9.sp)
+                            Text("افتتاحیه بدهکار: ${formatMoney(row.openingDebitRial, showToman)}", color = Muted, fontSize = 9.sp)
+                            Text("افتتاحیه بستانکار: ${formatMoney(row.openingCreditRial, showToman)}", color = Muted, fontSize = 9.sp)
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("مانده بدهکار: ${formatMoney(row.endingDebitRial, showToman)}", color = Turquoise, fontSize = 9.sp)
-                            Text("مانده بستانکار: ${formatMoney(row.endingCreditRial, showToman)}", color = Turquoise, fontSize = 9.sp)
+                            Text("گردش بدهکار: ${formatMoney(row.debitTurnoverRial, showToman)}", color = Muted, fontSize = 9.sp)
+                            Text("گردش بستانکار: ${formatMoney(row.creditTurnoverRial, showToman)}", color = Muted, fontSize = 9.sp)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("مانده پایان بدهکار: ${formatMoney(row.endingDebitRial, showToman)}", color = Turquoise, fontSize = 9.sp)
+                            Text("مانده پایان بستانکار: ${formatMoney(row.endingCreditRial, showToman)}", color = Turquoise, fontSize = 9.sp)
                         }
                     }
                     Divider(color = CardBorder)

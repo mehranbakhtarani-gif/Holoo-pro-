@@ -92,7 +92,9 @@ data class AccountEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val code: String,
     val title: String,
-    val type: String
+    val type: String,
+    val openingDebitRial: Long = 0,
+    val openingCreditRial: Long = 0
 )
 
 @Entity(tableName = "vouchers")
@@ -199,6 +201,8 @@ data class AccountTrialBalanceRow(
     val accountCode: String,
     val accountTitle: String,
     val accountType: String,
+    val openingDebitRial: Long,
+    val openingCreditRial: Long,
     val debitTurnoverRial: Long,
     val creditTurnoverRial: Long,
     val endingDebitRial: Long,

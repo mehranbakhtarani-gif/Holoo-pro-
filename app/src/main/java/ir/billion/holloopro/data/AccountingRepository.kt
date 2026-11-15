@@ -802,7 +802,7 @@ class AccountingRepository(private val db: AppDatabase) {
     ) {
         require(bankName.isNotBlank()) { "نام بانک الزامی است" }
         require(transactionDateEpoch > 0L) { "تاریخ گردش بانکی معتبر نیست" }
-        require(signedAmountRial != 0L) { "مبلغ گردش بانکی نباید صفر باشد" }
+        require(signedAmountRial != 0L && signedAmountRial != Long.MIN_VALUE) { "مبلغ گردش بانکی معتبر نیست" }
         db.bankStatementDao().insert(BankStatementLineEntity(
             bankName = bankName.trim(), transactionDateEpoch = transactionDateEpoch,
             signedAmountRial = signedAmountRial, bankReference = bankReference.trim(),
@@ -816,6 +816,7 @@ class AccountingRepository(private val db: AppDatabase) {
             require(line.matchedTreasuryEntryId == null) { "این ردیف بانکی قبلاً تطبیق داده شده است" }
             val entry = db.treasuryDao().byId(treasuryEntryId) ?: error("سند دریافت/پرداخت پیدا نشد")
             require(entry.method == "BANK") { "فقط دریافت یا پرداخت بانکی قابل تطبیق است" }
+            require(db.bankStatementDao().countMatches(treasuryEntryId) == 0) { "این سند قبلاً با گردش بانکی دیگری تطبیق داده شده است" }
             val expected = if (entry.kind == "RECEIPT") entry.amountRial else Math.negateExact(entry.amountRial)
             require(line.signedAmountRial == expected) { "مبلغ یا جهت گردش بانکی با سند انتخاب‌شده یکسان نیست" }
             db.bankStatementDao().update(line.copy(matchedTreasuryEntryId = treasuryEntryId))

@@ -196,6 +196,8 @@ class MainActivity : ComponentActivity() {
                         onAddBankStatementLine = vm::addBankStatementLine,
                         onMatchBankStatementLine = vm::matchBankStatementLine,
                         onUnmatchBankStatementLine = vm::unmatchBankStatementLine,
+                        onMatchBankStatementLineToCheck = vm::matchBankStatementLineToCheck,
+                        onAddBankFee = vm::addBankFee,
                         onClearMessage = vm::clearMessage,
                         onExportBackup = { exportBackupLauncher.launch("holloo-backup-${System.currentTimeMillis()}.db") },
                         onImportBackup = { importBackupLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*")) }
@@ -290,6 +292,8 @@ private fun HolooApp(
     onAddBankStatementLine: (String, Long, Long, String, String, () -> Unit) -> Unit,
     onMatchBankStatementLine: (Long, Long) -> Unit,
     onUnmatchBankStatementLine: (Long) -> Unit,
+    onMatchBankStatementLineToCheck: (Long, Long) -> Unit,
+    onAddBankFee: (String, Long, Long, String, String, () -> Unit) -> Unit,
     onClearMessage: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
@@ -374,7 +378,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, bankStatements, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -386,56 +390,122 @@ private fun HolooApp(
 private fun BankReconciliationSection(
     bankStatements: List<BankStatementLineEntity>,
     treasury: List<TreasuryEntryEntity>,
+    checks: List<CheckEntity>,
     showToman: Boolean,
     onAdd: (String, Long, Long, String, String, () -> Unit) -> Unit,
     onMatch: (Long, Long) -> Unit,
-    onUnmatch: (Long) -> Unit
+    onUnmatch: (Long) -> Unit,
+    onMatchCheck: (Long, Long) -> Unit,
+    onAddFee: (String, Long, Long, String, String, () -> Unit) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    val matchedIds = bankStatements.mapNotNull { it.matchedTreasuryEntryId }.toSet()
-    val candidates = treasury.filter { it.method == "BANK" && it.id !in matchedIds }
+    var showFeeDialog by remember { mutableStateOf(false) }
+    val matchedTreasuryIds = bankStatements.mapNotNull { it.matchedTreasuryEntryId }.toSet()
+    val matchedCheckIds = bankStatements.mapNotNull { it.matchedCheckId }.toSet()
+    val candidates = treasury.filter { it.method == "BANK" && it.id !in matchedTreasuryIds }
+    val clearedChecks = checks.filter { it.status == "CLEARED" && it.id !in matchedCheckIds }
     GlassCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("مغایرت‌گیری بانکی", color = Turquoise, fontWeight = FontWeight.Bold)
-                Text("ثبت گردش صورت‌حساب و تطبیق با دریافت/پرداخت بانکی", color = Muted, fontSize = 10.sp)
+                Text("تطبیق دریافت، پرداخت، چک‌های تسویه‌شده و کارمزد", color = Muted, fontSize = 10.sp)
             }
-            TextButton(onClick = { showDialog = true }) { Text("+ ثبت گردش", color = Turquoise) }
+            TextButton(onClick = { showDialog = true }) { Text("+ گردش", color = Turquoise) }
         }
-        val matchedCount = bankStatements.count { it.matchedTreasuryEntryId != null }
-        Text("تطبیق‌شده: " + matchedCount + " • تطبیق‌نشده: " + (bankStatements.size - matchedCount), color = Muted, fontSize = 10.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { showFeeDialog = true }) { Text("ثبت کارمزد بانکی") }
+        }
+        val matchedCount = bankStatements.count { it.matchedTreasuryEntryId != null || it.matchedCheckId != null || it.matchedVoucherId != null }
+        Text("تطبیق‌شده: $matchedCount • تطبیق‌نشده: ${bankStatements.size - matchedCount}", color = Muted, fontSize = 10.sp)
         if (bankStatements.isEmpty()) Text("هنوز گردش بانکی وارد نشده است.", color = Muted, fontSize = 11.sp)
-        bankStatements.take(30).forEach { line ->
+        bankStatements.take(40).forEach { line ->
             var selectedEntryId by remember(line.id) { mutableStateOf<Long?>(null) }
+            var selectedCheckId by remember(line.id) { mutableStateOf<Long?>(null) }
             Divider(color = CardBorder)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(line.bankName + " • " + java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date(line.transactionDateEpoch)), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 Text((if (line.signedAmountRial > 0) "واریز: " else "برداشت: ") + formatMoney(kotlin.math.abs(line.signedAmountRial), showToman) + " " + (if (showToman) "تومان" else "ریال") + " • " + line.bankReference, color = if (line.signedAmountRial > 0) Turquoise else Color(0xFFFFC47A), fontSize = 11.sp)
                 if (line.description.isNotBlank()) Text(line.description, color = Muted, fontSize = 10.sp)
-                if (line.matchedTreasuryEntryId != null) {
-                    Text("تطبیق با سند دریافت/پرداخت شماره " + line.matchedTreasuryEntryId, color = Turquoise, fontSize = 10.sp)
-                    TextButton(onClick = { onUnmatch(line.id) }) { Text("لغو تطبیق", color = Color(0xFFFF9D9D)) }
-                } else {
-                    val options = candidates.filter { entry ->
-                        (if (entry.kind == "RECEIPT") entry.amountRial else -entry.amountRial) == line.signedAmountRial
+                when {
+                    line.matchedTreasuryEntryId != null -> {
+                        Text("تطبیق با سند دریافت/پرداخت شماره " + line.matchedTreasuryEntryId, color = Turquoise, fontSize = 10.sp)
+                        TextButton(onClick = { onUnmatch(line.id) }) { Text("لغو تطبیق", color = Color(0xFFFF9D9D)) }
                     }
-                    if (options.isEmpty()) Text("سند بانکی هم‌مبلغ و هم‌جهت برای تطبیق وجود ندارد.", color = Muted, fontSize = 10.sp)
-                    else {
-                        val labels = options.map { "سند " + it.id + " • " + (if (it.kind == "RECEIPT") "دریافت" else "پرداخت") + " • " + formatMoney(it.amountRial, showToman) }
-                        ChoiceField("سند متناظر", options.firstOrNull { it.id == selectedEntryId }?.let { "سند " + it.id + " • " + formatMoney(it.amountRial, showToman) } ?: "انتخاب سند", labels) { chosen ->
-                            selectedEntryId = options.getOrNull(labels.indexOf(chosen))?.id
+                    line.matchedCheckId != null -> {
+                        val check = checks.firstOrNull { it.id == line.matchedCheckId }
+                        Text("تطبیق با چک تسویه‌شده شماره " + (check?.checkNumber ?: line.matchedCheckId), color = Turquoise, fontSize = 10.sp)
+                        Text("برای حفظ سابقه حسابداری، تطبیق چک پس از ثبت قابل لغو نیست.", color = Muted, fontSize = 9.sp)
+                    }
+                    line.matchedVoucherId != null -> Text("کارمزد بانکی با سند دفترکل شماره " + line.matchedVoucherId + " ثبت و تطبیق شد.", color = Turquoise, fontSize = 10.sp)
+                    else -> {
+                        val options = candidates.filter { entry ->
+                            (if (entry.kind == "RECEIPT") entry.amountRial else -entry.amountRial) == line.signedAmountRial
                         }
-                        Button(onClick = { selectedEntryId?.let { onMatch(line.id, it) } }, enabled = selectedEntryId != null,
-                            colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) { Text("تطبیق گردش") }
+                        if (options.isNotEmpty()) {
+                            val labels = options.map { "سند " + it.id + " • " + (if (it.kind == "RECEIPT") "دریافت" else "پرداخت") + " • " + formatMoney(it.amountRial, showToman) }
+                            ChoiceField("سند دریافت/پرداخت", options.firstOrNull { it.id == selectedEntryId }?.let { labels[options.indexOf(it)] } ?: "انتخاب سند", labels) { chosen ->
+                                selectedEntryId = options.getOrNull(labels.indexOf(chosen))?.id
+                            }
+                            Button(onClick = { selectedEntryId?.let { onMatch(line.id, it) } }, enabled = selectedEntryId != null,
+                                colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) { Text("تطبیق سند") }
+                        }
+                        val matchingChecks = clearedChecks.filter { check ->
+                            (if (check.kind == "RECEIVED") check.amountRial else -check.amountRial) == line.signedAmountRial
+                        }
+                        if (matchingChecks.isNotEmpty()) {
+                            val labels = matchingChecks.map { "چک ${it.checkNumber} • ${formatMoney(it.amountRial, showToman)}" }
+                            ChoiceField("چک وصول/پرداخت‌شده", matchingChecks.firstOrNull { it.id == selectedCheckId }?.let { labels[matchingChecks.indexOf(it)] } ?: "انتخاب چک", labels) { chosen ->
+                                selectedCheckId = matchingChecks.getOrNull(labels.indexOf(chosen))?.id
+                            }
+                            Button(onClick = { selectedCheckId?.let { onMatchCheck(line.id, it) } }, enabled = selectedCheckId != null,
+                                colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) { Text("تطبیق چک") }
+                        }
+                        if (options.isEmpty() && matchingChecks.isEmpty()) Text("سند یا چک تسویه‌شده هم‌مبلغ و هم‌جهت پیدا نشد.", color = Muted, fontSize = 10.sp)
                     }
                 }
             }
         }
-        Text("فعلاً تطبیق به اسناد دریافت/پرداخت با روش بانک محدود است؛ تطبیق چک‌های وصول‌شده و کارمزدهای بانکی در گام بعدی به دفترکل افزوده می‌شود.", color = Muted, fontSize = 9.sp)
+        Text("کارمزد بانکی به‌صورت هزینه بدهکار و بانک بستانکار در دفترکل ثبت می‌شود.", color = Muted, fontSize = 9.sp)
     }
     if (showDialog) BankStatementDialog(
         onDismiss = { showDialog = false },
         onSave = { bank, date, amount, ref, description -> onAdd(bank, date, amount, ref, description) { showDialog = false } }
+    )
+    if (showFeeDialog) BankFeeDialog(
+        onDismiss = { showFeeDialog = false },
+        onSave = { bank, date, amount, ref, description -> onAddFee(bank, date, amount, ref, description) { showFeeDialog = false } }
+    )
+}
+
+@Composable
+private fun BankFeeDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, Long, Long, String, String) -> Unit
+) {
+    var bank by remember { mutableStateOf("") }
+    var dateText by remember { mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(java.util.Date())) }
+    var amountText by remember { mutableStateOf("") }
+    var reference by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("کارمزد بانکی") }
+    val date = runCatching { java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.parse(dateText)?.time }.getOrNull() ?: 0L
+    val amount = amountText.toLongOrNull() ?: 0L
+    val valid = bank.isNotBlank() && date > 0L && amount > 0L
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ثبت کارمزد بانکی") },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                FormField("نام بانک / حساب", bank) { bank = it }
+                FormField("تاریخ کارمزد (YYYY-MM-DD)", dateText) { dateText = it }
+                FormField("مبلغ کارمزد به ریال", amountText, KeyboardType.Number) { amountText = it }
+                FormField("شماره پیگیری بانک", reference) { reference = it }
+                FormField("شرح هزینه", description) { description = it }
+                Text("ثبت این مورد یک سند دوبل ایجاد می‌کند: بدهکار هزینه کارمزد بانکی و بستانکار بانک.", color = Muted, fontSize = 10.sp)
+            }
+        },
+        confirmButton = { TextButton(enabled = valid, onClick = { onSave(bank, date, amount, reference, description) }) { Text("ثبت کارمزد و سند") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
     )
 }
 
@@ -1313,6 +1383,7 @@ private fun AccountingScreen(
     voucherCount: Int,
     invoices: List<InvoiceEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
+    checks: List<CheckEntity>,
     bankStatements: List<BankStatementLineEntity>,
     accountBalances: List<AccountBalanceRow>,
     trialBalance: List<AccountTrialBalanceRow>,
@@ -1331,7 +1402,9 @@ private fun AccountingScreen(
     onReverseManualVoucher: (String) -> Unit,
     onAddBankStatementLine: (String, Long, Long, String, String, () -> Unit) -> Unit,
     onMatchBankStatementLine: (Long, Long) -> Unit,
-    onUnmatchBankStatementLine: (Long) -> Unit
+    onUnmatchBankStatementLine: (Long) -> Unit,
+    onMatchBankStatementLineToCheck: (Long, Long) -> Unit,
+    onAddBankFee: (String, Long, Long, String, String, () -> Unit) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }
@@ -1464,7 +1537,7 @@ private fun AccountingScreen(
             }
         }
         item {
-            BankReconciliationSection(bankStatements, treasury, showToman, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine)
+            BankReconciliationSection(bankStatements, treasury, checks, showToman, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee)
         }
         item {
             GlassCard {

@@ -192,6 +192,15 @@ $("#entryForm").onsubmit=async e=>{e.preventDefault();const form=e.target;const 
 function edit(s,id){all(s).then(a=>{const v=a.find(x=>x.id===id);if(v)openForm(s,v)})}
 async function removeRow(s,id){
  const key=Number(id);
+ if(["invoices","vouchers","voucherLines","treasury","partyLedger","stockAdjustments"].includes(s))throw Error("سوابق مالی و اسناد ثبت‌شده قابل حذف فیزیکی نیستند؛ برای اصلاح باید سند معکوس یا عملیات اصلاحی ثبت شود");
+ if(s==="checks"){
+  const check=(await all("checks")).find(x=>Number(x.id)===key);
+  if(check&&check.status!=="CANCELLED"&&check.status!=="VOID")throw Error("چک ثبت‌شده را نمی‌توان حذف فیزیکی کرد؛ ابتدا باید از مسیر ابطال یا عودت چک اقدام شود");
+ }
+ if(s==="imports"){
+  const item=(await all("imports")).find(x=>Number(x.id)===key);
+  if(item&&["ثبت سفارش","در جریان","رسید جزئی","تسویه‌نشده"].includes(item.status))throw Error("سفارش واردات دارای سابقه است و حذف مستقیم آن مجاز نیست؛ ابتدا باید از مسیر لغو سفارش اقدام شود");
+ }
  if(s==="products"){
   const [products,invoices,adjustments]=await Promise.all([all("products"),all("invoices"),all("stockAdjustments")]);
   const product=products.find(x=>Number(x.id)===key);
@@ -259,10 +268,17 @@ if(page==="treasury"){
  if(!p||!Number.isSafeInteger(amount)||amount<=0)throw Error("طرف حساب و مبلغ صحیح و مثبت (ریال) الزامی است");
  if((d.kind==="دریافت"&&p.kind==="SUPPLIER")||(d.kind==="پرداخت"&&p.kind==="CUSTOMER"))throw Error("نوع طرف حساب با دریافت یا پرداخت انتخاب‌شده سازگار نیست");
  if(d.method!=="صندوق"&&d.method!=="بانک")throw Error("روش دریافت یا پرداخت معتبر نیست");
- const currentBalance=Number(p.balance||0);if(!Number.isFinite(currentBalance))throw Error("مانده طرف حساب نامعتبر است");
- await ensureBaseAccounts();
+ const currentBalance=Number(p.balance||0);if(!Number.isSafeInteger(currentBalance))throw Error("مانده طرف حساب باید عدد صحیح ریالی باشد");
  const now=Date.now(),kind=d.kind==="دریافت"?"RECEIPT":d.kind==="پرداخت"?"PAYMENT":null;
  if(!kind)throw Error("نوع عملیات خزانه معتبر نیست");
+ if(kind==="RECEIPT"){
+  if(currentBalance<=0)throw Error("این طرف حساب مانده بستانکار دارد یا بدهکار نیست؛ دریافت وجه به‌عنوان تسویه مطالبات مجاز نیست");
+  if(amount>currentBalance)throw Error("مبلغ دریافت از مانده بدهکار طرف حساب بیشتر است؛ دریافت علی‌الحساب هنوز پشتیبانی نمی‌شود");
+ }else{
+  if(currentBalance>=0)throw Error("این طرف حساب مانده بدهکار ندارد؛ پرداخت وجه به‌عنوان تسویه بدهی مجاز نیست");
+  if(amount>-currentBalance)throw Error("مبلغ پرداخت از مانده بدهی طرف حساب بیشتر است؛ پرداخت علی‌الحساب هنوز پشتیبانی نمی‌شود");
+ }
+ await ensureBaseAccounts();
  const cashAccount=d.method==="بانک"?"1102":"1101";
  const journal=kind==="RECEIPT"?[
   {accountCode:cashAccount,debitRial:amount,creditRial:0,description:"دریافت وجه در "+d.method},

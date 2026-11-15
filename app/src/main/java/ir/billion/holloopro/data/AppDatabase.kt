@@ -56,6 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun warehouseDao(): WarehouseDao
     abstract fun warehouseStockDao(): WarehouseStockDao
     abstract fun bankStatementDao(): BankStatementDao
+    abstract fun bankStatementPeriodDao(): BankStatementPeriodDao
 
     companion object {
         private const val DATABASE_NAME = "holoo_pro_plus.db"

@@ -385,7 +385,7 @@ private fun OpeningValuationDialog(
 private fun PartiesScreen(
     parties: List<PartyEntity>, balances: List<ir.billion.holloopro.data.PartyBalanceRow>, showToman: Boolean,
     onSave: (Long?, String, String, String, String, Long) -> Unit, onDelete: (Long) -> Unit,
-    onPartyLedger: (Long) -> StateFlow<List<ir.billion.holloopro.data.PartyLedgerRow>>
+    onPartyLedger: (Long) -> Flow<List<ir.billion.holloopro.data.PartyLedgerRow>>
 ) {
     var dialog by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<PartyEntity?>(null) }

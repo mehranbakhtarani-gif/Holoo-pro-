@@ -190,7 +190,25 @@ $("#modal").hidden=false;
 $("#entryForm").onsubmit=async e=>{e.preventDefault();const form=e.target;const data=Object.fromEntries(new FormData(form));if(page==="invoices"){data.lineProduct=Array.from(form.querySelectorAll('[name="lineProduct"]')).map(x=>x.value);data.lineQty=Array.from(form.querySelectorAll('[name="lineQty"]')).map(x=>x.value);data.linePrice=Array.from(form.querySelectorAll('[name="linePrice"]')).map(x=>x.value)}try{await saveForm(page,data,item);$("#modal").hidden=true;toast("اطلاعات ذخیره شد");render()}catch(err){toast(err.message||"ذخیره اطلاعات ناموفق بود")}}
 }
 function edit(s,id){all(s).then(a=>{const v=a.find(x=>x.id===id);if(v)openForm(s,v)})}
-async function removeRow(s,id){if(!confirm("این مورد حذف شود؟"))return;await del(s,id);toast("حذف شد");render()}
+async function removeRow(s,id){
+ const key=Number(id);
+ if(s==="products"){
+  const [products,invoices,adjustments]=await Promise.all([all("products"),all("invoices"),all("stockAdjustments")]);
+  const product=products.find(x=>Number(x.id)===key);
+  if(!product)return;
+  const hasInvoice=invoices.some(x=>Number(x.productId)===key||(Array.isArray(x.lines)&&x.lines.some(line=>Number(line.productId)===key)));
+  const hasAdjustment=adjustments.some(x=>Number(x.productId)===key);
+  if(Math.abs(Number(product.stock||0))>0.000001||Number(product.value||0)>1||hasInvoice||hasAdjustment)throw Error("این کالا موجودی یا سابقه انبار/فاکتور دارد؛ برای حفظ سوابق حذف نمی‌شود");
+ }else if(s==="parties"){
+  const [parties,invoices,treasury,checks,imports,ledger]=await Promise.all([all("parties"),all("invoices"),all("treasury"),all("checks"),all("imports"),all("partyLedger")]);
+  const party=parties.find(x=>Number(x.id)===key);
+  if(!party)return;
+  const linked=invoices.some(x=>Number(x.partyId)===key)||treasury.some(x=>Number(x.partyId)===key)||checks.some(x=>Number(x.partyId)===key)||imports.some(x=>Number(x.supplierId)===key)||ledger.some(x=>Number(x.partyId)===key)||Math.abs(Number(party.balance||0))>1;
+  if(linked)throw Error("این شخص مانده یا سابقه مالی/فاکتور/چک/واردات دارد؛ برای حفظ سوابق حذف نمی‌شود");
+ }
+ if(!confirm("این مورد حذف شود؟"))return;
+ await del(s,id);toast("حذف شد");render()
+}
 async function saveForm(page,d,item){const num=k=>Number(d[k]||0);if(page==="accounts"){const code=String(d.code||item?.id||"").trim(),title=String(d.title||"").trim(),type={"دارایی":"ASSET","بدهی":"LIABILITY","حقوق مالکانه":"EQUITY","درآمد":"REVENUE","هزینه":"EXPENSE"}[d.type];if(!/^\d{3,12}$/.test(code)||!title||!type)throw Error("کد، عنوان و گروه حساب معتبر الزامی است");const old=await all("accounts");if(!item&&old.some(a=>String(a.id)===code))throw Error("این کد حساب قبلاً ثبت شده است");await put("accounts",{...(item||{}),id:code,title,type,openingDebitRial:Number(item?.openingDebitRial||0),openingCreditRial:Number(item?.openingCreditRial||0)});return}if(page==="products"){const v={id:item?.id,sku:d.sku.trim(),name:d.name.trim(),group:d.group,yarn:d.yarn,color:d.color,denier:num("denier"),twisted:d.twisted==="تاب‌دار",notes:d.notes,stock:item?.stock||0,value:item?.value||0,avg:item?.avg||0};if(!v.sku||!v.name||v.denier<=0)throw Error("کد، نام و دنیر معتبر الزامی است");const a=await all("products");if(a.some(x=>x.sku===v.sku&&x.id!==v.id))throw Error("کد کالا تکراری است");await put("products",v)}
 if(page==="parties"){const kind={"مشتری":"CUSTOMER","تأمین‌کننده":"SUPPLIER","هر دو":"BOTH"}[d.kind];await put("parties",{id:item?.id,name:d.name.trim(),kind,phone:d.phone,address:d.address,balance:num("balance")})}
 if(page==="invoices"){
@@ -233,6 +251,15 @@ if(page==="imports"){const ps=await all("parties"),p=ps.find(x=>x.id===num("supp
 if(page==="checks"){const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId"));if(!p)throw Error("طرف حساب انتخاب نشده");const amount=num("amount"),due=new Date(d.due+"T12:00:00").getTime(),issue=new Date(d.issue+"T12:00:00").getTime();if(amount<=0||due<issue)throw Error("مبلغ یا تاریخ چک نامعتبر است");await put("checks",{number:d.number,kind:d.kind==="دریافتی"?"RECEIVED":"PAYABLE",partyId:p.id,partyName:p.name,amount,issue,due,bank:d.bank,status:"OPEN",note:d.note})}
 if(page==="treasury"){const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),amount=num("amount");if(!p||amount<=0)throw Error("طرف حساب و مبلغ معتبر الزامی است");p.balance+=d.kind==="دریافت"?-amount:amount;const now=Date.now(),kind=d.kind==="دریافت"?"RECEIPT":"PAYMENT";await put("parties",p);await put("treasury",{kind,method:d.method,partyId:p.id,partyName:p.name,amount,date:now,note:d.note});await put("partyLedger",{partyId:p.id,date:now,debitRial:kind==="PAYMENT"?amount:0,creditRial:kind==="RECEIPT"?amount:0,description:kind==="RECEIPT"?"دریافت وجه":"پرداخت وجه",referenceId:"TREASURY:"+now})}}
 async function exportBackup(){const data={app:"HOLLOO PRO+ PWA",version:1,exportedAt:new Date().toISOString(),records:{}};for(const s of stores)data.records[s]=await all(s);const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="holloo-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(a.href);toast("فایل پشتیبان آماده شد")}
-async function restoreBackup(file){const data=JSON.parse(await file.text());if(data.app!=="HOLLOO PRO+ PWA"||!data.records)throw Error("فایل پشتیبان معتبر نیست");const tx=db.transaction(stores,"readwrite");for(const s of stores){const os=tx.objectStore(s);os.clear();for(const r of data.records[s]||[])os.put(r)}await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});toast("بازیابی با موفقیت انجام شد");render()}
+async function restoreBackup(file){
+ const data=JSON.parse(await file.text());
+ if(data.app!=="HOLLOO PRO+ PWA"||!data.records||typeof data.records!=="object"||Array.isArray(data.records))throw Error("فایل پشتیبان معتبر نیست");
+ for(const s of stores)if(data.records[s]!==undefined&&!Array.isArray(data.records[s]))throw Error("ساختار اطلاعات «"+s+"» در فایل پشتیبان معتبر نیست");
+ if(!confirm("بازیابی، تمام اطلاعات فعلی این دستگاه را با اطلاعات فایل پشتیبان جایگزین می‌کند. قبل از ادامه از اطلاعات فعلی پشتیبان گرفته‌اید؟"))return;
+ const tx=db.transaction(stores,"readwrite");
+ for(const s of stores){const os=tx.objectStore(s);os.clear();for(const r of data.records[s]||[])os.put(r)}
+ await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error||new Error("بازیابی ناموفق بود"));tx.onabort=()=>rej(tx.error||new Error("بازیابی لغو شد"))});
+ toast("بازیابی با موفقیت انجام شد");await render()
+}
 $("#exportBtn").onclick=exportBackup;$("#importBtn").onclick=()=>$("#restoreFile").click();$("#restoreFile").onchange=e=>{if(e.target.files[0])restoreBackup(e.target.files[0]).catch(x=>toast(x.message))};$("#unitBtn").onclick=()=>{showToman=!showToman;$("#unitBtn").textContent=moneyUnit();render()};$("#closeModal").onclick=$("#cancelModal").onclick=()=>$("#modal").hidden=true;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").hidden=true};
-(async()=>{db=await openDB();await ensureBaseAccounts();nav();await render();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=ledgerrows-fix1").catch(()=>{})})().catch(e=>{$("#main").innerHTML='<div class="card">خطا در راه‌اندازی پایگاه داده: '+e.message+'</div>'});
+(async()=>{db=await openDB();await ensureBaseAccounts();nav();await render();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=audit-restore-delete1").catch(()=>{})})().catch(e=>{$("#main").innerHTML='<div class="card">خطا در راه‌اندازی پایگاه داده: '+e.message+'</div>'});

@@ -69,6 +69,31 @@ class AccountingEngineTest {
         assertEquals("2101", payment.first().accountCode)
     }
 
+    @Test fun landedCostAllocationIsProportionalAndSumsExactly() {
+        val allocation = AccountingEngine.allocateLandedCost(
+            totalCostRial = 10_000L,
+            quantities = listOf(1L to 1.0, 2L to 2.0, 1L to 1.0)
+        )
+        assertEquals(2, allocation.size)
+        assertEquals(5_000L, allocation[1L])
+        assertEquals(5_000L, allocation[2L])
+        assertEquals(10_000L, allocation.values.sum())
+    }
+
+    @Test fun landedCostAllocationAssignsRoundingRemainderWithoutLoss() {
+        val allocation = AccountingEngine.allocateLandedCost(
+            totalCostRial = 100L,
+            quantities = listOf(1L to 1.0, 2L to 1.0, 3L to 1.0)
+        )
+        assertEquals(100L, allocation.values.sum())
+        assertEquals(3, allocation.size)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun landedCostAllocationRejectsNonPositiveWeight() {
+        AccountingEngine.allocateLandedCost(100L, listOf(1L to 0.0))
+    }
+
     @Test fun landedCostIncludesAllCostsAndCurrencyConversion() {
         val total = LandedCostCalculator.totalCostRial(
             goodsAmountMinor = 100,

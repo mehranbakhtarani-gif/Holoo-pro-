@@ -526,7 +526,7 @@ class AccountingRepository(private val db: AppDatabase) {
             require(lines.isNotEmpty()) { "ردیف‌های فاکتور برای برگشت پیدا نشد" }
             var purchaseReversalInventoryCost = 0L
             lines.forEach { line ->
-                val stored = db.productValuationDao().get(line.productId)
+                val stored = db.warehouseStockDao().valuation(invoice.warehouseId, line.productId)
                 val current = stored?.let { InventoryValuation(it.quantityKg, it.valueRial) }
                     ?: InventoryValuation(0.0, 0L)
                 val next = if (invoice.kind == "SALE") {
@@ -542,7 +542,8 @@ class AccountingRepository(private val db: AppDatabase) {
                     purchaseReversalInventoryCost = Math.addExact(purchaseReversalInventoryCost, issue.cogsRial)
                     issue.remaining
                 }
-                db.productValuationDao().upsert(ProductValuationEntity(line.productId, next.quantityKg, next.valueRial))
+                db.warehouseStockDao().upsertValuation(WarehouseValuationEntity(invoice.warehouseId, line.productId, next.quantityKg, next.valueRial))
+                syncGlobalValuation(line.productId)
                 db.stockDao().insert(
                     StockMovementEntity(
                         productId = line.productId,
@@ -552,6 +553,11 @@ class AccountingRepository(private val db: AppDatabase) {
                         note = "برگشت ${invoice.number}"
                     )
                 )
+                db.warehouseStockDao().insertMovement(WarehouseStockMovementEntity(
+                    warehouseId = invoice.warehouseId, productId = line.productId,
+                    quantityKg = if (invoice.kind == "SALE") line.quantityKg else -line.quantityKg,
+                    kind = "REVERSAL", referenceId = invoiceId, note = "برگشت ${invoice.number}"
+                ))
                 db.warehouseStockDao().insertMovement(
                     WarehouseStockMovementEntity(
                         warehouseId = invoice.warehouseId, productId = line.productId,

@@ -449,7 +449,7 @@ private fun GlassCard(modifier: Modifier = Modifier, content: @Composable Column
 
 @Composable
 private fun EmptyState(title: String, subtitle: String) {
-    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
         GlassCard {
             Text(title, color = Color.White, fontWeight = FontWeight.Bold)
             Text(subtitle, color = Muted, fontSize = 12.sp)

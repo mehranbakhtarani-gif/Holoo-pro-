@@ -396,7 +396,7 @@ class AccountingRepository(private val db: AppDatabase) {
             var totalInventoryCost = 0L
             val lineReturnCosts = mutableListOf<Long>()
             selected.forEach { (line, quantity) ->
-                val stored = db.productValuationDao().get(line.productId)
+                val stored = db.warehouseStockDao().valuation(invoice.warehouseId, line.productId)
                 val current = stored?.let { InventoryValuation(it.quantityKg, it.valueRial) }
                     ?: InventoryValuation(0.0, 0L)
                 val returnCost = if (invoice.kind == "SALE") {
@@ -422,7 +422,8 @@ class AccountingRepository(private val db: AppDatabase) {
                 } else {
                     InventoryValuationEngine.issue(current, quantity).remaining
                 }
-                db.productValuationDao().upsert(ProductValuationEntity(line.productId, next.quantityKg, next.valueRial))
+                db.warehouseStockDao().upsertValuation(WarehouseValuationEntity(invoice.warehouseId, line.productId, next.quantityKg, next.valueRial))
+                syncGlobalValuation(line.productId)
                 db.stockDao().insert(
                     StockMovementEntity(
                         productId = line.productId,

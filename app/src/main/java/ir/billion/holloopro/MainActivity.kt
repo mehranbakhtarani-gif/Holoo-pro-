@@ -38,6 +38,7 @@ import ir.billion.holloopro.accounting.VoucherLineDraft
 import java.math.BigInteger
 import ir.billion.holloopro.data.CheckEntity
 import ir.billion.holloopro.data.BankStatementLineEntity
+import ir.billion.holloopro.data.BankStatementPeriodEntity
 import ir.billion.holloopro.data.DatabaseBackup
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.ImportReceiptLineInput
@@ -148,6 +149,7 @@ class MainActivity : ComponentActivity() {
                     val ledger by vm.ledger.collectAsState()
                     val checks by vm.checks.collectAsState()
                     val bankStatements by vm.bankStatements.collectAsState()
+                    val bankStatementPeriods by vm.bankStatementPeriods.collectAsState()
                     val profitLoss by vm.profitLoss.collectAsState()
                     val productProfitability by vm.productProfitability.collectAsState()
                     val invoiceProfitability by vm.invoiceProfitability.collectAsState()
@@ -158,7 +160,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, warehouses, warehouseStocks, warehouseKardex, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, bankStatements, profitLoss, productProfitability, invoiceProfitability,
+                        products, warehouses, warehouseStocks, warehouseKardex, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, bankStatements, bankStatementPeriods, profitLoss, productProfitability, invoiceProfitability,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -254,6 +256,7 @@ private fun HolooApp(
     ledger: List<LedgerRow>,
     checks: List<CheckEntity>,
     bankStatements: List<BankStatementLineEntity>,
+    bankStatementPeriods: List<BankStatementPeriodEntity>,
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     productProfitability: List<ProductProfitRow>,
     invoiceProfitability: List<InvoiceProfitRow>,
@@ -294,6 +297,7 @@ private fun HolooApp(
     onUnmatchBankStatementLine: (Long) -> Unit,
     onMatchBankStatementLineToCheck: (Long, Long) -> Unit,
     onAddBankFee: (String, Long, Long, String, String, () -> Unit) -> Unit,
+    onAddBankStatementPeriod: (String, Long, Long, Long, Long) -> Unit,
     onClearMessage: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
@@ -378,7 +382,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -1385,6 +1389,7 @@ private fun AccountingScreen(
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     checks: List<CheckEntity>,
     bankStatements: List<BankStatementLineEntity>,
+    bankStatementPeriods: List<BankStatementPeriodEntity>,
     accountBalances: List<AccountBalanceRow>,
     trialBalance: List<AccountTrialBalanceRow>,
     ledger: List<LedgerRow>,
@@ -1404,7 +1409,8 @@ private fun AccountingScreen(
     onMatchBankStatementLine: (Long, Long) -> Unit,
     onUnmatchBankStatementLine: (Long) -> Unit,
     onMatchBankStatementLineToCheck: (Long, Long) -> Unit,
-    onAddBankFee: (String, Long, Long, String, String, () -> Unit) -> Unit
+    onAddBankFee: (String, Long, Long, String, String, () -> Unit) -> Unit,
+    onAddBankStatementPeriod: (String, Long, Long, Long, Long) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }
@@ -1537,7 +1543,7 @@ private fun AccountingScreen(
             }
         }
         item {
-            BankReconciliationSection(bankStatements, treasury, checks, showToman, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee)
+            BankReconciliationSection(bankStatements, bankStatementPeriods, treasury, checks, showToman, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod)
         }
         item {
             GlassCard {

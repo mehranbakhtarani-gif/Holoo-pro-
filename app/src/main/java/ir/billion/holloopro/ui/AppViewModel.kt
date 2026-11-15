@@ -168,6 +168,9 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun addBankFee(bankName: String, dateEpoch: Long, amountRial: Long, reference: String, description: String, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addBankFee(bankName, dateEpoch, amountRial, reference, description); "کارمزد بانکی و سند هزینه آن ثبت شد" }
 
+    fun editCheck(id: Long, number: String, kind: String, partyId: Long, amount: Long, issueAt: Long, dueAt: Long, bank: String, note: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.editCheck(id, number, kind, partyId, amount, issueAt, dueAt, bank, note); "چک و اسناد اصلاحی آن با حفظ سوابق ویرایش شدند" }
+
     fun updateCheckStatus(id: Long, status: String) = execute { repository.updateCheckStatus(id, status); "وضعیت چک تغییر کرد" }
 
     fun addImport(

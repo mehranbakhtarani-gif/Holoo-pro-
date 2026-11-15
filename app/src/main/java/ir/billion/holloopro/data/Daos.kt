@@ -256,6 +256,12 @@ interface InvoiceSettlementDao {
     @Query("SELECT s.id AS settlementId, s.invoiceId AS invoiceId, s.treasuryEntryId AS treasuryEntryId, s.amountRial AS amountRial, s.createdAt AS createdAt, t.kind AS entryKind, t.method AS method, t.referenceNumber AS referenceNumber, t.createdAt AS entryCreatedAt FROM invoice_settlements s INNER JOIN treasury_entries t ON t.id = s.treasuryEntryId ORDER BY s.createdAt DESC, s.id DESC")
     fun observeDetails(): Flow<List<InvoiceSettlementDetailRow>>
 
+    @Query("SELECT * FROM invoice_settlements WHERE id = :settlementId LIMIT 1")
+    suspend fun byId(settlementId: Long): InvoiceSettlementEntity?
+
+    @Query("DELETE FROM invoice_settlements WHERE id = :settlementId")
+    suspend fun deleteById(settlementId: Long): Int
+
     @Insert
     suspend fun insert(settlement: InvoiceSettlementEntity): Long
 

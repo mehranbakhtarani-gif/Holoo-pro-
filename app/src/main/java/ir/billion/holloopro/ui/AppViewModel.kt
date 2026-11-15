@@ -104,8 +104,11 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun addManualVoucher(description: String, lines: List<ir.billion.holloopro.accounting.VoucherLineDraft>, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addManualVoucher(description, lines); "سند دستی چندردیفی و متوازن ثبت شد" }
 
-    fun allocateTreasuryToInvoice(entryId: Long, invoiceId: Long, amountRial: Long) =
-        execute { repository.allocateTreasuryToInvoice(entryId, invoiceId, amountRial); "پرداخت به فاکتور تخصیص یافت" }
+    fun allocateTreasuryToInvoice(entryId: Long, invoiceId: Long, amountRial: Long, onSuccess: () -> Unit = {}) =
+        execute(onSuccess) { repository.allocateTreasuryToInvoice(entryId, invoiceId, amountRial); "پرداخت به فاکتور تخصیص یافت" }
+
+    fun removeInvoiceSettlement(settlementId: Long, onSuccess: () -> Unit = {}) =
+        execute(onSuccess) { repository.removeInvoiceSettlement(settlementId); "تخصیص لغو شد و مانده فاکتور و رسید به‌روزرسانی شد" }
 
     fun addTreasury(kind: String, method: String, partyId: Long, amountRial: Long, reference: String, note: String, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addTreasuryEntry(kind, method, partyId, amountRial, reference, note); "دریافت/پرداخت و سند حسابداری ثبت شد" }

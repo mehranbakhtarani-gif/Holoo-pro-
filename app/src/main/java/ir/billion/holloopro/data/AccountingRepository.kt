@@ -456,6 +456,21 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun removeInvoiceSettlement(settlementId: Long) {
+        db.withTransaction {
+            val settlement = db.invoiceSettlementDao().byId(settlementId)
+                ?: error("تخصیص تسویه پیدا نشد یا قبلاً لغو شده است")
+            db.invoiceDao().getById(settlement.invoiceId) ?: error("فاکتور مرتبط با تخصیص پیدا نشد")
+            val entry = db.treasuryDao().byId(settlement.treasuryEntryId)
+                ?: error("رسید مرتبط با تخصیص پیدا نشد")
+            require(settlement.amountRial > 0L) { "مبلغ تخصیص نامعتبر است" }
+            require(entry.amountRial >= db.treasuryDao().allocatedAmount(entry.id)) {
+                "جمع تخصیص‌های رسید از مبلغ اصلی آن بیشتر است"
+            }
+            db.invoiceSettlementDao().deleteById(settlementId)
+        }
+    }
+
     suspend fun addTreasuryEntry(
         kind: String, method: String, partyId: Long, amountRial: Long,
         referenceNumber: String, note: String

@@ -804,6 +804,9 @@ private fun AccountingScreen(
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }
     var showOpeningDialog by remember { mutableStateOf(false) }
+    var ledgerAccountFilter by remember { mutableStateOf("همه حساب‌ها") }
+    var ledgerFromFilter by remember { mutableStateOf("") }
+    var ledgerToFilter by remember { mutableStateOf("") }
     val sales = invoices.filter { it.kind == "SALE" && it.status == "POSTED" }.sumOf { it.totalRial }
     val purchases = invoices.filter { it.kind == "PURCHASE" && it.status == "POSTED" }.sumOf { it.totalRial }
     val openingAccounts = trialBalance.ifEmpty {
@@ -922,7 +925,14 @@ private fun AccountingScreen(
                 Text("۲۱۰۱ پرداختنی  •  ۴۱۰۱ فروش", color = Color.White, fontSize = 12.sp)
                 Text("گردش دفتر کل (آخرین اسناد)", color = Turquoise, fontWeight = FontWeight.Bold)
                 if (ledger.isEmpty()) Text("هنوز سندی برای نمایش وجود ندارد", color = Muted, fontSize = 11.sp)
-                ledger.take(30).forEach { row ->
+                ChoiceField("حساب دفتر", ledgerAccountFilter, listOf("همه حساب‌ها") + trialBalance.map { it.accountCode + " • " + it.accountTitle }) { ledgerAccountFilter = it }
+                FormField("از تاریخ (YYYY-MM-DD)", ledgerFromFilter) { ledgerFromFilter = it }
+                FormField("تا تاریخ (YYYY-MM-DD)", ledgerToFilter) { ledgerToFilter = it }
+                val selectedAccountCode = ledgerAccountFilter.substringBefore(" • ").takeIf { ledgerAccountFilter != "همه حساب‌ها" }
+                val fromEpoch = runCatching { java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(ledgerFromFilter)?.time ?: Long.MIN_VALUE }.getOrDefault(Long.MIN_VALUE)
+                val toEpoch = runCatching { java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(ledgerToFilter)?.time?.plus(86_399_999L) ?: Long.MAX_VALUE }.getOrDefault(Long.MAX_VALUE)
+                val filteredLedger = ledger.filter { (selectedAccountCode == null || it.accountCode == selectedAccountCode) && it.dateEpoch >= fromEpoch && it.dateEpoch <= toEpoch }.take(100)
+                filteredLedger.forEach { row ->
                     Divider(color = CardBorder)
                     Text("${row.accountCode} • ${row.accountTitle}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Text("${row.voucherNumber} • ${row.voucherDescription}", color = Muted, fontSize = 10.sp)

@@ -34,6 +34,8 @@ class AccountingRepository(private val db: AppDatabase) {
     val ledger = db.accountDao().observeLedger()
     val checks = db.checkDao().observeAll()
     val profitLoss = db.invoiceDao().observeProfitLoss()
+    val productProfitability = db.productDao().observeProfitability()
+    val invoiceProfitability = db.invoiceDao().observeInvoiceProfitability()
 
     suspend fun addProduct(
         sku: String, name: String, groupName: String, yarnType: String,

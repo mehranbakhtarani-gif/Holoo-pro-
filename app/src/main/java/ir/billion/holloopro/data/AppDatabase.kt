@@ -37,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun voucherDao(): VoucherDao
     abstract fun voucherLineDao(): VoucherLineDao
     abstract fun importOrderDao(): ImportOrderDao
+    abstract fun importReceiptDao(): ImportReceiptDao
     abstract fun treasuryDao(): TreasuryDao
 
     companion object {

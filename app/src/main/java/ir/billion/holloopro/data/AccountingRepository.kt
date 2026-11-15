@@ -367,13 +367,86 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+
+    suspend fun receiveImport(orderId: Long, lines: List<ImportReceiptLineInput>) {
+        val quantities = AccountingEngine.aggregateQuantities(lines.map { it.productId to it.quantityKg })
+        db.withTransaction {
+            val order = db.importOrderDao().getById(orderId) ?: error("سفارش واردات پیدا نشد")
+            require(order.status != "RECEIVED") { "این محموله قبلاً رسید شده است" }
+            require(db.importReceiptDao().byOrder(orderId) == null) { "برای این سفارش قبلاً رسید انبار صادر شده است" }
+            val totalKg = quantities.values.fold(0.0) { sum, value ->
+                val next = sum + value
+                require(next.isFinite()) { "مجموع وزن خارج از محدوده مجاز است" }
+                next
+            }
+            require(kotlin.math.abs(totalKg - order.grossWeightKg) <= 0.001) {
+                "جمع وزن ردیف‌ها باید با وزن سفارش (" + order.grossWeightKg + " کیلوگرم) برابر باشد"
+            }
+            quantities.keys.forEach { productId ->
+                require(db.productDao().getById(productId) != null) { "یکی از کالاهای انتخاب‌شده وجود ندارد" }
+            }
+            val goodsCost = Math.multiplyExact(order.goodsAmountMinor, order.fxRateToRial)
+            val landedTotal = LandedCostCalculator.totalCostRial(
+                order.goodsAmountMinor, order.fxRateToRial, order.freightRial, order.customsRial, order.otherCostsRial
+            )
+            val receiptId = db.importReceiptDao().insert(
+                ImportReceiptEntity(importOrderId = orderId, goodsCostRial = goodsCost, totalCostRial = landedTotal)
+            )
+            val costAllocations = AccountingEngine.allocateLandedCost(landedTotal, quantities.entries.map { it.key to it.value })
+            val receiptLines = quantities.entries.map { entry ->
+                ImportReceiptLineEntity(
+                    receiptId = receiptId, productId = entry.key, quantityKg = entry.value,
+                    allocatedCostRial = costAllocations[entry.key] ?: error("تخصیص بهای تمام‌شده ناموفق بود")
+                )
+            }
+            db.importReceiptDao().insertLines(receiptLines)
+            receiptLines.forEach { line ->
+                db.stockDao().insert(StockMovementEntity(
+                    productId = line.productId, quantityKg = line.quantityKg,
+                    kind = "IMPORT_RECEIPT", referenceId = receiptId,
+                    note = "رسید محموله " + order.containerCode
+                ))
+            }
+            ensureBaseAccounts()
+            val additionalCosts = Math.subtractExact(landedTotal, goodsCost)
+            val drafts = buildList {
+                add(VoucherLineDraft("1301", debitRial = landedTotal))
+                add(VoucherLineDraft("2101", creditRial = goodsCost))
+                if (additionalCosts > 0) add(VoucherLineDraft("2102", creditRial = additionalCosts))
+            }
+            AccountingEngine.requireBalanced(drafts)
+            val accountLines = drafts.map { draft ->
+                (db.accountDao().byCode(draft.accountCode) ?: error("حساب " + draft.accountCode + " تعریف نشده")) to draft
+            }
+            val voucherId = db.voucherDao().insert(VoucherEntity(
+                number = "IMP-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8),
+                description = "رسید و ورود انبار محموله " + order.containerCode,
+                reference = "IMPORT_RECEIPT:" + receiptId
+            ))
+            db.voucherLineDao().insertAll(accountLines.map { (account, draft) ->
+                VoucherLineEntity(
+                    voucherId = voucherId, accountId = account.id,
+                    debitRial = draft.debitRial, creditRial = draft.creditRial,
+                    description = "محموله " + order.containerCode
+                )
+            })
+            db.partyLedgerDao().insert(PartyLedgerEntity(
+                partyId = order.supplierId, debitRial = 0, creditRial = goodsCost,
+                description = "ثبت بدهی کالای وارداتی کانتینر " + order.containerCode,
+                referenceId = receiptId
+            ))
+            db.importOrderDao().update(order.copy(status = "RECEIVED", arrivedAt = System.currentTimeMillis()))
+        }
+    }
+
     private suspend fun ensureBaseAccounts() {
         val accounts = listOf(
             AccountEntity(code = "1101", title = "صندوق", type = "ASSET"),
             AccountEntity(code = "1102", title = "بانک", type = "ASSET"),
             AccountEntity(code = "1103", title = "حساب‌های دریافتنی", type = "ASSET"),
             AccountEntity(code = "1301", title = "موجودی کالا", type = "ASSET"),
-            AccountEntity(code = "2101", title = "حساب‌های پرداختنی", type = "LIABILITY"),
+            AccountEntity(code = "2101", title = "حساب‌های پرداختنی تأمین‌کنندگان", type = "LIABILITY"),
+            AccountEntity(code = "2102", title = "هزینه‌های حمل و گمرک پرداختنی", type = "LIABILITY"),
             AccountEntity(code = "4101", title = "فروش کالا", type = "REVENUE")
         )
         accounts.forEach { db.accountDao().insertIgnore(it) }

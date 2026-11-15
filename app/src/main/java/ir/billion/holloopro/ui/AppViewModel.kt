@@ -30,6 +30,7 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     val invoices: StateFlow<List<InvoiceEntity>> =
         repository.invoices.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val invoiceSettlements = repository.invoiceSettlements.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val treasuryAllocations = repository.treasuryAllocations.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val treasury: StateFlow<List<TreasuryEntryEntity>> =
         repository.treasury.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val accountBalances: StateFlow<List<AccountBalanceRow>> =

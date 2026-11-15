@@ -250,6 +250,9 @@ interface TreasuryDao {
 
 @Dao
 interface InvoiceSettlementDao {
+    @Query("SELECT treasuryEntryId AS entryId, COALESCE(SUM(amountRial), 0) AS allocatedRial FROM invoice_settlements GROUP BY treasuryEntryId")
+    fun observeTreasuryAllocations(): Flow<List<TreasuryAllocationRow>>
+
     @Insert
     suspend fun insert(settlement: InvoiceSettlementEntity): Long
 

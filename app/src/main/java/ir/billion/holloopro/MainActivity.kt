@@ -47,6 +47,7 @@ import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.InvoiceLineInput
 import ir.billion.holloopro.data.InvoiceSettlementRow
 import ir.billion.holloopro.data.TreasuryEntryEntity
+import ir.billion.holloopro.data.TreasuryAllocationRow
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductEntity
 import ir.billion.holloopro.data.ProductWithStock
@@ -101,6 +102,7 @@ class MainActivity : ComponentActivity() {
                     val partyBalances by vm.partyBalances.collectAsState()
                     val invoices by vm.invoices.collectAsState()
                     val invoiceSettlements by vm.invoiceSettlements.collectAsState()
+                    val treasuryAllocations by vm.treasuryAllocations.collectAsState()
                     val imports by vm.imports.collectAsState()
                     val treasury by vm.treasury.collectAsState()
                     val accountBalances by vm.accountBalances.collectAsState()
@@ -128,6 +130,7 @@ class MainActivity : ComponentActivity() {
                         onCreateInvoice = vm::createMultiLineInvoice,
                         onReverseInvoice = vm::reverseInvoice,
                         invoiceSettlements = invoiceSettlements,
+                        treasuryAllocations = treasuryAllocations,
                         onAllocateTreasury = vm::allocateTreasuryToInvoice,
                         onAddImport = vm::addImport,
                         onReceiveImport = vm::receiveImport,
@@ -180,6 +183,7 @@ private fun HolooApp(
     partyBalances: List<ir.billion.holloopro.data.PartyBalanceRow>,
     invoices: List<InvoiceEntity>,
     invoiceSettlements: List<InvoiceSettlementRow>,
+    treasuryAllocations: List<TreasuryAllocationRow>,
     imports: List<ImportOrderEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
@@ -294,7 +298,7 @@ private fun HolooApp(
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
-                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, treasury, showToman, onCreateInvoice, onReverseInvoice, onAllocateTreasury)
+                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onAllocateTreasury)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
@@ -652,7 +656,7 @@ private fun PartiesScreen(
 @Composable
 private fun InvoicesScreen(
     parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>,
-    settlements: List<InvoiceSettlementRow>, treasury: List<TreasuryEntryEntity>, showToman: Boolean,
+    settlements: List<InvoiceSettlementRow>, treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
     onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
     onReverse: (Long) -> Unit, onAllocate: (Long, Long, Long) -> Unit
 ) {
@@ -692,7 +696,7 @@ private fun InvoicesScreen(
     allocationTarget?.let { invoice ->
         InvoiceAllocationDialog(
             invoice = invoice, party = parties.firstOrNull { it.id == invoice.partyId},
-            settlements = settlements, treasury = treasury, showToman = showToman,
+            settlements = settlements, treasury = treasury, treasuryAllocations = treasuryAllocations, showToman = showToman,
             onDismiss = { allocationTarget = null },
             onAllocate = { entryId, amount -> onAllocate(entryId, invoice.id, amount) }
         )
@@ -702,7 +706,7 @@ private fun InvoicesScreen(
 @Composable
 private fun InvoiceAllocationDialog(
     invoice: InvoiceEntity, party: PartyEntity?, settlements: List<InvoiceSettlementRow>,
-    treasury: List<TreasuryEntryEntity>, showToman: Boolean,
+    treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
     onDismiss: () -> Unit, onAllocate: (Long, Long) -> Unit
 ) {
     var selectedEntry by remember(invoice.id) { mutableStateOf(0L) }
@@ -712,8 +716,8 @@ private fun InvoiceAllocationDialog(
     val expectedKind = if (invoice.kind == "SALE") "RECEIPT" else "PAYMENT"
     val candidates = treasury.filter { it.partyId == invoice.partyId && it.kind == expectedKind }
     val used = selectedEntry.takeIf { it > 0L }?.let { id -> treasury.firstOrNull { it.id == id } }
-    val entryAllocated = used?.let { entry -> 0L } ?: 0L
-    val amount = amountText.toLongOrNull()?.let { if (showToman) it * 10L else it }
+    val entryAllocated = used?.let { entry -> treasuryAllocations.firstOrNull { it.entryId == entry.id }?.allocatedRial ?: 0L } ?: 0L
+    val amount = amountText.toLongOrNull()?.let { value -> runCatching { if (showToman) Math.multiplyExact(value, 10L) else value }.getOrNull() }
     val entryRemaining = used?.let { entry -> (entry.amountRial - entryAllocated).coerceAtLeast(0L) } ?: 0L
     val valid = selectedEntry > 0L && amount != null && amount > 0L && amount <= invoiceRemaining && amount <= entryRemaining
     AlertDialog(

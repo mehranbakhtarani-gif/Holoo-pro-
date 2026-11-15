@@ -287,7 +287,7 @@ if(page==="allocations"){
  validateTreasuryAllocation({transaction:tr,invoice,amount,allocations:allocs,currentAllocationId:item?.id});
  const invoiceCurrency=String(invoice.currency||"IRR"),transactionCurrency=String(tr.currency||"IRR");
  if(invoiceCurrency!==transactionCurrency)throw Error("ارز دریافت/پرداخت باید با ارز فاکتور یکسان باشد");
- const allocation={id:item?.id,treasuryId:tr.id,invoiceNumber:invoice.number,partyId:invoice.partyId,partyName:invoice.partyName,amount,date:Date.now()};
+ if(item)throw Error("تخصیص ثبت‌شده قابل ویرایش نیست؛ برای اصلاح سند جدید ثبت کنید");const party=(await all("parties")).find(x=>x.id===invoice.partyId);if(!party)throw Error("طرف حساب تخصیص پیدا نشد");const allocation={treasuryId:tr.id,invoiceNumber:invoice.number,partyId:invoice.partyId,partyName:invoice.partyName,amount,date:Date.now()};
  let fxJournal=[];
  if(invoiceCurrency!=="IRR"){
   if(!Number.isSafeInteger(invoice.foreignTotalMinor)||invoice.foreignTotalMinor<=0||!Number.isSafeInteger(tr.foreignAmountMinor)||tr.foreignAmountMinor<=0||!Number.isSafeInteger(tr.fxRateRialPerUnit)||tr.fxRateRialPerUnit<=0)throw Error("اطلاعات ارزی فاکتور یا تراکنش ناقص است");
@@ -305,7 +305,7 @@ if(page==="allocations"){
  }
  if(fxJournal.length){
   const now=Date.now(),reference="FX-SETTLEMENT:"+invoice.number+":"+now;
-  await postVoucherAtomic([["treasuryAllocations",allocation]],{number:"FX-"+now,date:now,description:"تسعیر تسویه "+invoice.number,reference},fxJournal);
+  party.balance=Number(party.balance||0)+Number(allocation.fxGainRial||0)-Number(allocation.fxLossRial||0);const ledger={partyId:party.id,date:now,debitRial:Number(allocation.fxGainRial||0),creditRial:Number(allocation.fxLossRial||0),description:"تعدیل ارزی تسویه "+invoice.number,referenceId:reference};await postVoucherAtomic([["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FX-"+now,date:now,description:"تسعیر تسویه "+invoice.number,reference},fxJournal);
  }else await put("treasuryAllocations",allocation);
  return
 }

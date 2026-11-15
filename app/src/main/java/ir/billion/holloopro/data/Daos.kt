@@ -86,6 +86,12 @@ interface InvoiceDao {
 
     @Query("SELECT COUNT(*) FROM invoices")
     fun observeCount(): Flow<Int>
+
+    @Query("SELECT i.id AS invoiceId, COALESCE(SUM(s.amountRial), 0) AS paidRial FROM invoices i LEFT JOIN invoice_settlements s ON s.invoiceId = i.id GROUP BY i.id")
+    fun observeSettlementTotals(): Flow<List<InvoiceSettlementRow>>
+
+    @Query("SELECT COALESCE(SUM(amountRial), 0) FROM invoice_settlements WHERE invoiceId = :invoiceId")
+    suspend fun settledForInvoice(invoiceId: Long): Long
 }
 
 @Dao
@@ -233,4 +239,23 @@ interface TreasuryDao {
 
     @Insert
     suspend fun insert(entry: TreasuryEntryEntity): Long
+
+    @Query("SELECT * FROM treasury_entries WHERE id = :id LIMIT 1")
+    suspend fun byId(id: Long): TreasuryEntryEntity?
+
+    @Query("SELECT COALESCE(SUM(amountRial), 0) FROM invoice_settlements WHERE treasuryEntryId = :entryId")
+    suspend fun allocatedAmount(entryId: Long): Long
+}
+
+
+@Dao
+interface InvoiceSettlementDao {
+    @Insert
+    suspend fun insert(settlement: InvoiceSettlementEntity): Long
+
+    @Query("SELECT * FROM invoice_settlements WHERE invoiceId = :invoiceId ORDER BY createdAt, id")
+    suspend fun byInvoice(invoiceId: Long): List<InvoiceSettlementEntity>
+
+    @Query("SELECT * FROM invoice_settlements WHERE treasuryEntryId = :entryId ORDER BY createdAt, id")
+    suspend fun byTreasuryEntry(entryId: Long): List<InvoiceSettlementEntity>
 }

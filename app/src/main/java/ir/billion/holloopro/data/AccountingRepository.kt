@@ -17,6 +17,7 @@ class AccountingRepository(private val db: AppDatabase) {
     fun partyLedger(partyId: Long) = db.partyLedgerDao().observeForParty(partyId)
     val suppliers = db.partyDao().observeSuppliers()
     val invoices = db.invoiceDao().observeAll()
+    val invoiceSettlements = db.invoiceDao().observeSettlementTotals()
     val imports = db.importOrderDao().observeAll()
     val productCount = db.productDao().observeCount()
     val partyCount = db.partyDao().observeCount()
@@ -425,6 +426,28 @@ class AccountingRepository(private val db: AppDatabase) {
                     description = description.trim()
                 )
             })
+        }
+    }
+
+
+    suspend fun allocateTreasuryToInvoice(treasuryEntryId: Long, invoiceId: Long, amountRial: Long) {
+        require(amountRial > 0) { "مبلغ تخصیص باید بیشتر از صفر باشد" }
+        db.withTransaction {
+            val entry = db.treasuryDao().byId(treasuryEntryId) ?: error("رسید دریافت/پرداخت پیدا نشد")
+            val invoice = db.invoiceDao().getById(invoiceId) ?: error("فاکتور پیدا نشد")
+            require(invoice.status == "POSTED") { "فقط فاکتور ثبت‌شده قابل تسویه است" }
+            require(entry.partyId == invoice.partyId) { "طرف حساب فاکتور با رسید انتخاب‌شده یکسان نیست" }
+            require((entry.kind == "RECEIPT" && invoice.kind == "SALE") ||
+                (entry.kind == "PAYMENT" && invoice.kind == "PURCHASE")) {
+                "نوع دریافت/پرداخت با نوع فاکتور سازگار نیست"
+            }
+            val invoiceRemaining = Math.subtractExact(invoice.totalRial, db.invoiceDao().settledForInvoice(invoiceId))
+            val entryRemaining = Math.subtractExact(entry.amountRial, db.treasuryDao().allocatedAmount(treasuryEntryId))
+            require(invoiceRemaining > 0) { "این فاکتور قبلاً کامل تسویه شده است" }
+            require(entryRemaining > 0) { "مبلغ این رسید قبلاً کامل تخصیص یافته است" }
+            require(amountRial <= invoiceRemaining) { "مبلغ تخصیص از مانده فاکتور بیشتر است" }
+            require(amountRial <= entryRemaining) { "مبلغ تخصیص از مانده رسید بیشتر است" }
+            db.invoiceSettlementDao().insert(InvoiceSettlementEntity(invoiceId = invoiceId, treasuryEntryId = treasuryEntryId, amountRial = amountRial))
         }
     }
 

@@ -230,3 +230,15 @@ data class CheckEntity(
     val note: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
+
+
+@Entity(tableName = "invoice_settlements", indices = [Index(value = ["invoiceId"]), Index(value = ["treasuryEntryId"]), Index(value = ["treasuryEntryId", "invoiceId"], unique = true)])
+data class InvoiceSettlementEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val invoiceId: Long,
+    val treasuryEntryId: Long,
+    val amountRial: Long,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+data class InvoiceSettlementRow(val invoiceId: Long, val paidRial: Long)

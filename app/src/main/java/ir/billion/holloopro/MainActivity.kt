@@ -213,7 +213,7 @@ private fun HolooApp(
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
     onPartyLedger: (Long) -> Flow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
     onDeleteParty: (Long) -> Unit,
-    onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
+    onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, Long, () -> Unit) -> Unit,
     onReverseInvoice: (Long) -> Unit,
     onPartialInvoiceReturn: (Long, List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit,
     onAllocateTreasury: (Long, Long, Long, () -> Unit) -> Unit,
@@ -668,7 +668,7 @@ private fun PartiesScreen(
 private fun InvoicesScreen(
     parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>,
     settlements: List<InvoiceSettlementRow>, returnTotals: List<InvoiceReturnSummaryRow>, returnableLines: List<ReturnableInvoiceLineRow>, settlementDetails: List<ir.billion.holloopro.data.InvoiceSettlementDetailRow>, treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
-    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
+    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, Long, () -> Unit) -> Unit,
     onReverse: (Long) -> Unit, onPartialReturn: (Long, List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit, onAllocate: (Long, Long, Long, () -> Unit) -> Unit,
     onRemoveSettlement: (Long, () -> Unit) -> Unit
 ) {
@@ -738,7 +738,7 @@ private fun InvoicesScreen(
             }
         }
     }
-    if (dialog) InvoiceDialog(parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax -> onCreate(kind, partyId, lines, discount, tax) { dialog = false } })
+    if (dialog) InvoiceDialog(parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax, extraCosts -> onCreate(kind, partyId, lines, discount, tax, extraCosts) { dialog = false } })
     allocationTarget?.let { invoice ->
         InvoiceAllocationDialog(
             invoice = invoice, party = parties.firstOrNull { it.id == invoice.partyId},
@@ -1497,13 +1497,14 @@ private class InvoiceDraftRow(initialProductId: Long) {
 }
 
 @Composable
-private fun InvoiceDialog(parties: List<PartyEntity>, products: List<ProductWithStock>, onDismiss: () -> Unit, onSave: (String, Long, List<InvoiceLineInput>, Long, Long) -> Unit) {
+private fun InvoiceDialog(parties: List<PartyEntity>, products: List<ProductWithStock>, onDismiss: () -> Unit, onSave: (String, Long, List<InvoiceLineInput>, Long, Long, Long) -> Unit) {
     var kind by remember { mutableStateOf("SALE") }
     val eligibleParties = parties.filter { if (kind == "SALE") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
     var partyId by remember { mutableStateOf(eligibleParties.firstOrNull()?.id ?: 0L) }
     val rows = remember { mutableStateListOf(InvoiceDraftRow(products.firstOrNull()?.product?.id ?: 0L)) }
     var discount by remember { mutableStateOf("0") }
     var tax by remember { mutableStateOf("0") }
+    var extraCosts by remember { mutableStateOf("0") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("فاکتور چندردیفی") },
         text = {
             Column(modifier = Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -1526,7 +1527,8 @@ private fun InvoiceDialog(parties: List<PartyEntity>, products: List<ProductWith
                 TextButton(onClick = { rows.add(InvoiceDraftRow(products.firstOrNull()?.product?.id ?: 0L)) }, enabled = products.isNotEmpty()) { Text("+ افزودن ردیف کالا", color = Turquoise) }
                 FormField("تخفیف کل فاکتور (تومان)", discount, KeyboardType.Number) { discount = it }
                 FormField("مالیات کل فاکتور (تومان)", tax, KeyboardType.Number) { tax = it }
-                Text("قیمت‌ها در پایگاه داده به ریال ذخیره می‌شوند. موجودی هر ردیف هنگام ثبت کنترل می‌شود.", color = Muted, fontSize = 10.sp)
+                if (kind == "PURCHASE") FormField("هزینه‌های جانبی خرید (تومان)", extraCosts, KeyboardType.Number) { extraCosts = it }
+                Text("هزینه جانبی خرید به بهای تمام‌شده موجودی اضافه و بین ردیف‌ها متناسب با مبلغ کالا سرشکن می‌شود.", color = Muted, fontSize = 10.sp)
             }
         },
         confirmButton = {
@@ -1538,7 +1540,8 @@ private fun InvoiceDialog(parties: List<PartyEntity>, products: List<ProductWith
                 }
                 val discountRial = (discount.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
                 val taxRial = (tax.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
-                onSave(kind, partyId, lines, discountRial, taxRial)
+                val extraCostsRial = if (kind == "PURCHASE") (extraCosts.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong() else 0L
+                onSave(kind, partyId, lines, discountRial, taxRial, extraCostsRial)
             }) { Text("ثبت و صدور سند") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },

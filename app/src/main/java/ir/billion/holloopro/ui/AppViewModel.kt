@@ -151,6 +151,9 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun addBankStatementLine(bankName: String, dateEpoch: Long, signedAmount: Long, reference: String, description: String, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addBankStatementLine(bankName, dateEpoch, signedAmount, reference, description); "گردش صورت‌حساب بانکی ثبت شد" }
 
+    fun editBankStatementLine(id: Long, bankName: String, dateEpoch: Long, signedAmount: Long, reference: String, description: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.editBankStatementLine(id, bankName, dateEpoch, signedAmount, reference, description); "گردش بانکی ویرایش شد" }
+
     fun matchBankStatementLine(statementLineId: Long, treasuryEntryId: Long) =
         execute { repository.matchBankStatementLine(statementLineId, treasuryEntryId); "گردش بانکی با سند دریافت/پرداخت تطبیق داده شد" }
 

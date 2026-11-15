@@ -60,6 +60,7 @@ jobs:
             mkdir -p "$RUNNER_TEMP/holloo-signing"
             unzip -q "$RUNNER_TEMP/holloo-signing.zip" -d "$RUNNER_TEMP/holloo-signing"
             test -s "$RUNNER_TEMP/holloo-signing/holloo-release.jks"
+            test -s "$RUNNER_TEMP/holloo-signing/signing.env"
             set -a
             . "$RUNNER_TEMP/holloo-signing/signing.env"
             set +a
@@ -75,10 +76,6 @@ jobs:
 
       - name: Build signed release APK
         if: ${{ env.HOLLOO_SIGNING_READY == 'true' }}
-        env:
-          HOLLOO_STORE_PASSWORD: ${{ secrets.HOLLOO_STORE_PASSWORD }}
-          HOLLOO_KEY_ALIAS: ${{ secrets.HOLLOO_KEY_ALIAS }}
-          HOLLOO_KEY_PASSWORD: ${{ secrets.HOLLOO_KEY_PASSWORD }}
         run: gradle assembleRelease --no-daemon
 
       - name: Upload signed release APK

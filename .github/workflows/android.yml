@@ -8,36 +8,53 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Test and build HOLLOO PRO+
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
-      - name: Checkout
+      - name: Checkout source tree
         uses: actions/checkout@v4
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools
-      - name: Install Android platform
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Unpack source
-        run: unzip -q project-source.zip
+
+      - name: Verify source layout
+        run: |
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          test -f app/src/main/java/ir/billion/holloopro/MainActivity.kt
+          test -f app/src/main/java/ir/billion/holloopro/data/AppDatabase.kt
+          echo "Source tree verified; no binary source archive is used."
+
       - name: Run unit tests and build debug APK
-        working-directory: HOLLOO_PRO_PLUS
-        run: gradle testDebugUnitTest assembleDebug --no-daemon
+        run: gradle testDebugUnitTest assembleDebug --no-daemon --stacktrace
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: HOLLOO-PRO-PLUS-debug-apk
-          path: HOLLOO_PRO_PLUS/app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30

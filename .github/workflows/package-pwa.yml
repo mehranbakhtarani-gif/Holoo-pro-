@@ -1,0 +1,25 @@
+name: Package HOLLOO PRO+ PWA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pwa/**'
+      - '.github/workflows/package-pwa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: node --check pwa/app.js && node --check pwa/sw.js
+      - name: Package PWA
+        run: zip -qr HOLLOO-PRO-PLUS-PWA.zip pwa
+      - name: Upload PWA package
+        uses: actions/upload-artifact@v4
+        with:
+          name: HOLLOO-PRO-PLUS-PWA
+          path: HOLLOO-PRO-PLUS-PWA.zip
+          retention-days: 30

@@ -28,6 +28,7 @@ import ir.billion.holloopro.accounting.LandedCostCalculator
 import ir.billion.holloopro.accounting.Money
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.InvoiceEntity
+import ir.billion.holloopro.data.InvoiceLineInput
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductEntity
 import ir.billion.holloopro.data.ProductWithStock
@@ -73,7 +74,7 @@ class MainActivity : ComponentActivity() {
                         onDeleteProduct = vm::deleteProduct,
                         onSaveParty = vm::saveParty,
                         onDeleteParty = vm::deleteParty,
-                        onCreateInvoice = vm::createInvoice,
+                        onCreateInvoice = vm::createMultiLineInvoice,
                         onReverseInvoice = vm::reverseInvoice,
                         onAddImport = vm::addImport,
                         onAddTreasury = vm::addTreasury,
@@ -126,7 +127,7 @@ private fun HolooApp(
     onDeleteProduct: (Long) -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
     onDeleteParty: (Long) -> Unit,
-    onCreateInvoice: (String, Long, Long, Double, Long, Long, Long) -> Unit,
+    onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long) -> Unit,
     onReverseInvoice: (Long) -> Unit,
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String) -> Unit,
@@ -351,7 +352,7 @@ private fun PartiesScreen(
 @Composable
 private fun InvoicesScreen(
     parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>, showToman: Boolean,
-    onCreate: (String, Long, Long, Double, Long, Long, Long) -> Unit, onReverse: (Long) -> Unit
+    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long) -> Unit, onReverse: (Long) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -558,57 +559,60 @@ private fun PartyDialog(existing: PartyEntity? = null, onDismiss: () -> Unit, on
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }, containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White)
 }
 
+private class InvoiceDraftRow(initialProductId: Long) {
+    var productId by mutableStateOf(initialProductId)
+    var quantity by mutableStateOf("1")
+    var price by mutableStateOf("")
+}
+
 @Composable
-private fun InvoiceDialog(
-    parties: List<PartyEntity>, products: List<ProductWithStock>, onDismiss: () -> Unit,
-    onSave: (String, Long, Long, Double, Long, Long, Long) -> Unit
-) {
+private fun InvoiceDialog(parties: List<PartyEntity>, products: List<ProductWithStock>, onDismiss: () -> Unit, onSave: (String, Long, List<InvoiceLineInput>, Long, Long) -> Unit) {
     var kind by remember { mutableStateOf("SALE") }
     val eligibleParties = parties.filter { if (kind == "SALE") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
     var partyId by remember { mutableStateOf(eligibleParties.firstOrNull()?.id ?: 0L) }
-    var productId by remember { mutableStateOf(products.firstOrNull()?.product?.id ?: 0L) }
-    var quantity by remember { mutableStateOf("1") }
-    var price by remember { mutableStateOf("") }
+    val rows = remember { mutableStateListOf(InvoiceDraftRow(products.firstOrNull()?.product?.id ?: 0L)) }
     var discount by remember { mutableStateOf("0") }
     var tax by remember { mutableStateOf("0") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("فاکتور حرفه‌ای") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("فاکتور چندردیفی") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Column(modifier = Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(selected = kind == "SALE", onClick = { kind = "SALE"; partyId = parties.firstOrNull { it.kind != "SUPPLIER" }?.id ?: 0L }, label = { Text("فروش") })
                     FilterChip(selected = kind == "PURCHASE", onClick = { kind = "PURCHASE"; partyId = parties.firstOrNull { it.kind != "CUSTOMER" }?.id ?: 0L }, label = { Text("خرید") })
                 }
-                ChoiceField("طرف حساب", parties.firstOrNull { it.id == partyId }?.name ?: "انتخاب طرف حساب", eligibleParties.map { it.name }) { selected ->
-                    partyId = eligibleParties.firstOrNull { it.name == selected }?.id ?: 0L
+                ChoiceField("طرف حساب", parties.firstOrNull { it.id == partyId }?.name ?: "انتخاب طرف حساب", eligibleParties.map { it.name }) { selected -> partyId = eligibleParties.firstOrNull { it.name == selected }?.id ?: 0L }
+                rows.forEachIndexed { index, row ->
+                    GlassCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("ردیف ${'$'}{index + 1}", color = Turquoise, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                            if (rows.size > 1) TextButton(onClick = { rows.remove(row) }) { Text("حذف ردیف", color = Color(0xFFFF9D9D)) }
+                        }
+                        ChoiceField("کالا", products.firstOrNull { it.product.id == row.productId }?.product?.name ?: "انتخاب کالا", products.map { it.product.name }) { selected -> row.productId = products.firstOrNull { it.product.name == selected }?.product?.id ?: 0L }
+                        FormField("مقدار (کیلوگرم)", row.quantity, KeyboardType.Decimal) { row.quantity = it }
+                        FormField("قیمت هر کیلو (تومان)", row.price, KeyboardType.Number) { row.price = it }
+                    }
                 }
-                ChoiceField("کالا", products.firstOrNull { it.product.id == productId }?.product?.name ?: "انتخاب کالا", products.map { it.product.name }) { selected ->
-                    productId = products.firstOrNull { it.product.name == selected }?.product?.id ?: 0L
-                }
-                FormField("مقدار (کیلوگرم)", quantity, KeyboardType.Decimal) { quantity = it }
-                FormField("قیمت هر کیلو (تومان)", price, KeyboardType.Number) { price = it }
-                FormField("تخفیف (تومان)", discount, KeyboardType.Number) { discount = it }
-                FormField("مالیات (تومان)", tax, KeyboardType.Number) { tax = it }
-                Text("قیمت‌ها در پایگاه داده به ریال ذخیره می‌شوند.", color = Muted, fontSize = 10.sp)
+                TextButton(onClick = { rows.add(InvoiceDraftRow(products.firstOrNull()?.product?.id ?: 0L)) }, enabled = products.isNotEmpty()) { Text("+ افزودن ردیف کالا", color = Turquoise) }
+                FormField("تخفیف کل فاکتور (تومان)", discount, KeyboardType.Number) { discount = it }
+                FormField("مالیات کل فاکتور (تومان)", tax, KeyboardType.Number) { tax = it }
+                Text("قیمت‌ها در پایگاه داده به ریال ذخیره می‌شوند. موجودی هر ردیف هنگام ثبت کنترل می‌شود.", color = Muted, fontSize = 10.sp)
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                val multiplier = BigDecimal.TEN
-                val priceRial = (price.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(multiplier).toLong()
-                val discountRial = (discount.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(multiplier).toLong()
-                val taxRial = (tax.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(multiplier).toLong()
-                onSave(kind, partyId, productId, quantity.toDoubleOrNull() ?: 0.0, priceRial, discountRial, taxRial)
+                val lines = rows.mapNotNull { row ->
+                    val quantity = row.quantity.toDoubleOrNull() ?: 0.0
+                    val priceRial = (row.price.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
+                    if (row.productId > 0 && quantity > 0 && priceRial > 0) InvoiceLineInput(row.productId, quantity, priceRial) else null
+                }
+                val discountRial = (discount.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
+                val taxRial = (tax.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
+                onSave(kind, partyId, lines, discountRial, taxRial)
             }) { Text("ثبت و صدور سند") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
-        containerColor = Color(0xFF15324D),
-        titleContentColor = Color.White,
-        textContentColor = Color.White
-    )
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White)
 }
-
 @Composable
 private fun ImportDialog(
     parties: List<PartyEntity>, onDismiss: () -> Unit,

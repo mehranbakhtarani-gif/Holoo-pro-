@@ -257,6 +257,7 @@ if(page==="checks"){const ps=await all("parties"),p=ps.find(x=>x.id===num("party
 if(page==="treasury"){
  const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),amount=num("amount");
  if(!p||!Number.isSafeInteger(amount)||amount<=0)throw Error("طرف حساب و مبلغ صحیح و مثبت (ریال) الزامی است");
+ if((d.kind==="دریافت"&&p.kind==="SUPPLIER")||(d.kind==="پرداخت"&&p.kind==="CUSTOMER"))throw Error("نوع طرف حساب با دریافت یا پرداخت انتخاب‌شده سازگار نیست");
  if(d.method!=="صندوق"&&d.method!=="بانک")throw Error("روش دریافت یا پرداخت معتبر نیست");
  const currentBalance=Number(p.balance||0);if(!Number.isFinite(currentBalance))throw Error("مانده طرف حساب نامعتبر است");
  await ensureBaseAccounts();

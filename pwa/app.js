@@ -239,16 +239,17 @@ if(page==="invoices"){
  const ps=await all("parties"),pr=await all("products"),p=ps.find(x=>x.id===num("partyId"));
  if(!p)throw Error("طرف حساب را انتخاب کنید");
  const kind=d.kind==="فروش"?"SALE":"PURCHASE";if(kind==="SALE"&&p.kind==="SUPPLIER")throw Error("برای فروش، مشتری انتخاب کنید");if(kind==="PURCHASE"&&p.kind==="CUSTOMER")throw Error("برای خرید، تأمین‌کننده انتخاب کنید");
+ const currency=String(d.currency||"IRR").toUpperCase(),fxRate=currency==="IRR"?1:num("fxRateRialPerUnit");if(currency!=="IRR"&&!["USD","CNY","EUR"].includes(currency))throw Error("ارز فاکتور پشتیبانی نمی‌شود");if(currency!=="IRR"&&(!Number.isSafeInteger(fxRate)||fxRate<=0))throw Error("نرخ ارز فاکتور باید عدد صحیح و مثبت به ریال باشد");
  const ids=d.lineProduct||[],qtys=d.lineQty||[],prices=d.linePrice||[];
  if(!ids.length||ids.length!==qtys.length||ids.length!==prices.length)throw Error("حداقل یک ردیف کامل کالا لازم است");
  const warehouseId=Number(d.warehouseId),warehouseRows=await all("warehouseStock");if(!Number.isSafeInteger(warehouseId)||warehouseId<=0)throw Error("انبار فاکتور را انتخاب کنید");const warehouse=(await all("warehouses")).find(x=>x.id===warehouseId);if(!warehouse)throw Error("انبار انتخاب‌شده وجود ندارد");
  const seen=new Set(),lines=[],updatedProducts=[],warehouseUpdates=[];
- let subtotal=0,cogs=0;
+ let subtotal=0,cogs=0,foreignSubtotalMinor=0;
  for(let i=0;i<ids.length;i++){
   const productId=Number(ids[i]),qty=Number(qtys[i]),price=Number(prices[i]),product=pr.find(x=>x.id===productId);
-  if(!product||!Number.isFinite(qty)||qty<=0||!Number.isSafeInteger(price)||price<=0)throw Error("کالا، مقدار و قیمت هر ردیف را بررسی کنید");
+  if(!product||!Number.isFinite(qty)||qty<=0||!Number.isFinite(price)||price<=0)throw Error("کالا، مقدار و قیمت هر ردیف را بررسی کنید");if(currency==="IRR"&&!Number.isSafeInteger(price))throw Error("قیمت ریالی هر کیلو باید عدد صحیح باشد");
   if(seen.has(productId))throw Error("برای هر کالا فقط یک ردیف ثبت کنید؛ ردیف‌های تکراری را ادغام کنید");seen.add(productId);
-  const lineTotal=Math.round(qty*price);if(!Number.isSafeInteger(lineTotal)||lineTotal<=0)throw Error("مبلغ ردیف خارج از محدوده مجاز است");
+  let lineTotal=0,lineForeignMinor=0;if(currency==="IRR")lineTotal=Math.round(qty*price);else{lineForeignMinor=Math.round(qty*price*100);if(!Number.isSafeInteger(lineForeignMinor)||lineForeignMinor<=0)throw Error("مبلغ ارزی ردیف معتبر نیست");lineTotal=convertForeignAmountToRial({currency,amountMinor:lineForeignMinor,fxRateRialPerUnit:fxRate}).rial;foreignSubtotalMinor+=lineForeignMinor}if(!Number.isSafeInteger(lineTotal)||lineTotal<=0)throw Error("معادل ریالی ردیف خارج از محدوده مجاز است");
   const movement=calculateWarehouseStockMovement({product,warehouseId,warehouseRows:warehouseRows.filter(x=>Number(x.productId)===Number(product.id)),quantity:qty,direction:kind,lineTotal});
   const lineCogs=movement.cogs;
   if(kind==="SALE"){
@@ -260,11 +261,11 @@ if(page==="invoices"){
    product.value=Number(product.value||0)+lineTotal;product.stock=Number(product.stock||0)+qty;product.avg=product.value/product.stock;
   }
   warehouseUpdates.push(["warehouseStock",movement.record]);
-  subtotal+=lineTotal;updatedProducts.push(product);lines.push({productId,productName:product.name,qty,price,lineTotal,cogs:lineCogs,warehouseId});
+  subtotal+=lineTotal;updatedProducts.push(product);lines.push({productId,productName:product.name,qty,price,lineTotal,cogs:lineCogs,warehouseId,currency,foreignAmountMinor:lineForeignMinor,fxRateRialPerUnit:fxRate});
  }
  const discount=num("discount"),tax=num("tax");if(!Number.isSafeInteger(discount)||!Number.isSafeInteger(tax)||discount<0||tax<0||discount>subtotal)throw Error("تخفیف یا مالیات معتبر نیست");
  const total=subtotal-discount+tax;if(!Number.isSafeInteger(total)||total<=0)throw Error("مبلغ نهایی فاکتور باید بیشتر از صفر باشد");
- const number="HP-"+Date.now(),invoice={number,kind,status:"POSTED",warehouseId,warehouseName:warehouse.name,partyId:p.id,partyName:p.name,product:lines.map(x=>x.productName).join("، "),qty:lines.reduce((n,x)=>n+x.qty,0),price:0,subtotal,discount,tax,total,cogs,lines,date:Date.now()};
+ const foreignTotalMinor=currency==="IRR"?null:Math.round(total*100/fxRate);if(currency!=="IRR"&&(!Number.isSafeInteger(foreignTotalMinor)||foreignTotalMinor<=0))throw Error("مانده ارزی فاکتور معتبر نیست");const number="HP-"+Date.now(),invoice={number,kind,status:"POSTED",currency,fxRateRialPerUnit:fxRate,foreignSubtotalMinor:currency==="IRR"?null:foreignSubtotalMinor,foreignTotalMinor,warehouseId,warehouseName:warehouse.name,partyId:p.id,partyName:p.name,product:lines.map(x=>x.productName).join("، "),qty:lines.reduce((n,x)=>n+x.qty,0),price:0,subtotal,discount,tax,total,cogs,lines,date:Date.now()};
  p.balance=Number(p.balance||0)+(kind==="SALE"?total:-total);
  const voucherNumber="JV-"+Date.now(),journal=[];
  if(kind==="SALE"){

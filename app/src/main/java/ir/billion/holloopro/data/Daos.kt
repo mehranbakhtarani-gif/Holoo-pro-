@@ -259,6 +259,9 @@ interface InvoiceReturnDao {
     @Query("SELECT il.invoiceId AS invoiceId, il.id AS invoiceLineId, il.productId AS productId, p.name AS productName, il.quantityKg AS originalQuantityKg, COALESCE(SUM(irl.quantityKg), 0.0) AS returnedQuantityKg, il.unitPriceRial AS unitPriceRial, il.lineTotalRial AS lineTotalRial, il.inventoryCostRial AS inventoryCostRial FROM invoice_lines il INNER JOIN products p ON p.id = il.productId LEFT JOIN invoice_return_lines irl ON irl.invoiceLineId = il.id GROUP BY il.id ORDER BY il.id")
     fun observeReturnableLines(): Flow<List<ReturnableInvoiceLineRow>>
 
+    @Query("SELECT il.invoiceId AS invoiceId, il.id AS invoiceLineId, il.productId AS productId, p.name AS productName, il.quantityKg AS originalQuantityKg, COALESCE(SUM(irl.quantityKg), 0.0) AS returnedQuantityKg, il.unitPriceRial AS unitPriceRial, il.lineTotalRial AS lineTotalRial, il.inventoryCostRial AS inventoryCostRial FROM invoice_lines il INNER JOIN products p ON p.id = il.productId LEFT JOIN invoice_return_lines irl ON irl.invoiceLineId = il.id WHERE il.invoiceId = :invoiceId GROUP BY il.id ORDER BY il.id")
+    suspend fun returnableLinesForInvoice(invoiceId: Long): List<ReturnableInvoiceLineRow>
+
     @Query("SELECT invoiceId, COALESCE(SUM(amountRial), 0) AS returnedRial FROM invoice_returns GROUP BY invoiceId")
     fun observeTotals(): Flow<List<InvoiceReturnSummaryRow>>
 

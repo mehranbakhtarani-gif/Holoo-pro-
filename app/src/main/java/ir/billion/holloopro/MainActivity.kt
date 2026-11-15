@@ -321,6 +321,7 @@ private fun ChecksScreen(
                         if (item.status == "OPEN") Row {
                             TextButton(onClick = { onUpdateStatus(item.id, "CLEARED") }) { Text("تسویه شد", color = Turquoise) }
                             TextButton(onClick = { onUpdateStatus(item.id, "BOUNCED") }) { Text("برگشتی", color = Color(0xFFFF9D9D)) }
+                            TextButton(onClick = { onUpdateStatus(item.id, "CANCELLED") }) { Text("باطل شد", color = Muted) }
                         }
                     }
                 }

@@ -45,6 +45,9 @@ import ir.billion.holloopro.data.AccountTrialBalanceRow
 import ir.billion.holloopro.data.LedgerRow
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.InvoiceLineInput
+import ir.billion.holloopro.data.InvoiceReturnLineInput
+import ir.billion.holloopro.data.InvoiceReturnSummaryRow
+import ir.billion.holloopro.data.ReturnableInvoiceLineRow
 import ir.billion.holloopro.data.InvoiceSettlementRow
 import ir.billion.holloopro.data.TreasuryEntryEntity
 import ir.billion.holloopro.data.TreasuryAllocationRow
@@ -102,6 +105,8 @@ class MainActivity : ComponentActivity() {
                     val partyBalances by vm.partyBalances.collectAsState()
                     val invoices by vm.invoices.collectAsState()
                     val invoiceSettlements by vm.invoiceSettlements.collectAsState()
+                    val invoiceReturnTotals by vm.invoiceReturnTotals.collectAsState()
+                    val returnableInvoiceLines by vm.returnableInvoiceLines.collectAsState()
                     val treasuryAllocations by vm.treasuryAllocations.collectAsState()
                     val settlementDetails by vm.settlementDetails.collectAsState()
                     val imports by vm.imports.collectAsState()
@@ -118,7 +123,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, partyBalances, invoices, invoiceSettlements, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss,
+                        products, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -130,6 +135,7 @@ class MainActivity : ComponentActivity() {
                         onDeleteParty = vm::deleteParty,
                         onCreateInvoice = vm::createMultiLineInvoice,
                         onReverseInvoice = vm::reverseInvoice,
+                        onPartialInvoiceReturn = vm::createPartialInvoiceReturn,
                         onAllocateTreasury = vm::allocateTreasuryToInvoice,
                         onRemoveInvoiceSettlement = vm::removeInvoiceSettlement,
                         onAddImport = vm::addImport,
@@ -183,6 +189,8 @@ private fun HolooApp(
     partyBalances: List<ir.billion.holloopro.data.PartyBalanceRow>,
     invoices: List<InvoiceEntity>,
     invoiceSettlements: List<InvoiceSettlementRow>,
+    invoiceReturnTotals: List<InvoiceReturnSummaryRow>,
+    returnableInvoiceLines: List<ReturnableInvoiceLineRow>,
     treasuryAllocations: List<TreasuryAllocationRow>,
     settlementDetails: List<ir.billion.holloopro.data.InvoiceSettlementDetailRow>,
     imports: List<ImportOrderEntity>,
@@ -207,6 +215,7 @@ private fun HolooApp(
     onDeleteParty: (Long) -> Unit,
     onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
     onReverseInvoice: (Long) -> Unit,
+    onPartialInvoiceReturn: (Long, List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit,
     onAllocateTreasury: (Long, Long, Long, () -> Unit) -> Unit,
     onRemoveInvoiceSettlement: (Long, () -> Unit) -> Unit,
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
@@ -300,7 +309,7 @@ private fun HolooApp(
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
-                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onAllocateTreasury, onRemoveInvoiceSettlement)
+                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
@@ -658,13 +667,14 @@ private fun PartiesScreen(
 @Composable
 private fun InvoicesScreen(
     parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>,
-    settlements: List<InvoiceSettlementRow>, settlementDetails: List<ir.billion.holloopro.data.InvoiceSettlementDetailRow>, treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
+    settlements: List<InvoiceSettlementRow>, returnTotals: List<InvoiceReturnSummaryRow>, returnableLines: List<ReturnableInvoiceLineRow>, settlementDetails: List<ir.billion.holloopro.data.InvoiceSettlementDetailRow>, treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
     onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
-    onReverse: (Long) -> Unit, onAllocate: (Long, Long, Long, () -> Unit) -> Unit,
+    onReverse: (Long) -> Unit, onPartialReturn: (Long, List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit, onAllocate: (Long, Long, Long, () -> Unit) -> Unit,
     onRemoveSettlement: (Long, () -> Unit) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
     var allocationTarget by remember { mutableStateOf<InvoiceEntity?>(null) }
+    var returnTarget by remember { mutableStateOf<InvoiceEntity?>(null) }
     var expandedSettlementInvoice by remember { mutableStateOf<Long?>(null) }
     var settlementToRemove by remember { mutableStateOf<ir.billion.holloopro.data.InvoiceSettlementDetailRow?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -674,7 +684,8 @@ private fun InvoicesScreen(
             items(invoices, key = { it.id }) { invoice ->
                 val partyName = parties.firstOrNull { it.id == invoice.partyId }?.name ?: "طرف حساب"
                 val paid = settlements.firstOrNull { it.invoiceId == invoice.id }?.paidRial ?: 0L
-                val remaining = (invoice.totalRial - paid).coerceAtLeast(0L)
+                val returned = returnTotals.firstOrNull { it.invoiceId == invoice.id }?.returnedRial ?: 0L
+                val remaining = (invoice.totalRial - paid - returned).coerceAtLeast(0L)
                 GlassCard {
                     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -685,7 +696,8 @@ private fun InvoicesScreen(
                             Text(if (invoice.status == "POSTED") "ثبت‌شده" else "برگشت‌شده", color = Muted, fontSize = 11.sp)
                         }
                         Text("مبلغ فاکتور: ${formatMoney(invoice.totalRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Color.White)
-                        Text("تسویه‌شده: ${formatMoney(paid, showToman)}  •  مانده: ${formatMoney(remaining, showToman)} ${if (showToman) "تومان" else "ریال"}", color = if (remaining == 0L) Turquoise else Color(0xFFFFC47A), fontSize = 12.sp)
+                        Text("تسویه‌شده: ${formatMoney(paid, showToman)}  •  برگشتی: ${formatMoney(returned, showToman)}", color = Muted, fontSize = 11.sp)
+                        Text("مانده: ${formatMoney(remaining, showToman)} ${if (showToman) "تومان" else "ریال"}", color = if (remaining == 0L) Turquoise else Color(0xFFFFC47A), fontSize = 12.sp)
                         val invoiceDetails = settlementDetails.filter { it.invoiceId == invoice.id }
                         if (invoiceDetails.isNotEmpty()) {
                             TextButton(onClick = {
@@ -716,6 +728,7 @@ private fun InvoicesScreen(
                         if (invoice.status == "POSTED") {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (remaining > 0L) OutlinedButton(onClick = { allocationTarget = invoice }) { Text("تخصیص دریافت/پرداخت") }
+                                if (returnableLines.any { it.invoiceId == invoice.id && it.originalQuantityKg - it.returnedQuantityKg > 0.000001 }) OutlinedButton(onClick = { returnTarget = invoice }) { Text("برگشت جزئی") }
                                 if (paid == 0L) TextButton(onClick = { onReverse(invoice.id) }) { Text("برگشت", color = Color(0xFFFFA4A4)) }
                                 else Text("برای برگشت، ابتدا تخصیص تسویه را لغو کن", color = Muted, fontSize = 10.sp)
                             }
@@ -729,10 +742,15 @@ private fun InvoicesScreen(
     allocationTarget?.let { invoice ->
         InvoiceAllocationDialog(
             invoice = invoice, party = parties.firstOrNull { it.id == invoice.partyId},
-            settlements = settlements, treasury = treasury, treasuryAllocations = treasuryAllocations, showToman = showToman,
+            settlements = settlements, returnTotals = returnTotals, treasury = treasury, treasuryAllocations = treasuryAllocations, showToman = showToman,
             onDismiss = { allocationTarget = null },
             onAllocate = { entryId, amount, onSuccess -> onAllocate(entryId, invoice.id, amount, onSuccess) }
         )
+    }
+    returnTarget?.let { invoice ->
+        InvoiceReturnDialog(invoice, returnableLines.filter { it.invoiceId == invoice.id }, showToman,
+            onDismiss = { returnTarget = null },
+            onSave = { rows, note, onSuccess -> onPartialReturn(invoice.id, rows, note) { onSuccess(); returnTarget = null } })
     }
     settlementToRemove?.let { settlement ->
         AlertDialog(
@@ -759,7 +777,8 @@ private fun InvoiceAllocationDialog(
     var selectedEntry by remember(invoice.id) { mutableStateOf(0L) }
     var amountText by remember(invoice.id) { mutableStateOf("") }
     val paid = settlements.firstOrNull { it.invoiceId == invoice.id }?.paidRial ?: 0L
-    val invoiceRemaining = (invoice.totalRial - paid).coerceAtLeast(0L)
+    val returned = returnTotals.firstOrNull { it.invoiceId == invoice.id }?.returnedRial ?: 0L
+    val invoiceRemaining = (invoice.totalRial - paid - returned).coerceAtLeast(0L)
     val expectedKind = if (invoice.kind == "SALE") "RECEIPT" else "PAYMENT"
     val candidates = treasury.filter { it.partyId == invoice.partyId && it.kind == expectedKind }
     val used = selectedEntry.takeIf { it > 0L }?.let { id -> treasury.firstOrNull { it.id == id } }

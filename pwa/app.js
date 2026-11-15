@@ -35,7 +35,7 @@ async function reversePwaInvoice(number){
  const ledger={partyId:party.id,date:now,debitRial:invoice.kind==="PURCHASE"?invoice.total:0,creditRial:invoice.kind==="SALE"?invoice.total:0,description:"برگشت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number};
  await postVoucherAtomic([...updated,["parties",party],["invoices",invoice],["partyLedger",ledger]],{number:"RV-"+now,date:now,description:"برگشت فاکتور "+invoice.number,reference:"REVERSAL:INVOICE:"+invoice.number},reverseVoucherLines);
 }
-const DB_NAME="holloo-pro-pwa",DB_VERSION=5;
+const DB_NAME="holloo-pro-pwa",DB_VERSION=6;
 const stores=["products","parties","invoices","imports","checks","treasury","accounts","vouchers","voucherLines","stockAdjustments","partyLedger","warehouses","warehouseStock","importShipments","approvals","employees","payroll","fixedAssets","treasuryAllocations","auditLog","assetDepreciations"];
 let db,showToman=true,currentPage="home",searchText="";
 const $=s=>document.querySelector(s),h=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])),fmt=n=>new Intl.NumberFormat("fa-IR").format(Math.round(Number(n)||0)),money=n=>fmt(showToman?Number(n||0)/10:Number(n||0)),moneyUnit=()=>showToman?"تومان":"ریال",date=v=>v?new Intl.DateTimeFormat("fa-IR").format(new Date(v)):"—";

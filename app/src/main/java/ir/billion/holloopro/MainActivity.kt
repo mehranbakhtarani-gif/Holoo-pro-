@@ -529,7 +529,7 @@ private fun BankReconciliationSection(
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text("پیشنهاد هوشمند: ${suggestion.candidate.title}", modifier = Modifier.weight(1f), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        Text("${suggestion.score}٪", color = Turquoise, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("امتیاز ${suggestion.score}/100", color = Turquoise, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     }
                                     Text(suggestion.reasons.joinToString(" • "), color = Muted, fontSize = 9.sp)
                                     TextButton(onClick = { onMatch(line.id, suggestion.candidate.id) }) {
@@ -569,7 +569,7 @@ private fun BankReconciliationSection(
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text("پیشنهاد هوشمند: ${suggestion.candidate.title}", modifier = Modifier.weight(1f), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        Text("${suggestion.score}٪", color = Turquoise, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("امتیاز ${suggestion.score}/100", color = Turquoise, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     }
                                     Text(suggestion.reasons.joinToString(" • "), color = Muted, fontSize = 9.sp)
                                     TextButton(onClick = { onMatchCheck(line.id, suggestion.candidate.id) }) {

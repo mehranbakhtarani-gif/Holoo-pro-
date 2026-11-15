@@ -131,6 +131,31 @@ class AccountingEngineTest {
         assertEquals("2101", payment.first().accountCode)
     }
 
+    @Test fun checkLifecyclePostingsAreBalancedForBothKinds() {
+        for (kind in listOf("RECEIVED", "PAYABLE")) {
+            for (event in listOf("ISSUE", "CLEARED", "RETURNED")) {
+                assertTrue(AccountingEngine.isBalanced(AccountingEngine.checkVoucherLines(kind, event, 500_000L)))
+            }
+        }
+        val receivedIssue = AccountingEngine.checkVoucherLines("RECEIVED", "ISSUE", 500_000L)
+        assertEquals(500_000L, receivedIssue.first { it.accountCode == "1104" }.debitRial)
+        assertEquals(500_000L, receivedIssue.first { it.accountCode == "1103" }.creditRial)
+        val receivedClear = AccountingEngine.checkVoucherLines("RECEIVED", "CLEARED", 500_000L)
+        assertEquals(500_000L, receivedClear.first { it.accountCode == "1102" }.debitRial)
+        assertEquals(500_000L, receivedClear.first { it.accountCode == "1104" }.creditRial)
+        val receivedReturn = AccountingEngine.checkVoucherLines("RECEIVED", "RETURNED", 500_000L)
+        assertEquals(500_000L, receivedReturn.first { it.accountCode == "1103" }.debitRial)
+        assertEquals(500_000L, receivedReturn.first { it.accountCode == "1104" }.creditRial)
+        val payableIssue = AccountingEngine.checkVoucherLines("PAYABLE", "ISSUE", 500_000L)
+        assertEquals(500_000L, payableIssue.first { it.accountCode == "2101" }.debitRial)
+        assertEquals(500_000L, payableIssue.first { it.accountCode == "2104" }.creditRial)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun checkPostingRejectsUnknownEvent() {
+        AccountingEngine.checkVoucherLines("RECEIVED", "UNKNOWN", 100L)
+    }
+
     @Test fun landedCostAllocationIsProportionalAndSumsExactly() {
         val allocation = AccountingEngine.allocateLandedCost(
             totalCostRial = 10_000L,

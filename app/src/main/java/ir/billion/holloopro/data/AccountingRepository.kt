@@ -492,9 +492,20 @@ class AccountingRepository(private val db: AppDatabase) {
             val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
             if (kind == "RECEIVED") require(party.kind != "SUPPLIER") { "برای چک دریافتی مشتری انتخاب کنید" }
             else require(party.kind != "CUSTOMER") { "برای چک پرداختی تأمین‌کننده انتخاب کنید" }
-            db.checkDao().insert(CheckEntity(
+            ensureBaseAccounts()
+            val checkId = db.checkDao().insert(CheckEntity(
                 checkNumber = normalized, kind = kind, partyId = partyId, amountRial = amountRial,
                 issueDateEpoch = issueDateEpoch, dueDateEpoch = dueDateEpoch, bankName = bankName.trim(), note = note.trim()
+            ))
+            postCheckVoucher(checkId, "ISSUE",
+                if (kind == "RECEIVED") "دریافت چک از ${party.name}" else "صدور چک برای ${party.name}",
+                AccountingEngine.checkVoucherLines(kind, "ISSUE", amountRial))
+            db.partyLedgerDao().insert(PartyLedgerEntity(
+                partyId = partyId,
+                debitRial = if (kind == "PAYABLE") amountRial else 0,
+                creditRial = if (kind == "RECEIVED") amountRial else 0,
+                description = if (kind == "RECEIVED") "دریافت چک شماره $normalized" else "صدور چک شماره $normalized",
+                referenceId = checkId
             ))
         }
     }
@@ -504,8 +515,43 @@ class AccountingRepository(private val db: AppDatabase) {
         db.withTransaction {
             val check = db.checkDao().getById(id) ?: error("چک پیدا نشد")
             require(check.status == "OPEN") { "وضعیت این چک قبلاً نهایی شده است" }
+            ensureBaseAccounts()
+            when (status) {
+                "CLEARED" -> postCheckVoucher(id, "CLEARED", "تسویه چک شماره ${check.checkNumber}",
+                    AccountingEngine.checkVoucherLines(check.kind, "CLEARED", check.amountRial))
+                "BOUNCED", "CANCELLED" -> {
+                    postCheckVoucher(id, "RETURNED",
+                        if (status == "BOUNCED") "برگشت چک شماره ${check.checkNumber}" else "ابطال چک شماره ${check.checkNumber}",
+                        AccountingEngine.checkVoucherLines(check.kind, "RETURNED", check.amountRial))
+                    db.partyLedgerDao().insert(PartyLedgerEntity(
+                        partyId = check.partyId,
+                        debitRial = if (check.kind == "RECEIVED") check.amountRial else 0,
+                        creditRial = if (check.kind == "PAYABLE") check.amountRial else 0,
+                        description = if (status == "BOUNCED") "برگشت چک شماره ${check.checkNumber}" else "ابطال چک شماره ${check.checkNumber}",
+                        referenceId = id
+                    ))
+                }
+            }
             db.checkDao().update(check.copy(status = status))
         }
+    }
+
+    private suspend fun postCheckVoucher(checkId: Long, event: String, description: String, drafts: List<VoucherLineDraft>) {
+        val reference = "CHECK:$checkId:$event"
+        require(db.voucherDao().byReference(reference) == null) { "سند این عملیات چک قبلاً ثبت شده است" }
+        AccountingEngine.requireBalanced(drafts)
+        val resolved = drafts.map { draft ->
+            val account = db.accountDao().byCode(draft.accountCode) ?: error("حساب ${draft.accountCode} تعریف نشده")
+            account to draft
+        }
+        val voucherId = db.voucherDao().insert(VoucherEntity(
+            number = "CH-$checkId-$event-${UUID.randomUUID().toString().take(6)}",
+            description = description, reference = reference
+        ))
+        db.voucherLineDao().insertAll(resolved.map { (account, draft) ->
+            VoucherLineEntity(voucherId = voucherId, accountId = account.id,
+                debitRial = draft.debitRial, creditRial = draft.creditRial, description = description)
+        })
     }
 
     suspend fun addImportOrder(
@@ -653,10 +699,12 @@ class AccountingRepository(private val db: AppDatabase) {
             AccountEntity(code = "1101", title = "صندوق", type = "ASSET"),
             AccountEntity(code = "1102", title = "بانک", type = "ASSET"),
             AccountEntity(code = "1103", title = "حساب‌های دریافتنی", type = "ASSET"),
+            AccountEntity(code = "1104", title = "اسناد دریافتنی", type = "ASSET"),
             AccountEntity(code = "1301", title = "موجودی کالا", type = "ASSET"),
             AccountEntity(code = "2101", title = "حساب‌های پرداختنی تأمین‌کنندگان", type = "LIABILITY"),
             AccountEntity(code = "2102", title = "هزینه‌های حمل و گمرک پرداختنی", type = "LIABILITY"),
             AccountEntity(code = "2103", title = "مالیات بر ارزش افزوده فروش", type = "LIABILITY"),
+            AccountEntity(code = "2104", title = "اسناد پرداختنی", type = "LIABILITY"),
             AccountEntity(code = "4101", title = "فروش کالا", type = "REVENUE"),
             AccountEntity(code = "5101", title = "بهای تمام‌شده کالای فروش‌رفته", type = "EXPENSE"),
             AccountEntity(code = "4201", title = "مازاد و افزایش موجودی انبار", type = "REVENUE"),

@@ -169,6 +169,22 @@ object AccountingEngine {
         }
     }
 
+    fun checkVoucherLines(kind: String, event: String, amountRial: Long): List<VoucherLineDraft> {
+        require(kind == "RECEIVED" || kind == "PAYABLE") { "نوع چک نامعتبر است" }
+        require(event in setOf("ISSUE", "CLEARED", "RETURNED")) { "عملیات چک نامعتبر است" }
+        require(amountRial > 0) { "مبلغ چک باید بیشتر از صفر باشد" }
+        val lines = when (kind to event) {
+            "RECEIVED" to "ISSUE" -> listOf(VoucherLineDraft("1104", debitRial = amountRial), VoucherLineDraft("1103", creditRial = amountRial))
+            "PAYABLE" to "ISSUE" -> listOf(VoucherLineDraft("2101", debitRial = amountRial), VoucherLineDraft("2104", creditRial = amountRial))
+            "RECEIVED" to "CLEARED" -> listOf(VoucherLineDraft("1102", debitRial = amountRial), VoucherLineDraft("1104", creditRial = amountRial))
+            "PAYABLE" to "CLEARED" -> listOf(VoucherLineDraft("2104", debitRial = amountRial), VoucherLineDraft("1102", creditRial = amountRial))
+            "RECEIVED" to "RETURNED" -> listOf(VoucherLineDraft("1103", debitRial = amountRial), VoucherLineDraft("1104", creditRial = amountRial))
+            else -> listOf(VoucherLineDraft("2104", debitRial = amountRial), VoucherLineDraft("2101", creditRial = amountRial))
+        }
+        requireBalanced(lines)
+        return lines
+    }
+
     fun treasuryVoucherLines(kind: String, method: String, amountRial: Long): List<VoucherLineDraft> {
         require(kind == "RECEIPT" || kind == "PAYMENT")
         require(method == "CASH" || method == "BANK")

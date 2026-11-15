@@ -251,6 +251,9 @@ interface TreasuryDao {
     @Query("SELECT * FROM treasury_entries ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<TreasuryEntryEntity>>
 
+    @Update
+    suspend fun update(entry: TreasuryEntryEntity)
+
     @Insert
     suspend fun insert(entry: TreasuryEntryEntity): Long
 

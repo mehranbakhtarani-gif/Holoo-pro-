@@ -2254,7 +2254,7 @@ private fun InvoiceDialog(warehouses: List<WarehouseEntity>, parties: List<Party
                 val taxRial = (tax.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
                 val extraCostsRial = if (kind == "PURCHASE") (extraCosts.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong() else 0L
                 onSave(kind, partyId, lines, discountRial, taxRial, extraCostsRial, warehouseId)
-            }) { Text("ثبت و صدور سند") }
+            }) { Text(if (existing == null) "ثبت و صدور فاکتور" else "ذخیره و ثبت نسخه ویرایش‌شده") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
         containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White)

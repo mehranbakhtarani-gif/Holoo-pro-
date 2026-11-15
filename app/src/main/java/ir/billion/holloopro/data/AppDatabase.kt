@@ -24,9 +24,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ImportReceiptLineEntity::class,
         ProductValuationEntity::class,
         CheckEntity::class,
-        InvoiceSettlementEntity::class
+        InvoiceSettlementEntity::class,
+        InvoiceReturnEntity::class,
+        InvoiceReturnLineEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -45,6 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun treasuryDao(): TreasuryDao
     abstract fun checkDao(): CheckDao
     abstract fun invoiceSettlementDao(): InvoiceSettlementDao
+    abstract fun invoiceReturnDao(): InvoiceReturnDao
 
     companion object {
         private const val DATABASE_NAME = "holoo_pro_plus.db"
@@ -104,6 +107,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS invoice_returns (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, invoiceId INTEGER NOT NULL, amountRial INTEGER NOT NULL, note TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_invoice_returns_invoiceId ON invoice_returns(invoiceId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_invoice_returns_createdAt ON invoice_returns(createdAt)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS invoice_return_lines (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, returnId INTEGER NOT NULL, invoiceLineId INTEGER NOT NULL, quantityKg REAL NOT NULL, refundAmountRial INTEGER NOT NULL, inventoryCostRial INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_invoice_return_lines_returnId ON invoice_return_lines(returnId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_invoice_return_lines_invoiceLineId ON invoice_return_lines(invoiceLineId)")
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase =
@@ -112,7 +126,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     DATABASE_NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build().also { INSTANCE = it }
             }
     }
 }

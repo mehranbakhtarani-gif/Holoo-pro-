@@ -132,6 +132,7 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE invoice_return_lines ADD COLUMN netSalesRial INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE invoice_return_lines SET netSalesRial = COALESCE((SELECT CAST(ROUND(vl.debitRial * invoice_return_lines.refundAmountRial * 1.0 / NULLIF((SELECT SUM(irl2.refundAmountRial) FROM invoice_return_lines irl2 WHERE irl2.returnId = invoice_return_lines.returnId), 0)) AS INTEGER) FROM invoice_returns r INNER JOIN vouchers v ON v.reference = 'INVOICE_RETURN:' || r.id INNER JOIN voucher_lines vl ON vl.voucherId = v.id INNER JOIN accounts a ON a.id = vl.accountId WHERE r.id = invoice_return_lines.returnId AND a.code = '4101'), 0)")
             }
         }
 

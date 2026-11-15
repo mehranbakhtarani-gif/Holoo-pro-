@@ -807,6 +807,7 @@ private fun AccountingScreen(
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }
     var showOpeningDialog by remember { mutableStateOf(false) }
+    var reversalTarget by remember { mutableStateOf<String?>(null) }
     var ledgerAccountFilter by remember { mutableStateOf("همه حساب‌ها") }
     var ledgerFromFilter by remember { mutableStateOf("") }
     var ledgerToFilter by remember { mutableStateOf("") }
@@ -940,7 +941,7 @@ private fun AccountingScreen(
                     Text("${row.accountCode} • ${row.accountTitle}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Text("${row.voucherNumber} • ${row.voucherDescription}", color = Muted, fontSize = 10.sp)
                     Text("بدهکار ${formatMoney(row.debitRial, showToman)}  |  بستانکار ${formatMoney(row.creditRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 10.sp)
-                    if (row.reference.startsWith("MANUAL:")) TextButton(onClick = { onReverseManualVoucher(row.voucherNumber) }) { Text("ثبت سند معکوس", color = Color(0xFFFFC47A)) }
+                    if (row.reference.startsWith("MANUAL:")) TextButton(onClick = { reversalTarget = row.voucherNumber }) { Text("ثبت سند معکوس", color = Color(0xFFFFC47A)) }
                 }
                 Text("اسناد فاکتور و دریافت/پرداخت به‌صورت دوبل ثبت می‌شوند.", color = Muted, fontSize = 11.sp)
             }
@@ -966,6 +967,20 @@ private fun AccountingScreen(
             accounts = openingAccounts,
             onDismiss = { showOpeningDialog = false },
             onSave = { values -> onUpdateOpeningBalances(values); showOpeningDialog = false }
+        )
+    }
+    reversalTarget?.let { number ->
+        AlertDialog(
+            onDismissRequest = { reversalTarget = null },
+            title = { Text("تأیید برگشت سند") },
+            text = { Text("برای سند $number یک سند معکوس ایجاد می‌شود. سند اصلی حذف یا ویرایش نمی‌شود. ادامه می‌دهید؟") },
+            confirmButton = {
+                TextButton(onClick = { onReverseManualVoucher(number); reversalTarget = null }) {
+                    Text("تأیید برگشت", color = Color(0xFFFFC47A))
+                }
+            },
+            dismissButton = { TextButton(onClick = { reversalTarget = null }) { Text("انصراف") } },
+            containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
         )
     }
 }

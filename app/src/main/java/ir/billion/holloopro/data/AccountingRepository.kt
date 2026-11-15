@@ -258,6 +258,161 @@ class AccountingRepository(private val db: AppDatabase) {
             db.partyLedgerDao().insert(PartyLedgerEntity(partyId = partyId, debitRial = if (kind == "SALE") total else 0, creditRial = if (kind == "PURCHASE") total else 0, description = if (kind == "SALE") "فاکتور فروش " + number else "فاکتور خرید " + number, referenceId = invoiceId))
         }
     }
+
+    suspend fun createPartialInvoiceReturn(invoiceId: Long, requestedLines: List<InvoiceReturnLineInput>, note: String = "") {
+        require(requestedLines.isNotEmpty()) { "حداقل یک ردیف برای برگشت انتخاب کنید" }
+        require(requestedLines.all { it.invoiceLineId > 0 && it.quantityKg.isFinite() && it.quantityKg > 0.0 }) {
+            "مقدار برگشتی هر ردیف باید مثبت و معتبر باشد"
+        }
+        require(requestedLines.map { it.invoiceLineId }.distinct().size == requestedLines.size) {
+            "هر ردیف فاکتور را فقط یک بار انتخاب کنید"
+        }
+        db.withTransaction {
+            ensureBaseAccounts()
+            val invoice = db.invoiceDao().getById(invoiceId) ?: error("فاکتور پیدا نشد")
+            require(invoice.status == "POSTED") { "فقط فاکتور ثبت‌شده قابل برگشت است" }
+            val sourceLines = db.invoiceReturnDao().returnableLinesForInvoice(invoiceId)
+            require(sourceLines.isNotEmpty()) { "ردیف‌های فاکتور پیدا نشد" }
+            val selected = requestedLines.map { input ->
+                val source = sourceLines.firstOrNull { it.invoiceLineId == input.invoiceLineId }
+                    ?: error("ردیف انتخاب‌شده متعلق به این فاکتور نیست")
+                val remaining = source.originalQuantityKg - source.returnedQuantityKg
+                require(input.quantityKg <= remaining + 0.000001) {
+                    "مقدار برگشتی ${source.productName} از مقدار باقی‌مانده بیشتر است"
+                }
+                source to input.quantityKg
+            }
+            val grossByLine = selected.map { (line, quantity) ->
+                val gross = BigDecimal.valueOf(line.unitPriceRial)
+                    .multiply(BigDecimal.valueOf(quantity))
+                    .setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
+                require(gross > 0) { "مبلغ ردیف برگشتی معتبر نیست" }
+                gross
+            }
+            val grossReturn = grossByLine.fold(0L) { total, value -> Math.addExact(total, value) }
+            val discountReturn = if (invoice.discountRial == 0L) 0L else
+                BigDecimal.valueOf(invoice.discountRial).multiply(BigDecimal.valueOf(grossReturn))
+                    .divide(BigDecimal.valueOf(invoice.subtotalRial), 0, java.math.RoundingMode.HALF_UP)
+                    .longValueExact().coerceAtMost(invoice.discountRial)
+            val netReturn = Math.subtractExact(grossReturn, discountReturn)
+            val originalNet = Math.subtractExact(invoice.subtotalRial, invoice.discountRial)
+            val taxReturn = if (invoice.taxRial == 0L || netReturn == 0L) 0L else
+                BigDecimal.valueOf(invoice.taxRial).multiply(BigDecimal.valueOf(netReturn))
+                    .divide(BigDecimal.valueOf(originalNet), 0, java.math.RoundingMode.HALF_UP)
+                    .longValueExact().coerceAtMost(invoice.taxRial)
+            val returnAmount = Math.addExact(netReturn, taxReturn)
+            require(returnAmount > 0) { "مبلغ برگشت باید بیشتر از صفر باشد" }
+            val alreadyReturned = db.invoiceReturnDao().returnedForInvoice(invoiceId)
+            val alreadySettled = db.invoiceDao().settledForInvoice(invoiceId)
+            require(Math.addExact(alreadyReturned, Math.addExact(alreadySettled, returnAmount)) <= invoice.totalRial) {
+                "مبلغ برگشت به‌علاوه تسویه‌های قبلی از مبلغ فاکتور بیشتر می‌شود"
+            }
+
+            var totalInventoryCost = 0L
+            val lineReturnCosts = mutableListOf<Long>()
+            selected.forEach { (line, quantity) ->
+                val stored = db.productValuationDao().get(line.productId)
+                val current = stored?.let { InventoryValuation(it.quantityKg, it.valueRial) }
+                    ?: InventoryValuation(0.0, 0L)
+                val returnCost = if (invoice.kind == "SALE") {
+                    require(line.inventoryCostRial > 0L) {
+                        "بهای تمام‌شده ردیف فروش مشخص نیست؛ برگشت خودکار امن نیست"
+                    }
+                    val previouslyReturnedCost = db.invoiceReturnDao().returnedCostForInvoiceLine(line.invoiceLineId)
+                    val remainingQuantity = line.originalQuantityKg - line.returnedQuantityKg
+                    val remainingCost = Math.subtractExact(line.inventoryCostRial, previouslyReturnedCost)
+                    if (quantity >= remainingQuantity - 0.000001) remainingCost else
+                        BigDecimal.valueOf(line.inventoryCostRial).multiply(BigDecimal.valueOf(quantity))
+                            .divide(BigDecimal.valueOf(line.originalQuantityKg), 0, java.math.RoundingMode.HALF_UP)
+                            .longValueExact().coerceAtMost(remainingCost)
+                } else {
+                    require(stored != null && current.quantityKg + 0.000001 >= quantity) {
+                        "موجودی کافی برای برگشت خرید وجود ندارد"
+                    }
+                    InventoryValuationEngine.issue(current, quantity).cogsRial
+                }
+                require(returnCost >= 0L)
+                val next = if (invoice.kind == "SALE") {
+                    InventoryValuationEngine.receive(current, quantity, returnCost.coerceAtLeast(1L))
+                } else {
+                    InventoryValuationEngine.issue(current, quantity).remaining
+                }
+                db.productValuationDao().upsert(ProductValuationEntity(line.productId, next.quantityKg, next.valueRial))
+                db.stockDao().insert(
+                    StockMovementEntity(
+                        productId = line.productId,
+                        quantityKg = if (invoice.kind == "SALE") quantity else -quantity,
+                        kind = "PARTIAL_RETURN",
+                        referenceId = invoiceId,
+                        note = "برگشت جزئی فاکتور ${invoice.number}"
+                    )
+                )
+                totalInventoryCost = Math.addExact(totalInventoryCost, returnCost)
+                lineReturnCosts += returnCost
+            }
+
+            val returnId = db.invoiceReturnDao().insert(
+                InvoiceReturnEntity(invoiceId = invoiceId, amountRial = returnAmount, note = note.trim())
+            )
+            var allocatedRefund = 0L
+            val returnRows = selected.mapIndexed { index, (line, quantity) ->
+                val refund = if (index == selected.lastIndex) Math.subtractExact(returnAmount, allocatedRefund) else
+                    BigDecimal.valueOf(returnAmount).multiply(BigDecimal.valueOf(grossByLine[index]))
+                        .divide(BigDecimal.valueOf(grossReturn), 0, java.math.RoundingMode.HALF_UP)
+                        .longValueExact().also { allocatedRefund = Math.addExact(allocatedRefund, it) }
+                InvoiceReturnLineEntity(
+                    returnId = returnId,
+                    invoiceLineId = line.invoiceLineId,
+                    quantityKg = quantity,
+                    refundAmountRial = refund,
+                    inventoryCostRial = lineReturnCosts[index]
+                )
+            }
+            db.invoiceReturnDao().insertLines(returnRows)
+
+            val drafts = if (invoice.kind == "SALE") {
+                buildList {
+                    add(VoucherLineDraft("4101", debitRial = netReturn))
+                    if (taxReturn > 0) add(VoucherLineDraft("2103", debitRial = taxReturn))
+                    add(VoucherLineDraft("1103", creditRial = returnAmount))
+                    if (totalInventoryCost > 0) {
+                        add(VoucherLineDraft("1301", debitRial = totalInventoryCost))
+                        add(VoucherLineDraft("5101", creditRial = totalInventoryCost))
+                    }
+                }
+            } else {
+                listOf(VoucherLineDraft("2101", debitRial = returnAmount)) +
+                    AccountingEngine.purchaseReversalAdjustment(totalInventoryCost, returnAmount)
+            }
+            AccountingEngine.requireBalanced(drafts)
+            val voucherId = db.voucherDao().insert(
+                VoucherEntity(
+                    number = "PR-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}",
+                    description = "برگشت جزئی فاکتور ${invoice.number}",
+                    reference = "INVOICE_RETURN:$returnId"
+                )
+            )
+            db.voucherLineDao().insertAll(drafts.map { draft ->
+                val account = db.accountDao().byCode(draft.accountCode)
+                    ?: error("حساب ${draft.accountCode} تعریف نشده است")
+                VoucherLineEntity(
+                    voucherId = voucherId, accountId = account.id,
+                    debitRial = draft.debitRial, creditRial = draft.creditRial,
+                    description = "برگشت جزئی فاکتور ${invoice.number}"
+                )
+            })
+            db.partyLedgerDao().insert(
+                PartyLedgerEntity(
+                    partyId = invoice.partyId,
+                    debitRial = if (invoice.kind == "PURCHASE") returnAmount else 0L,
+                    creditRial = if (invoice.kind == "SALE") returnAmount else 0L,
+                    description = "برگشت جزئی فاکتور ${invoice.number}",
+                    referenceId = returnId
+                )
+            )
+        }
+    }
+
     suspend fun reverseInvoice(invoiceId: Long) {
         db.withTransaction {
             ensureBaseAccounts()
@@ -266,6 +421,7 @@ class AccountingRepository(private val db: AppDatabase) {
             require(db.invoiceDao().settledForInvoice(invoiceId) == 0L) {
                 "این فاکتور تسویه تخصیص‌یافته دارد؛ ابتدا تخصیص‌های دریافت/پرداخت را لغو کن"
             }
+            require(db.invoiceReturnDao().returnedForInvoice(invoiceId) == 0L) { "این فاکتور برگشت جزئی دارد؛ برگشت کامل جداگانه مجاز نیست" }
             val lines = db.invoiceLineDao().byInvoice(invoiceId)
             require(lines.isNotEmpty()) { "ردیف‌های فاکتور برای برگشت پیدا نشد" }
             var purchaseReversalInventoryCost = 0L
@@ -446,7 +602,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 (entry.kind == "PAYMENT" && invoice.kind == "PURCHASE")) {
                 "نوع دریافت/پرداخت با نوع فاکتور سازگار نیست"
             }
-            val invoiceRemaining = Math.subtractExact(invoice.totalRial, db.invoiceDao().settledForInvoice(invoiceId))
+            val invoiceRemaining = Math.subtractExact(Math.subtractExact(invoice.totalRial, db.invoiceDao().settledForInvoice(invoiceId)), db.invoiceReturnDao().returnedForInvoice(invoiceId))
             val entryRemaining = Math.subtractExact(entry.amountRial, db.treasuryDao().allocatedAmount(treasuryEntryId))
             require(invoiceRemaining > 0) { "این فاکتور قبلاً کامل تسویه شده است" }
             require(entryRemaining > 0) { "مبلغ این رسید قبلاً کامل تخصیص یافته است" }

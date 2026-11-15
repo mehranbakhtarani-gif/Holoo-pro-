@@ -16,6 +16,7 @@ test("period closing is posted as a unique balanced voucher to retained earnings
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/buildPeriodClosingJournal\(/);
  assert.match(app,/YEAR_END_CLOSE:/);
+ assert.match(app,/بازه انتخابی با دوره مالی بسته‌شده هم‌پوشانی دارد/);
  assert.match(app,/3201/);
  assert.match(app,/yearEndCloseForm/);
  assert.match(app,/postVoucherAtomic\(\[\]/);

@@ -17,6 +17,8 @@ import ir.billion.holloopro.data.InvoiceReturnLineInput
 import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductWithStock
+import ir.billion.holloopro.data.ProductProfitRow
+import ir.billion.holloopro.data.InvoiceProfitRow
 import ir.billion.holloopro.data.TreasuryEntryEntity
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +49,8 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     val ledger: StateFlow<List<LedgerRow>> =
         repository.ledger.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     fun partyLedger(partyId: Long) = repository.partyLedger(partyId)
+    val productProfitability = repository.productProfitability.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<ProductProfitRow>())
+    val invoiceProfitability = repository.invoiceProfitability.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<InvoiceProfitRow>())
     val profitLoss = repository.profitLoss.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ir.billion.holloopro.data.ProfitLossRow(0, 0))
     val imports: StateFlow<List<ImportOrderEntity>> =
         repository.imports.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

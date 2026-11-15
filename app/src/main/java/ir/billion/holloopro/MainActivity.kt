@@ -242,7 +242,6 @@ private fun HolooApp(
 }
 
 @Composable
-@Composable
 private fun ChecksScreen(
     checks: List<CheckEntity>, parties: List<PartyEntity>, showToman: Boolean,
     onAdd: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,

@@ -481,6 +481,124 @@ private fun StatCard(label: String, value: String, symbol: String, modifier: Mod
     }
 }
 
+
+@Composable
+private fun WarehouseScreen(
+    warehouses: List<WarehouseEntity>,
+    warehouseStocks: List<WarehouseStockRow>,
+    products: List<ProductWithStock>,
+    showToman: Boolean,
+    onCreate: (String, String, () -> Unit) -> Unit,
+    onTransfer: (Long, Long, Long, Double, () -> Unit) -> Unit
+) {
+    var showCreate by remember { mutableStateOf(false) }
+    var showTransfer by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("مدیریت انبارها", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("موجودی مستقل هر انبار و انتقال با حفظ بهای میانگین", color = Muted, fontSize = 10.sp)
+            }
+            TextButton(onClick = { showTransfer = true }, enabled = warehouses.size > 1 && products.isNotEmpty()) { Text("انتقال کالا", color = Turquoise) }
+            Button(onClick = { showCreate = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) { Text("انبار جدید") }
+        }
+        if (warehouses.isEmpty()) EmptyState("انبار تعریف نشده است", "ابتدا انبار اصلی را ایجاد کنید")
+        else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
+            items(warehouses, key = { it.id }) { warehouse ->
+                val rows = warehouseStocks.filter { it.warehouseId == warehouse.id && it.quantityKg > 0.000001 }
+                GlassCard {
+                    Text(warehouse.name + if (warehouse.isDefault) " • پیش‌فرض" else "", color = Turquoise, fontWeight = FontWeight.Bold)
+                    if (warehouse.address.isNotBlank()) Text(warehouse.address, color = Muted, fontSize = 10.sp)
+                    if (rows.isEmpty()) Text("موجودی ثبت‌شده‌ای در این انبار وجود ندارد.", color = Muted, fontSize = 11.sp)
+                    rows.forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(row.productName, color = Color.White, fontSize = 12.sp)
+                                Text("${formatQuantity(row.quantityKg)} کیلوگرم", color = Muted, fontSize = 10.sp)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(formatMoney(row.valueRial, showToman), color = Turquoise, fontSize = 11.sp)
+                                Text("میانگین ${formatMoney(row.averageCostPerKgRial, showToman)}", color = Muted, fontSize = 9.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (showCreate) WarehouseCreateDialog(
+        onDismiss = { showCreate = false },
+        onSave = { name, address, done -> onCreate(name, address) { done(); showCreate = false } }
+    )
+    if (showTransfer) WarehouseTransferDialog(
+        warehouses = warehouses, products = products, warehouseStocks = warehouseStocks,
+        onDismiss = { showTransfer = false },
+        onSave = { productId, sourceId, targetId, quantity, done ->
+            onTransfer(productId, sourceId, targetId, quantity) { done(); showTransfer = false }
+        }
+    )
+}
+
+@Composable
+private fun WarehouseCreateDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, String, () -> Unit) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("تعریف انبار جدید") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FormField("نام انبار", name) { name = it }
+            FormField("نشانی یا توضیح (اختیاری)", address) { address = it }
+        } },
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onSave(name, address) {} }) { Text("ثبت انبار") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+    )
+}
+
+@Composable
+private fun WarehouseTransferDialog(
+    warehouses: List<WarehouseEntity>,
+    products: List<ProductWithStock>,
+    warehouseStocks: List<WarehouseStockRow>,
+    onDismiss: () -> Unit,
+    onSave: (Long, Long, Long, Double, () -> Unit) -> Unit
+) {
+    var productId by remember { mutableStateOf(products.firstOrNull()?.product?.id ?: 0L) }
+    var sourceId by remember { mutableStateOf(warehouses.firstOrNull()?.id ?: 0L) }
+    var targetId by remember { mutableStateOf(warehouses.firstOrNull { it.id != sourceId }?.id ?: 0L) }
+    var quantity by remember { mutableStateOf("") }
+    val available = warehouseStocks.firstOrNull { it.warehouseId == sourceId && it.productId == productId }?.quantityKg ?: 0.0
+    val quantityValue = quantity.replace(',', '.').toDoubleOrNull() ?: 0.0
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("انتقال بین انبارها") },
+        text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChoiceField("کالا", products.firstOrNull { it.product.id == productId }?.product?.name ?: "انتخاب کالا", products.map { it.product.name }) {
+                productId = products.firstOrNull { p -> p.product.name == it }?.product?.id ?: 0L
+            }
+            ChoiceField("انبار مبدأ", warehouses.firstOrNull { it.id == sourceId }?.name ?: "انتخاب", warehouses.map { it.name }) {
+                sourceId = warehouses.firstOrNull { w -> w.name == it }?.id ?: 0L
+                if (sourceId == targetId) targetId = warehouses.firstOrNull { w -> w.id != sourceId }?.id ?: 0L
+            }
+            ChoiceField("انبار مقصد", warehouses.firstOrNull { it.id == targetId }?.name ?: "انتخاب", warehouses.filter { it.id != sourceId }.map { it.name }) {
+                targetId = warehouses.firstOrNull { w -> w.name == it }?.id ?: 0L
+            }
+            Text("موجودی مبدأ: ${formatQuantity(available)} کیلوگرم", color = Muted, fontSize = 11.sp)
+            FormField("مقدار انتقال (کیلوگرم)", quantity, KeyboardType.Decimal) { quantity = it.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' } }
+        } },
+        confirmButton = {
+            TextButton(enabled = productId > 0 && sourceId > 0 && targetId > 0 && sourceId != targetId && quantityValue > 0 && quantityValue <= available + 0.000001,
+                onClick = { onSave(productId, sourceId, targetId, quantityValue) {} }) { Text("ثبت انتقال") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+    )
+}
+
 @Composable
 private fun InventoryScreen(
     warehouses: List<WarehouseEntity>, warehouseStocks: List<WarehouseStockRow>, products: List<ProductWithStock>, showToman: Boolean,

@@ -32,7 +32,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WarehouseValuationEntity::class,
         BankStatementLineEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -162,6 +162,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE bank_statement_lines ADD COLUMN matchedCheckId INTEGER")
+                db.execSQL("ALTER TABLE bank_statement_lines ADD COLUMN matchedVoucherId INTEGER")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_bank_statement_lines_matchedCheckId ON bank_statement_lines(matchedCheckId)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_bank_statement_lines_matchedVoucherId ON bank_statement_lines(matchedVoucherId)")
+            }
+        }
+
         @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase =
@@ -170,7 +179,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     DATABASE_NAME
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL("INSERT INTO warehouses (id, name, address, isDefault, createdAt) VALUES (1, 'انبار اصلی', '', 1, ${System.currentTimeMillis()})")

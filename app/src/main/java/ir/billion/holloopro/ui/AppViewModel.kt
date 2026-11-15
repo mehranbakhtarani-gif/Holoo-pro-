@@ -178,6 +178,14 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         "سفارش واردات ثبت شد"
     }
 
+    fun updateImportOrder(
+        id: Long, supplierId: Long, currency: String, rate: Long, container: String, weight: Double,
+        goods: Long, freight: Long, customs: Long, other: Long, creditDays: Int, onSuccess: () -> Unit
+    ) = execute(onSuccess) {
+        repository.updateImportOrder(id, supplierId, currency, rate, container, weight, goods, freight, customs, other, creditDays)
+        "سفارش واردات ویرایش شد"
+    }
+
     fun receiveImport(orderId: Long, lines: List<ImportReceiptLineInput>, onSuccess: () -> Unit) = execute(onSuccess) {
         repository.receiveImport(orderId, lines)
         "رسید انبار صادر شد؛ موجودی و سند بهای تمام‌شده ثبت شد"

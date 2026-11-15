@@ -376,17 +376,24 @@ class AccountingRepository(private val db: AppDatabase) {
                 InvoiceReturnEntity(invoiceId = invoiceId, amountRial = returnAmount, note = note.trim())
             )
             var allocatedRefund = 0L
+            var allocatedNetSales = 0L
             val returnRows = selected.mapIndexed { index, (line, quantity) ->
                 val refund = if (index == selected.lastIndex) Math.subtractExact(returnAmount, allocatedRefund) else
                     BigDecimal.valueOf(returnAmount).multiply(BigDecimal.valueOf(grossByLine[index]))
                         .divide(BigDecimal.valueOf(grossReturn), 0, java.math.RoundingMode.HALF_UP)
                         .longValueExact().also { allocatedRefund = Math.addExact(allocatedRefund, it) }
+                val netSales = if (invoice.kind != "SALE") 0L else if (index == selected.lastIndex)
+                    Math.subtractExact(netReturn, allocatedNetSales) else
+                    BigDecimal.valueOf(netReturn).multiply(BigDecimal.valueOf(grossByLine[index]))
+                        .divide(BigDecimal.valueOf(grossReturn), 0, java.math.RoundingMode.HALF_UP)
+                        .longValueExact().also { allocatedNetSales = Math.addExact(allocatedNetSales, it) }
                 InvoiceReturnLineEntity(
                     returnId = returnId,
                     invoiceLineId = line.invoiceLineId,
                     quantityKg = quantity,
                     refundAmountRial = refund,
-                    inventoryCostRial = lineReturnCosts[index]
+                    inventoryCostRial = lineReturnCosts[index],
+                    netSalesRial = netSales
                 )
             }
             db.invoiceReturnDao().insertLines(returnRows)

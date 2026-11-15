@@ -333,7 +333,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 }
                 require(returnCost >= 0L)
                 val next = if (invoice.kind == "SALE") {
-                    InventoryValuationEngine.receive(current, quantity, returnCost.coerceAtLeast(1L))
+                    InventoryValuationEngine.receive(current, quantity, returnCost)
                 } else {
                     InventoryValuationEngine.issue(current, quantity).remaining
                 }
@@ -381,7 +381,7 @@ class AccountingRepository(private val db: AppDatabase) {
                     }
                 }
             } else {
-                listOf(VoucherLineDraft("2101", debitRial = returnAmount)) +
+                listOf(VoucherLineDraft("2101", debitRial = returnAmount), VoucherLineDraft("1301", creditRial = returnAmount)) +
                     AccountingEngine.purchaseReversalAdjustment(totalInventoryCost, returnAmount)
             }
             AccountingEngine.requireBalanced(drafts)

@@ -184,7 +184,9 @@ class AccountingRepository(private val db: AppDatabase) {
         val amounts = lines.map { line -> BigDecimal.valueOf(line.quantityKg).multiply(BigDecimal.valueOf(line.unitPriceRial)).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact() }
         val subtotal = amounts.fold(0L) { sum, amount -> Math.addExact(sum, amount) }
         require(discountRial <= subtotal) { "تخفیف از مبلغ کالا بیشتر است" }
-        val total = Math.addExact(subtotal - discountRial, taxRial)
+        val netGoods = Math.subtractExact(subtotal, discountRial)
+        require(netGoods > 0) { "مبلغ خالص کالا پس از تخفیف باید بیشتر از صفر باشد" }
+        val total = Math.addExact(netGoods, taxRial)
         require(total > 0) { "مبلغ فاکتور باید بیشتر از صفر باشد" }
         db.withTransaction {
             val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
@@ -205,7 +207,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 Triple(line, product, amounts[index])
             }
             val lineCosts = if (kind == "PURCHASE") {
-                AccountingEngine.allocateLandedCost(total, amounts.mapIndexed { index, amount -> (index + 1L) to amount.toDouble() })
+                AccountingEngine.allocateLandedCost(netGoods, amounts.mapIndexed { index, amount -> (index + 1L) to amount.toDouble() })
             } else emptyMap()
             val inventoryCosts = mutableListOf<Long>()
             resolved.forEachIndexed { index, (line, product, _) ->
@@ -230,17 +232,16 @@ class AccountingRepository(private val db: AppDatabase) {
             db.invoiceLineDao().insertAll(resolved.mapIndexed { index, (line, _, amount) -> InvoiceLineEntity(invoiceId = invoiceId, productId = line.productId, quantityKg = line.quantityKg, unitPriceRial = line.unitPriceRial, lineTotalRial = amount, inventoryCostRial = inventoryCosts[index]) })
             resolved.forEach { (line, _, _) -> db.stockDao().insert(StockMovementEntity(productId = line.productId, quantityKg = if (kind == "SALE") -line.quantityKg else line.quantityKg, kind = if (kind == "SALE") "SALE" else "PURCHASE", referenceId = invoiceId, note = number)) }
             ensureBaseAccounts()
-            val debitCode = if (kind == "SALE") "1103" else "1301"
-            val creditCode = if (kind == "SALE") "4101" else "2101"
-            val drafts = listOf(VoucherLineDraft(debitCode, debitRial = total), VoucherLineDraft(creditCode, creditRial = total))
-            AccountingEngine.requireBalanced(drafts)
-            val debitAccount = db.accountDao().byCode(debitCode) ?: error("حساب بدهکار تعریف نشده")
-            val creditAccount = db.accountDao().byCode(creditCode) ?: error("حساب بستانکار تعریف نشده")
+            val drafts = AccountingEngine.invoicePostingLines(kind, subtotal, discountRial, taxRial)
             val voucherId = db.voucherDao().insert(VoucherEntity(number = "S-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8), description = if (kind == "SALE") "ثبت فروش چندردیفی " + number else "ثبت خرید چندردیفی " + number, reference = "INVOICE:" + invoiceId))
-            val voucherLines = mutableListOf(
-                VoucherLineEntity(voucherId = voucherId, accountId = debitAccount.id, debitRial = total, creditRial = 0),
-                VoucherLineEntity(voucherId = voucherId, accountId = creditAccount.id, debitRial = 0, creditRial = total)
-            )
+            val voucherLines = drafts.map { draft ->
+                val account = db.accountDao().byCode(draft.accountCode)
+                    ?: error("حساب ${draft.accountCode} تعریف نشده")
+                VoucherLineEntity(
+                    voucherId = voucherId, accountId = account.id,
+                    debitRial = draft.debitRial, creditRial = draft.creditRial
+                )
+            }.toMutableList()
             if (kind == "SALE") {
                 val cogs = inventoryCosts.fold(0L) { sum, value -> Math.addExact(sum, value) }
                 if (cogs > 0) {
@@ -652,9 +653,11 @@ class AccountingRepository(private val db: AppDatabase) {
             AccountEntity(code = "1101", title = "صندوق", type = "ASSET"),
             AccountEntity(code = "1102", title = "بانک", type = "ASSET"),
             AccountEntity(code = "1103", title = "حساب‌های دریافتنی", type = "ASSET"),
+            AccountEntity(code = "1202", title = "مالیات بر ارزش افزوده خرید", type = "ASSET"),
             AccountEntity(code = "1301", title = "موجودی کالا", type = "ASSET"),
             AccountEntity(code = "2101", title = "حساب‌های پرداختنی تأمین‌کنندگان", type = "LIABILITY"),
             AccountEntity(code = "2102", title = "هزینه‌های حمل و گمرک پرداختنی", type = "LIABILITY"),
+            AccountEntity(code = "2103", title = "مالیات بر ارزش افزوده فروش", type = "LIABILITY"),
             AccountEntity(code = "4101", title = "فروش کالا", type = "REVENUE"),
             AccountEntity(code = "5101", title = "بهای تمام‌شده کالای فروش‌رفته", type = "EXPENSE"),
             AccountEntity(code = "4201", title = "مازاد و افزایش موجودی انبار", type = "REVENUE"),

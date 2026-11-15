@@ -40,6 +40,38 @@ class AccountingEngineTest {
         assertTrue(AccountingEngine.isBalanced(lines))
     }
 
+    @Test fun saleInvoiceTaxIsSeparatedFromRevenue() {
+        val lines = AccountingEngine.invoicePostingLines("SALE", 1_000_000L, 100_000L, 90_000L)
+        assertEquals(3, lines.size)
+        assertEquals(990_000L, lines.first { it.accountCode == "1103" }.debitRial)
+        assertEquals(900_000L, lines.first { it.accountCode == "4101" }.creditRial)
+        assertEquals(90_000L, lines.first { it.accountCode == "2103" }.creditRial)
+        assertTrue(AccountingEngine.isBalanced(lines))
+    }
+
+    @Test fun purchaseInvoiceTaxIsSeparatedFromInventoryCost() {
+        val lines = AccountingEngine.invoicePostingLines("PURCHASE", 1_000_000L, 100_000L, 90_000L)
+        assertEquals(3, lines.size)
+        assertEquals(900_000L, lines.first { it.accountCode == "1301" }.debitRial)
+        assertEquals(90_000L, lines.first { it.accountCode == "1202" }.debitRial)
+        assertEquals(990_000L, lines.first { it.accountCode == "2101" }.creditRial)
+        assertTrue(AccountingEngine.isBalanced(lines))
+    }
+
+    @Test fun invoicePostingWithoutTaxUsesTwoBalancedLines() {
+        val sale = AccountingEngine.invoicePostingLines("SALE", 500_000L, 50_000L, 0L)
+        val purchase = AccountingEngine.invoicePostingLines("PURCHASE", 500_000L, 50_000L, 0L)
+        assertEquals(2, sale.size)
+        assertEquals(2, purchase.size)
+        assertTrue(AccountingEngine.isBalanced(sale))
+        assertTrue(AccountingEngine.isBalanced(purchase))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun invoicePostingRejectsFullDiscount() {
+        AccountingEngine.invoicePostingLines("SALE", 100L, 100L, 10L)
+    }
+
     @Test fun purchaseReversalAdjustmentBalancesWhenActualCostIsHigher() {
         val lines = AccountingEngine.purchaseReversalAdjustment(1_250_000L, 1_000_000L)
         assertEquals(2, lines.size)

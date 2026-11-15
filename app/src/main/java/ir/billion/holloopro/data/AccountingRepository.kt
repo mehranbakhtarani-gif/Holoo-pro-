@@ -90,94 +90,10 @@ class AccountingRepository(private val db: AppDatabase) {
     suspend fun createAndPostInvoice(
         kind: String, partyId: Long, productId: Long, quantityKg: Double,
         unitPriceRial: Long, discountRial: Long, taxRial: Long
-    ) {
-        require(kind == "SALE" || kind == "PURCHASE")
-        require(quantityKg > 0 && quantityKg.isFinite()) { "مقدار باید بیشتر از صفر باشد" }
-        require(unitPriceRial > 0 && discountRial >= 0 && taxRial >= 0)
-        val subtotal = (quantityKg * unitPriceRial).toLong()
-        require(discountRial <= subtotal) { "تخفیف از مبلغ کالا بیشتر است" }
-        val total = Math.addExact(subtotal - discountRial, taxRial)
-        require(total > 0) { "مبلغ فاکتور باید بیشتر از صفر باشد" }
-
-        db.withTransaction {
-            val product = db.productDao().getById(productId) ?: error("کالا پیدا نشد")
-            val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
-            if (kind == "SALE") {
-                require(party.kind != "SUPPLIER") { "برای فروش، مشتری انتخاب کنید" }
-                val available = db.stockDao().stockForProduct(productId)
-                require(available + 0.000001 >= quantityKg) { "موجودی کافی نیست؛ موجودی: $available کیلوگرم" }
-            } else {
-                require(party.kind != "CUSTOMER") { "برای خرید، تأمین‌کننده انتخاب کنید" }
-            }
-
-            val number = "HP-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}"
-            val invoiceId = db.invoiceDao().insert(
-                InvoiceEntity(
-                    number = number,
-                    kind = kind,
-                    partyId = partyId,
-                    subtotalRial = subtotal,
-                    discountRial = discountRial,
-                    taxRial = taxRial,
-                    totalRial = total,
-                    status = "POSTED"
-                )
-            )
-            db.invoiceLineDao().insertAll(
-                listOf(
-                    InvoiceLineEntity(
-                        invoiceId = invoiceId,
-                        productId = productId,
-                        quantityKg = quantityKg,
-                        unitPriceRial = unitPriceRial,
-                        lineTotalRial = subtotal
-                    )
-                )
-            )
-            db.stockDao().insert(
-                StockMovementEntity(
-                    productId = productId,
-                    quantityKg = if (kind == "SALE") -quantityKg else quantityKg,
-                    kind = if (kind == "SALE") "SALE" else "PURCHASE",
-                    referenceId = invoiceId,
-                    note = number
-                )
-            )
-
-            ensureBaseAccounts()
-            val debitCode = if (kind == "SALE") "1103" else "1301"
-            val creditCode = if (kind == "SALE") "4101" else "2101"
-            val drafts = listOf(
-                VoucherLineDraft(debitCode, debitRial = total),
-                VoucherLineDraft(creditCode, creditRial = total)
-            )
-            AccountingEngine.requireBalanced(drafts)
-            val debitAccount = db.accountDao().byCode(debitCode) ?: error("حساب بدهکار تعریف نشده")
-            val creditAccount = db.accountDao().byCode(creditCode) ?: error("حساب بستانکار تعریف نشده")
-            val voucherId = db.voucherDao().insert(
-                VoucherEntity(
-                    number = "S-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}",
-                    description = if (kind == "SALE") "ثبت فروش ${product.name}" else "ثبت خرید ${product.name}",
-                    reference = "INVOICE:$invoiceId"
-                )
-            )
-            db.voucherLineDao().insertAll(
-                listOf(
-                    VoucherLineEntity(voucherId = voucherId, accountId = debitAccount.id, debitRial = total, creditRial = 0),
-                    VoucherLineEntity(voucherId = voucherId, accountId = creditAccount.id, debitRial = 0, creditRial = total)
-                )
-            )
-            db.partyLedgerDao().insert(
-                PartyLedgerEntity(
-                    partyId = partyId,
-                    debitRial = if (kind == "SALE") total else 0,
-                    creditRial = if (kind == "PURCHASE") total else 0,
-                    description = if (kind == "SALE") "فاکتور فروش $number" else "فاکتور خرید $number",
-                    referenceId = invoiceId
-                )
-            )
-        }
-    }
+    ) = createAndPostMultiLineInvoice(
+        kind, partyId, listOf(InvoiceLineInput(productId, quantityKg, unitPriceRial)),
+        discountRial, taxRial
+    )
 
     suspend fun createAndPostMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discountRial: Long, taxRial: Long) {
         require(kind == "SALE" || kind == "PURCHASE")
@@ -262,7 +178,23 @@ class AccountingRepository(private val db: AppDatabase) {
             val invoice = db.invoiceDao().getById(invoiceId) ?: error("فاکتور پیدا نشد")
             require(invoice.status == "POSTED") { "فقط فاکتور ثبت‌شده قابل برگشت است" }
             val lines = db.invoiceLineDao().byInvoice(invoiceId)
+            require(lines.isNotEmpty()) { "ردیف‌های فاکتور برای برگشت پیدا نشد" }
             lines.forEach { line ->
+                val stored = db.productValuationDao().get(line.productId)
+                val current = stored?.let { InventoryValuation(it.quantityKg, it.valueRial) }
+                    ?: InventoryValuation(0.0, 0L)
+                val next = if (invoice.kind == "SALE") {
+                    require(line.inventoryCostRial > 0) {
+                        "این فاکتور قبل از ثبت بهای تمام‌شده صادر شده و برگشت خودکار ارزش موجودی آن امن نیست"
+                    }
+                    InventoryValuationEngine.receive(current, line.quantityKg, line.inventoryCostRial)
+                } else {
+                    require(stored != null && current.quantityKg + 0.000001 >= line.quantityKg) {
+                        "موجودی کافی برای برگشت خرید وجود ندارد"
+                    }
+                    InventoryValuationEngine.issue(current, line.quantityKg).remaining
+                }
+                db.productValuationDao().upsert(ProductValuationEntity(line.productId, next.quantityKg, next.valueRial))
                 db.stockDao().insert(
                     StockMovementEntity(
                         productId = line.productId,

@@ -742,6 +742,15 @@ private fun AccountingScreen(
     var showOpeningDialog by remember { mutableStateOf(false) }
     val sales = invoices.filter { it.kind == "SALE" && it.status == "POSTED" }.sumOf { it.totalRial }
     val purchases = invoices.filter { it.kind == "PURCHASE" && it.status == "POSTED" }.sumOf { it.totalRial }
+    val openingAccounts = trialBalance.ifEmpty {
+        listOf(
+            "1101" to "صندوق", "1102" to "بانک", "1103" to "حساب‌های دریافتنی",
+            "1301" to "موجودی کالا", "2101" to "حساب‌های پرداختنی",
+            "2102" to "هزینه‌های واردات پرداختنی", "4101" to "فروش کالا", "5101" to "بهای تمام‌شده"
+        ).mapIndexed { index, account ->
+            AccountTrialBalanceRow(index.toLong() + 1L, account.first, account.second, "ASSET", 0, 0, 0, 0, 0, 0)
+        }
+    }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -876,7 +885,7 @@ private fun AccountingScreen(
     }
     if (showOpeningDialog) {
         OpeningBalancesDialog(
-            accounts = trialBalance,
+            accounts = openingAccounts,
             onDismiss = { showOpeningDialog = false },
             onSave = { values -> onUpdateOpeningBalances(values); showOpeningDialog = false }
         )

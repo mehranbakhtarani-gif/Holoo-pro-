@@ -433,6 +433,13 @@ class AccountingRepository(private val db: AppDatabase) {
                         note = "برگشت جزئی فاکتور ${invoice.number}"
                     )
                 )
+                db.warehouseStockDao().insertMovement(
+                    WarehouseStockMovementEntity(
+                        warehouseId = invoice.warehouseId, productId = line.productId,
+                        quantityKg = if (invoice.kind == "SALE") quantity else -quantity,
+                        kind = "PARTIAL_RETURN", referenceId = invoiceId, note = "برگشت جزئی فاکتور ${invoice.number}"
+                    )
+                )
                 totalInventoryCost = Math.addExact(totalInventoryCost, returnCost)
                 lineReturnCosts += returnCost
             }
@@ -543,6 +550,13 @@ class AccountingRepository(private val db: AppDatabase) {
                         kind = "REVERSAL",
                         referenceId = invoiceId,
                         note = "برگشت ${invoice.number}"
+                    )
+                )
+                db.warehouseStockDao().insertMovement(
+                    WarehouseStockMovementEntity(
+                        warehouseId = invoice.warehouseId, productId = line.productId,
+                        quantityKg = if (invoice.kind == "SALE") line.quantityKg else -line.quantityKg,
+                        kind = "REVERSAL", referenceId = invoiceId, note = "برگشت ${invoice.number}"
                     )
                 )
             }

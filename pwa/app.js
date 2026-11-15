@@ -165,8 +165,7 @@ async function importBankStatementCsv(file,bankName){
  const existing=await all("bankStatements");
  if(existing.some(x=>x.bank===bank&&x.fileName===file.name&&Number(x.fileSize)===Number(file.size)&&Number(x.lastModified)===Number(file.lastModified)))throw Error("این فایل صورت‌حساب قبلاً وارد شده است");
  const parsed=parseBankCsv(await file.text(),bank);
- const statementId=await put("bankStatements",{bank,fileName:file.name,fileSize:file.size,lastModified:file.lastModified,importedAt:Date.now(),rowCount:parsed.length});
- await putMany(parsed.map(line=>["bankStatementLines",{...line,statementId}]));
+ const statementId=await new Promise((resolve,reject)=>{const tx=db.transaction(["bankStatements","bankStatementLines","auditLog"],"readwrite"),request=tx.objectStore("bankStatements").add({bank,fileName:file.name,fileSize:file.size,lastModified:file.lastModified,importedAt:Date.now(),rowCount:parsed.length});let id=null;request.onsuccess=()=>{id=request.result;for(const line of parsed)tx.objectStore("bankStatementLines").add({...line,statementId:id});tx.objectStore("auditLog").add({action:"ورود صورت‌حساب بانکی",store:"bankStatements",recordId:id,at:Date.now(),summary:file.name})};request.onerror=()=>{try{tx.abort()}catch(_){}};tx.oncomplete=()=>resolve(id);tx.onerror=()=>reject(tx.error||new Error("ورود صورت‌حساب ناموفق بود"));tx.onabort=()=>reject(tx.error||new Error("ورود صورت‌حساب لغو شد"))});
  await autoReconcileBankStatementLines();
  return parsed.length;
 }
@@ -225,7 +224,7 @@ if(currentPage==="bankReconciliation"){
  const statementRows=statements.slice().reverse().map(x=>'<tr><td>'+h(x.bank)+'</td><td>'+h(x.fileName)+'</td><td>'+fmt(x.rowCount)+'</td><td>'+date(x.importedAt)+'</td></tr>');
  const lineRows=lines.slice().reverse().map(line=>{
   const candidateIds=Array.isArray(line.candidateTreasuryIds)&&line.candidateTreasuryIds.length?line.candidateTreasuryIds:findBankMatchCandidates(line,treasury,matchedIds,30).map(x=>x.id);
-  const candidates=treasury.filter(x=>candidateIds.map(Number).includes(Number(x.id)));
+  const candidates=treasury.filter(x=>candidateIds.map(Number).includes(Number(x.id))&&!matchedIds.includes(Number(x.id)));
   const options='<option value="">انتخاب گردش بانکی</option>'+candidates.map(x=>'<option value="'+x.id+'">'+date(x.date)+' • '+(x.kind==="RECEIPT"?"دریافت":"پرداخت")+' • '+h(x.partyName)+' • '+money(x.amount)+'</option>').join("");
   const status=line.status==="MATCHED"?"تطبیق‌شده":line.status==="SUGGESTED"?"نیازمند انتخاب":"تطبیق‌نشده";
   const matchControl=line.status==="MATCHED"?"شناسه گردش: "+h(line.matchedTreasuryId):candidates.length?'<select data-bank-match-select="'+line.id+'">'+options+'</select> <button class="ghost" data-bank-match="'+line.id+'">تطبیق</button>':"گردش متناظر پیدا نشد";

@@ -336,6 +336,22 @@ data class WarehouseValuationEntity(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
+@Entity(
+    tableName = "bank_statement_lines",
+    indices = [Index(value = ["matchedTreasuryEntryId"], unique = true), Index(value = ["transactionDateEpoch"])]
+)
+data class BankStatementLineEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bankName: String,
+    val transactionDateEpoch: Long,
+    // Positive = bank credit/deposit; negative = bank debit/withdrawal.
+    val signedAmountRial: Long,
+    val bankReference: String = "",
+    val description: String = "",
+    val matchedTreasuryEntryId: Long? = null,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 data class WarehouseStockRow(
     val warehouseId: Long,
     val warehouseName: String,

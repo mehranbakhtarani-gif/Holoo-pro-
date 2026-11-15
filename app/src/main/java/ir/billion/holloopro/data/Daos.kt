@@ -257,6 +257,24 @@ interface TreasuryDao {
 
 
 @Dao
+interface BankStatementDao {
+    @Query("SELECT * FROM bank_statement_lines ORDER BY transactionDateEpoch DESC, id DESC")
+    fun observeAll(): Flow<List<BankStatementLineEntity>>
+
+    @Insert
+    suspend fun insert(line: BankStatementLineEntity): Long
+
+    @Query("SELECT * FROM bank_statement_lines WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): BankStatementLineEntity?
+
+    @Query("SELECT COUNT(*) FROM bank_statement_lines WHERE matchedTreasuryEntryId = :treasuryEntryId")
+    suspend fun countMatches(treasuryEntryId: Long): Int
+
+    @Update
+    suspend fun update(line: BankStatementLineEntity)
+}
+
+@Dao
 interface WarehouseDao {
     @Query("SELECT * FROM warehouses ORDER BY isDefault DESC, name")
     fun observeAll(): Flow<List<WarehouseEntity>>

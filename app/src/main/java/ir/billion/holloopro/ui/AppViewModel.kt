@@ -52,6 +52,7 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     val trialBalance: StateFlow<List<AccountTrialBalanceRow>> =
         repository.trialBalance.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val checks = repository.checks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val bankStatements = repository.bankStatements.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val ledger: StateFlow<List<LedgerRow>> =
         repository.ledger.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     fun partyLedger(partyId: Long) = repository.partyLedger(partyId)
@@ -138,6 +139,15 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         execute(onSuccess) { repository.addTreasuryEntry(kind, method, partyId, amountRial, reference, note); "دریافت/پرداخت و سند حسابداری ثبت شد" }
 
     fun addCheck(number: String, kind: String, partyId: Long, amount: Long, issueAt: Long, dueAt: Long, bank: String, note: String, onSuccess: () -> Unit) = execute(onSuccess) { repository.addCheck(number, kind, partyId, amount, issueAt, dueAt, bank, note); "چک ثبت شد" }
+
+    fun addBankStatementLine(bankName: String, dateEpoch: Long, signedAmount: Long, reference: String, description: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.addBankStatementLine(bankName, dateEpoch, signedAmount, reference, description); "گردش صورت‌حساب بانکی ثبت شد" }
+
+    fun matchBankStatementLine(statementLineId: Long, treasuryEntryId: Long) =
+        execute { repository.matchBankStatementLine(statementLineId, treasuryEntryId); "گردش بانکی با سند دریافت/پرداخت تطبیق داده شد" }
+
+    fun unmatchBankStatementLine(statementLineId: Long) =
+        execute { repository.unmatchBankStatementLine(statementLineId); "تطبیق گردش بانکی لغو شد" }
 
     fun updateCheckStatus(id: Long, status: String) = execute { repository.updateCheckStatus(id, status); "وضعیت چک تغییر کرد" }
 

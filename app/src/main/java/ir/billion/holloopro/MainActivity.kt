@@ -56,6 +56,7 @@ import ir.billion.holloopro.data.ProductEntity
 import ir.billion.holloopro.data.ProductWithStock
 import ir.billion.holloopro.data.WarehouseEntity
 import ir.billion.holloopro.data.WarehouseStockRow
+import ir.billion.holloopro.data.WarehouseKardexRow
 import ir.billion.holloopro.data.ProductProfitRow
 import ir.billion.holloopro.data.InvoiceProfitRow
 import ir.billion.holloopro.ui.AppViewModel
@@ -107,6 +108,7 @@ class MainActivity : ComponentActivity() {
                     val products by vm.products.collectAsState()
                     val warehouses by vm.warehouses.collectAsState()
                     val warehouseStocks by vm.warehouseStocks.collectAsState()
+                    val warehouseKardex by vm.warehouseKardex.collectAsState()
                     val parties by vm.parties.collectAsState()
                     val partyBalances by vm.partyBalances.collectAsState()
                     val invoices by vm.invoices.collectAsState()
@@ -131,7 +133,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, warehouses, warehouseStocks, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss, productProfitability, invoiceProfitability,
+                        products, warehouses, warehouseStocks, warehouseKardex, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss, productProfitability, invoiceProfitability,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -198,6 +200,7 @@ private fun HolooApp(
     products: List<ProductWithStock>,
     warehouses: List<WarehouseEntity>,
     warehouseStocks: List<WarehouseStockRow>,
+    warehouseKardex: List<WarehouseKardexRow>,
     parties: List<PartyEntity>,
     partyBalances: List<ir.billion.holloopro.data.PartyBalanceRow>,
     invoices: List<InvoiceEntity>,
@@ -324,7 +327,7 @@ private fun HolooApp(
             }
             when (screen) {
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
-                Screen.WAREHOUSES -> WarehouseScreen(warehouses, warehouseStocks, products, showToman, onCreateWarehouse, onTransferStock)
+                Screen.WAREHOUSES -> WarehouseScreen(warehouses, warehouseStocks, warehouseKardex, products, showToman, onCreateWarehouse, onTransferStock)
                 Screen.INVENTORY -> InventoryScreen(warehouses, warehouseStocks, products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
@@ -487,6 +490,7 @@ private fun StatCard(label: String, value: String, symbol: String, modifier: Mod
 private fun WarehouseScreen(
     warehouses: List<WarehouseEntity>,
     warehouseStocks: List<WarehouseStockRow>,
+    warehouseKardex: List<WarehouseKardexRow>,
     products: List<ProductWithStock>,
     showToman: Boolean,
     onCreate: (String, String, () -> Unit) -> Unit,
@@ -522,6 +526,36 @@ private fun WarehouseScreen(
                                 Text("میانگین ${formatMoney(row.averageCostPerKgRial, showToman)}", color = Muted, fontSize = 9.sp)
                             }
                         }
+                    }
+                }
+            }
+            item {
+                GlassCard {
+                    Text("کاردکس انبارها", color = Turquoise, fontWeight = FontWeight.Bold)
+                    if (warehouseKardex.isEmpty()) Text("هنوز گردش انباری ثبت نشده است.", color = Muted, fontSize = 11.sp)
+                    warehouseKardex.take(60).forEach { movement ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(movement.productName + " • " + movement.warehouseName, color = Color.White, fontSize = 11.sp)
+                                Text(
+                                    when (movement.kind) {
+                                        "PURCHASE" -> "خرید"
+                                        "SALE" -> "فروش"
+                                        "IMPORT_RECEIPT" -> "رسید واردات"
+                                        "STOCKTAKE_ADJUSTMENT" -> "اصلاح موجودی"
+                                        "PARTIAL_RETURN" -> "برگشت جزئی"
+                                        "REVERSAL" -> "برگشت فاکتور"
+                                        "TRANSFER_IN" -> "انتقال ورودی"
+                                        "TRANSFER_OUT" -> "انتقال خروجی"
+                                        else -> movement.kind
+                                    } + " • " + java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(java.util.Date(movement.createdAt)),
+                                    color = Muted, fontSize = 9.sp
+                                )
+                            }
+                            Text((if (movement.quantityKg > 0) "+" else "") + formatQuantity(movement.quantityKg) + " kg",
+                                color = if (movement.quantityKg >= 0) Turquoise else Color(0xFFFFA4A4), fontSize = 11.sp)
+                        }
+                        Divider(color = CardBorder)
                     }
                 }
             }

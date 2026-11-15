@@ -54,6 +54,8 @@ import ir.billion.holloopro.data.TreasuryAllocationRow
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductEntity
 import ir.billion.holloopro.data.ProductWithStock
+import ir.billion.holloopro.data.ProductProfitRow
+import ir.billion.holloopro.data.InvoiceProfitRow
 import ir.billion.holloopro.ui.AppViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -116,6 +118,8 @@ class MainActivity : ComponentActivity() {
                     val ledger by vm.ledger.collectAsState()
                     val checks by vm.checks.collectAsState()
                     val profitLoss by vm.profitLoss.collectAsState()
+                    val productProfitability by vm.productProfitability.collectAsState()
+                    val invoiceProfitability by vm.invoiceProfitability.collectAsState()
                     val productCount by vm.productCount.collectAsState()
                     val partyCount by vm.partyCount.collectAsState()
                     val invoiceCount by vm.invoiceCount.collectAsState()
@@ -123,7 +127,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss,
+                        products, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss, productProfitability, invoiceProfitability,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -200,6 +204,8 @@ private fun HolooApp(
     ledger: List<LedgerRow>,
     checks: List<CheckEntity>,
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
+    productProfitability: List<ProductProfitRow>,
+    invoiceProfitability: List<InvoiceProfitRow>,
     productCount: Int,
     partyCount: Int,
     invoiceCount: Int,
@@ -311,7 +317,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -1007,6 +1013,8 @@ private fun AccountingScreen(
     trialBalance: List<AccountTrialBalanceRow>,
     ledger: List<LedgerRow>,
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
+    productProfitability: List<ProductProfitRow>,
+    invoiceProfitability: List<InvoiceProfitRow>,
     parties: List<PartyEntity>,
     showToman: Boolean,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
@@ -1052,6 +1060,51 @@ private fun AccountingScreen(
         item { SummaryCard("درآمد فروش (بدون مالیات)", profitLoss.salesRial, showToman) }
         item { SummaryCard("بهای تمام‌شده کالای فروش‌رفته", profitLoss.costOfGoodsSoldRial, showToman) }
         item { SummaryCard("سود ناخالص فاکتورها", profitLoss.salesRial - profitLoss.costOfGoodsSoldRial, showToman) }
+        item {
+            GlassCard {
+                Text("سودآوری هر کالا", color = Turquoise, fontWeight = FontWeight.Bold)
+                val rows = productProfitability.filter { it.quantitySoldKg > 0.000001 }
+                if (rows.isEmpty()) Text("هنوز فروش ثبت‌شده‌ای برای محاسبه سود کالا وجود ندارد.", color = Muted, fontSize = 11.sp)
+                rows.take(12).forEach { row ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(row.productName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("فروش خالص: ${formatMoney(row.salesRial, showToman)} • بهای تمام‌شده: ${formatMoney(row.costRial, showToman)}", color = Muted, fontSize = 10.sp)
+                        Text("مقدار خالص فروخته‌شده: ${formatQuantity(row.quantitySoldKg)} کیلو • سود: ${formatMoney(row.profitRial, showToman)}", color = if (row.profitRial >= 0) Turquoise else Color(0xFFFF9D9D), fontSize = 11.sp)
+                    }
+                    Divider(color = CardBorder)
+                }
+            }
+        }
+        item {
+            GlassCard {
+                Text("سودآوری هر فاکتور فروش", color = Turquoise, fontWeight = FontWeight.Bold)
+                if (invoiceProfitability.isEmpty()) Text("فاکتور فروش ثبت‌شده‌ای برای گزارش وجود ندارد.", color = Muted, fontSize = 11.sp)
+                invoiceProfitability.take(12).forEach { row ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("${row.invoiceNumber} • ${row.partyName}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("فروش خالص: ${formatMoney(row.salesRial, showToman)} • بهای تمام‌شده: ${formatMoney(row.costRial, showToman)}", color = Muted, fontSize = 10.sp)
+                        Text("سود ناخالص: ${formatMoney(row.profitRial, showToman)}", color = if (row.profitRial >= 0) Turquoise else Color(0xFFFF9D9D), fontSize = 11.sp)
+                    }
+                    Divider(color = CardBorder)
+                }
+            }
+        }
+        item {
+            GlassCard {
+                Text("سودآوری به تفکیک طرف حساب", color = Turquoise, fontWeight = FontWeight.Bold)
+                val byParty = invoiceProfitability.groupBy { it.partyId }
+                    .map { (_, rows) -> rows.first().partyName to rows.sumOf { it.profitRial } }
+                    .sortedByDescending { it.second }
+                if (byParty.isEmpty()) Text("اطلاعاتی برای محاسبه سود طرف حساب وجود ندارد.", color = Muted, fontSize = 11.sp)
+                byParty.take(12).forEach { (partyName, profit) ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(partyName, color = Color.White, fontSize = 11.sp)
+                        Text(formatMoney(profit, showToman), color = if (profit >= 0) Turquoise else Color(0xFFFF9D9D), fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
         item {
             val revenue = trialBalance.filter { it.accountType == "REVENUE" }.sumOf { it.endingCreditRial - it.endingDebitRial }
             val expense = trialBalance.filter { it.accountType == "EXPENSE" }.sumOf { it.endingDebitRial - it.endingCreditRial }

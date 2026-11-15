@@ -131,6 +131,27 @@ data class ImportOrderEntity(
     val status: String = "ORDERED"
 )
 
+
+data class ImportReceiptLineInput(val productId: Long, val quantityKg: Double)
+
+@Entity(tableName = "import_receipts", indices = [Index(value = ["importOrderId"], unique = true)])
+data class ImportReceiptEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val importOrderId: Long,
+    val goodsCostRial: Long,
+    val totalCostRial: Long,
+    val receivedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "import_receipt_lines", indices = [Index(value = ["receiptId"]), Index(value = ["productId"])])
+data class ImportReceiptLineEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val receiptId: Long,
+    val productId: Long,
+    val quantityKg: Double,
+    val allocatedCostRial: Long
+)
+
 @Entity(tableName = "treasury_entries", indices = [Index(value = ["partyId", "createdAt"])])
 data class TreasuryEntryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

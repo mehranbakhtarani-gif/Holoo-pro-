@@ -17,6 +17,8 @@ import ir.billion.holloopro.data.InvoiceReturnLineInput
 import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductWithStock
+import ir.billion.holloopro.data.WarehouseEntity
+import ir.billion.holloopro.data.WarehouseStockRow
 import ir.billion.holloopro.data.ProductProfitRow
 import ir.billion.holloopro.data.InvoiceProfitRow
 import ir.billion.holloopro.data.TreasuryEntryEntity
@@ -27,6 +29,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
+    val warehouses: StateFlow<List<WarehouseEntity>> = repository.warehouses.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val warehouseStocks: StateFlow<List<WarehouseStockRow>> = repository.warehouseStocks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val products: StateFlow<List<ProductWithStock>> =
         repository.products.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val parties: StateFlow<List<PartyEntity>> =
@@ -73,15 +77,21 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
             if (id == null) "کالا ثبت شد" else "تغییرات کالا ذخیره شد"
         }
 
-    fun adjustStock(productId: Long, deltaKg: Double, costPerKgRial: Long) = execute {
-        repository.adjustStock(productId, deltaKg, costPerKgRial)
+    fun adjustStock(productId: Long, deltaKg: Double, costPerKgRial: Long, warehouseId: Long = 1L) = execute {
+        repository.adjustStock(productId, deltaKg, costPerKgRial, warehouseId)
         "اصلاح موجودی و سند حسابداری آن ثبت شد"
     }
 
+    fun createWarehouse(name: String, address: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.createWarehouse(name, address); "انبار جدید ثبت شد" }
+
+    fun transferStock(productId: Long, sourceWarehouseId: Long, targetWarehouseId: Long, quantityKg: Double, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.transferStock(productId, sourceWarehouseId, targetWarehouseId, quantityKg); "انتقال کالا بین انبارها ثبت شد" }
+
     fun deleteProduct(id: Long) = execute { repository.deleteProduct(id); "کالا حذف شد" }
 
-    fun setOpeningInventoryValuation(productId: Long, costPerKgRial: Long) = execute {
-        repository.setOpeningInventoryValuation(productId, costPerKgRial)
+    fun setOpeningInventoryValuation(productId: Long, costPerKgRial: Long, warehouseId: Long = 1L) = execute {
+        repository.setOpeningInventoryValuation(productId, costPerKgRial, warehouseId)
         "بهای افتتاحیه موجودی ثبت شد"
     }
 
@@ -97,8 +107,8 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun createInvoice(kind: String, partyId: Long, productId: Long, quantity: Double, price: Long, discount: Long, tax: Long) =
         execute { repository.createAndPostInvoice(kind, partyId, productId, quantity, price, discount, tax); "فاکتور ثبت و سند حسابداری صادر شد" }
 
-    fun createMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discount: Long, tax: Long, extraCosts: Long, onSuccess: () -> Unit) =
-        execute(onSuccess) { repository.createAndPostMultiLineInvoice(kind, partyId, lines, discount, tax, extraCosts); "فاکتور چندردیفی ثبت و سند حسابداری صادر شد" }
+    fun createMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discount: Long, tax: Long, extraCosts: Long, warehouseId: Long, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.createAndPostMultiLineInvoice(kind, partyId, lines, discount, tax, extraCosts, warehouseId); "فاکتور چندردیفی ثبت و سند حسابداری صادر شد" }
 
     fun reverseInvoice(id: Long) = execute { repository.reverseInvoice(id); "فاکتور برگشت شد" }
 

@@ -610,11 +610,20 @@ private fun PartiesScreen(
                             TextButton(onClick = { showHistory = !showHistory }) { Text(if (showHistory) "بستن گردش حساب" else "مشاهده ریز گردش حساب", color = Turquoise) }
                             if (showHistory) {
                                 if (partyRows.isEmpty()) Text("برای این شخص گردش ثبت‌شده‌ای وجود ندارد.", color = Muted, fontSize = 10.sp)
-                                partyRows.forEach { row ->
-                                    Divider(color = CardBorder)
-                                    Text(row.description, color = Color.White, fontSize = 10.sp)
-                                    Text("بدهکار ${formatMoney(row.debitRial, showToman)}  |  بستانکار ${formatMoney(row.creditRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 10.sp)
-                                    Text(java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(java.util.Date(row.createdAt)), color = Muted, fontSize = 9.sp)
+                                else {
+                                    var runningBalance = party.openingBalanceRial
+                                    val statementRows = partyRows.sortedBy { it.createdAt }.map { row ->
+                                        runningBalance = Math.addExact(runningBalance, Math.subtractExact(row.debitRial, row.creditRial))
+                                        row to runningBalance
+                                    }
+                                    Text("مانده ابتدای گردش: ${formatMoney(party.openingBalanceRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Muted, fontSize = 10.sp)
+                                    statementRows.forEach { (row, balanceAfter) ->
+                                        Divider(color = CardBorder)
+                                        Text(row.description, color = Color.White, fontSize = 10.sp)
+                                        Text("بدهکار ${formatMoney(row.debitRial, showToman)}  |  بستانکار ${formatMoney(row.creditRial, showToman)}", color = Turquoise, fontSize = 10.sp)
+                                        Text("مانده پس از گردش: ${formatMoney(balanceAfter, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Color(0xFF9BDDD4), fontSize = 10.sp)
+                                        Text(java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(java.util.Date(row.createdAt)), color = Muted, fontSize = 9.sp)
+                                    }
                                 }
                             }
                         }

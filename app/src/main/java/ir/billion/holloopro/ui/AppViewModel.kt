@@ -3,6 +3,7 @@ package ir.billion.holloopro.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import ir.billion.holloopro.data.BankStatementCsvRow
 import ir.billion.holloopro.data.AccountingRepository
 import ir.billion.holloopro.data.AccountBalanceRow
 import ir.billion.holloopro.data.AccountTrialBalanceRow
@@ -152,6 +153,11 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
 
     fun matchBankStatementLineToCheck(statementLineId: Long, checkId: Long) =
         execute { repository.matchBankStatementLineToCheck(statementLineId, checkId); "گردش بانکی با چک تسویه‌شده تطبیق داده شد" }
+
+    fun importBankStatementCsv(bankName: String, rows: List<BankStatementCsvRow>) = execute {
+        val (inserted, skipped) = repository.importBankStatementCsv(bankName, rows)
+        "ورود گردش‌ها انجام شد؛ ثبت‌شده: $inserted، تکراری و ردشده: $skipped"
+    }
 
     fun addBankStatementPeriod(bankName: String, start: Long, end: Long, opening: Long, closing: Long) =
         execute { repository.addBankStatementPeriod(bankName, start, end, opening, closing); "دوره صورت‌حساب بانکی ثبت شد" }

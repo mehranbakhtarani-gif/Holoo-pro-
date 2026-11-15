@@ -267,6 +267,9 @@ interface BankStatementDao {
     @Query("SELECT * FROM bank_statement_lines WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): BankStatementLineEntity?
 
+    @Query("SELECT COUNT(*) FROM bank_statement_lines WHERE bankName = :bankName AND transactionDateEpoch = :date AND signedAmountRial = :amount AND bankReference = :reference AND description = :description")
+    suspend fun countDuplicate(bankName: String, date: Long, amount: Long, reference: String, description: String): Int
+
     @Query("SELECT COUNT(*) FROM bank_statement_lines WHERE matchedTreasuryEntryId = :treasuryEntryId")
     suspend fun countMatches(treasuryEntryId: Long): Int
 

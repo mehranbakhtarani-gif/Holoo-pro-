@@ -260,6 +260,7 @@ class AccountingRepository(private val db: AppDatabase) {
             require(invoice.status == "POSTED") { "فقط فاکتور ثبت‌شده قابل برگشت است" }
             val lines = db.invoiceLineDao().byInvoice(invoiceId)
             require(lines.isNotEmpty()) { "ردیف‌های فاکتور برای برگشت پیدا نشد" }
+            var purchaseReversalInventoryCost = 0L
             lines.forEach { line ->
                 val stored = db.productValuationDao().get(line.productId)
                 val current = stored?.let { InventoryValuation(it.quantityKg, it.valueRial) }
@@ -273,7 +274,9 @@ class AccountingRepository(private val db: AppDatabase) {
                     require(stored != null && current.quantityKg + 0.000001 >= line.quantityKg) {
                         "موجودی کافی برای برگشت خرید وجود ندارد"
                     }
-                    InventoryValuationEngine.issue(current, line.quantityKg).remaining
+                    val issue = InventoryValuationEngine.issue(current, line.quantityKg)
+                    purchaseReversalInventoryCost = Math.addExact(purchaseReversalInventoryCost, issue.cogsRial)
+                    issue.remaining
                 }
                 db.productValuationDao().upsert(ProductValuationEntity(line.productId, next.quantityKg, next.valueRial))
                 db.stockDao().insert(
@@ -312,17 +315,50 @@ class AccountingRepository(private val db: AppDatabase) {
                     reference = "REVERSAL:$invoiceId"
                 )
             )
-            db.voucherLineDao().insertAll(
-                oldLines.map {
-                    VoucherLineEntity(
-                        voucherId = reverseId,
-                        accountId = it.accountId,
-                        debitRial = it.creditRial,
-                        creditRial = it.debitRial,
-                        description = "برگشت سند"
+            val reversalVoucherLines = oldLines.map {
+                VoucherLineEntity(
+                    voucherId = reverseId,
+                    accountId = it.accountId,
+                    debitRial = it.creditRial,
+                    creditRial = it.debitRial,
+                    description = "برگشت سند"
+                )
+            }.toMutableList()
+            if (invoice.kind == "PURCHASE") {
+                val inventoryAccount = db.accountDao().byCode("1301")
+                    ?: error("حساب موجودی کالا تعریف نشده است")
+                val varianceAccount = db.accountDao().byCode("5202")
+                    ?: error("حساب اختلاف بهای برگشت خرید تعریف نشده است")
+                val originalInventoryDebit = oldLines
+                    .filter { it.accountId == inventoryAccount.id }
+                    .fold(0L) { total, line -> Math.addExact(total, line.debitRial) }
+                val difference = Math.subtractExact(purchaseReversalInventoryCost, originalInventoryDebit)
+                if (difference > 0L) {
+                    reversalVoucherLines += VoucherLineEntity(
+                        voucherId = reverseId, accountId = inventoryAccount.id,
+                        debitRial = 0L, creditRial = difference,
+                        description = "تعدیل بهای خروج موجودی در برگشت خرید"
+                    )
+                    reversalVoucherLines += VoucherLineEntity(
+                        voucherId = reverseId, accountId = varianceAccount.id,
+                        debitRial = difference, creditRial = 0L,
+                        description = "اختلاف بهای برگشت خرید"
+                    )
+                } else if (difference < 0L) {
+                    val adjustment = Math.negateExact(difference)
+                    reversalVoucherLines += VoucherLineEntity(
+                        voucherId = reverseId, accountId = inventoryAccount.id,
+                        debitRial = adjustment, creditRial = 0L,
+                        description = "تعدیل بهای خروج موجودی در برگشت خرید"
+                    )
+                    reversalVoucherLines += VoucherLineEntity(
+                        voucherId = reverseId, accountId = varianceAccount.id,
+                        debitRial = 0L, creditRial = adjustment,
+                        description = "اختلاف بهای برگشت خرید"
                     )
                 }
-            )
+            }
+            db.voucherLineDao().insertAll(reversalVoucherLines)
             db.invoiceDao().update(invoice.copy(status = "REVERSED"))
         }
     }
@@ -627,7 +663,8 @@ class AccountingRepository(private val db: AppDatabase) {
             AccountEntity(code = "4101", title = "فروش کالا", type = "REVENUE"),
             AccountEntity(code = "5101", title = "بهای تمام‌شده کالای فروش‌رفته", type = "EXPENSE"),
             AccountEntity(code = "4201", title = "مازاد و افزایش موجودی انبار", type = "REVENUE"),
-            AccountEntity(code = "5201", title = "کسری و کاهش موجودی انبار", type = "EXPENSE")
+            AccountEntity(code = "5201", title = "کسری و کاهش موجودی انبار", type = "EXPENSE"),
+            AccountEntity(code = "5202", title = "اختلاف بهای برگشت خرید", type = "EXPENSE")
         )
         accounts.forEach { db.accountDao().insertIgnore(it) }
     }

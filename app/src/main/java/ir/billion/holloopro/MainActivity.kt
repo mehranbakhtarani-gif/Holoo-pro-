@@ -459,7 +459,7 @@ private fun BankStatementDialog(
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 FormField("نام بانک / حساب", bank) { bank = it }
                 FormField("تاریخ گردش (YYYY-MM-DD)", dateText) { dateText = it }
-                FormField("مبلغ به ریال (واریز مثبت، برداشت منفی)", amountText, KeyboardType.Number) { amountText = it }
+                FormField("مبلغ به ریال (واریز مثبت، برداشت منفی)", amountText, KeyboardType.NumberSigned) { amountText = it }
                 FormField("شماره پیگیری بانک", reference) { reference = it }
                 FormField("شرح گردش", description) { description = it }
             }

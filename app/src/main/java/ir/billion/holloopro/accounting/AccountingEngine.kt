@@ -10,6 +10,71 @@ data class VoucherLineDraft(
     val creditRial: Long = 0
 )
 
+
+data class InventoryValuation(
+    val quantityKg: Double,
+    val valueRial: Long
+)
+
+data class InventoryIssue(
+    val cogsRial: Long,
+    val remaining: InventoryValuation
+)
+
+/**
+ * Moving weighted-average valuation. Values are stored in whole Rial;
+ * a full depletion consumes the exact remaining book value to avoid residue.
+ */
+object InventoryValuationEngine {
+    fun receive(
+        current: InventoryValuation,
+        receivedKg: Double,
+        receivedCostRial: Long
+    ): InventoryValuation {
+        require(current.quantityKg >= 0.0 && current.quantityKg.isFinite())
+        require(current.valueRial >= 0)
+        require(receivedKg > 0.0 && receivedKg.isFinite())
+        require(receivedCostRial > 0)
+        val newQuantity = current.quantityKg + receivedKg
+        require(newQuantity.isFinite() && newQuantity > 0.0)
+        return InventoryValuation(
+            quantityKg = newQuantity,
+            valueRial = Math.addExact(current.valueRial, receivedCostRial)
+        )
+    }
+
+    fun issue(current: InventoryValuation, issuedKg: Double): InventoryIssue {
+        require(current.quantityKg > 0.0 && current.quantityKg.isFinite())
+        require(current.valueRial >= 0)
+        require(issuedKg > 0.0 && issuedKg.isFinite())
+        require(issuedKg <= current.quantityKg + 0.0000001) {
+            "مقدار خروج از موجودی مقداری بیشتر است"
+        }
+        val fullIssue = issuedKg >= current.quantityKg - 0.0000001
+        val cogs = if (fullIssue) current.valueRial else
+            BigDecimal.valueOf(current.valueRial)
+                .multiply(BigDecimal.valueOf(issuedKg))
+                .divide(BigDecimal.valueOf(current.quantityKg), 0, RoundingMode.HALF_UP)
+                .longValueExact()
+        val remainingQuantity = if (fullIssue) 0.0 else current.quantityKg - issuedKg
+        return InventoryIssue(
+            cogsRial = cogs,
+            remaining = InventoryValuation(
+                quantityKg = remainingQuantity,
+                valueRial = Math.subtractExact(current.valueRial, cogs)
+            )
+        )
+    }
+
+    fun averageCostPerKgRial(current: InventoryValuation): Long {
+        require(current.quantityKg > 0.0 && current.quantityKg.isFinite())
+        require(current.valueRial >= 0)
+        return BigDecimal.valueOf(current.valueRial)
+            .divide(BigDecimal.valueOf(current.quantityKg), 0, RoundingMode.HALF_UP)
+            .longValueExact()
+    }
+}
+
 object AccountingEngine {
     fun aggregateQuantities(lines: List<Pair<Long, Double>>): Map<Long, Double> {
         require(lines.isNotEmpty()) { "فاکتور باید حداقل یک ردیف داشته باشد" }

@@ -94,6 +94,46 @@ class AccountingEngineTest {
         AccountingEngine.allocateLandedCost(100L, listOf(1L to 0.0))
     }
 
+
+    @Test fun weightedAverageReceiptCombinesOldAndNewInventoryValue() {
+        val result = InventoryValuationEngine.receive(
+            InventoryValuation(10.0, 1_000_000L), 10.0, 1_400_000L
+        )
+        assertEquals(20.0, result.quantityKg, 0.000001)
+        assertEquals(2_400_000L, result.valueRial)
+        assertEquals(120_000L, InventoryValuationEngine.averageCostPerKgRial(result))
+    }
+
+    @Test fun weightedAverageIssueReducesQuantityAndBookValueTogether() {
+        val issue = InventoryValuationEngine.issue(
+            InventoryValuation(20.0, 2_400_000L), 5.0
+        )
+        assertEquals(600_000L, issue.cogsRial)
+        assertEquals(15.0, issue.remaining.quantityKg, 0.000001)
+        assertEquals(1_800_000L, issue.remaining.valueRial)
+    }
+
+    @Test fun fullInventoryIssueConsumesAllRemainingRialWithoutRoundingResidue() {
+        val issue = InventoryValuationEngine.issue(
+            InventoryValuation(3.0, 100L), 3.0
+        )
+        assertEquals(100L, issue.cogsRial)
+        assertEquals(0.0, issue.remaining.quantityKg, 0.0)
+        assertEquals(0L, issue.remaining.valueRial)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun weightedAverageIssueRejectsQuantityAboveStock() {
+        InventoryValuationEngine.issue(InventoryValuation(2.0, 200L), 2.1)
+    }
+
+    @Test(expected = ArithmeticException::class)
+    fun weightedAverageReceiptRejectsRialOverflow() {
+        InventoryValuationEngine.receive(
+            InventoryValuation(1.0, Long.MAX_VALUE), 1.0, 1L
+        )
+    }
+
     @Test fun landedCostIncludesAllCostsAndCurrencyConversion() {
         val total = LandedCostCalculator.totalCostRial(
             goodsAmountMinor = 100,

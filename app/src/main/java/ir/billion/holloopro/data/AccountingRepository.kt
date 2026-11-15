@@ -292,16 +292,29 @@ class AccountingRepository(private val db: AppDatabase) {
                 gross
             }
             val grossReturn = grossByLine.fold(0L) { total, value -> Math.addExact(total, value) }
-            val discountReturn = if (invoice.discountRial == 0L) 0L else
-                BigDecimal.valueOf(invoice.discountRial).multiply(BigDecimal.valueOf(grossReturn))
-                    .divide(BigDecimal.valueOf(invoice.subtotalRial), 0, java.math.RoundingMode.HALF_UP)
-                    .longValueExact().coerceAtMost(invoice.discountRial)
-            val netReturn = Math.subtractExact(grossReturn, discountReturn)
+            val grossReturnedBefore = sourceLines.fold(0L) { total, line ->
+                val prior = BigDecimal.valueOf(line.unitPriceRial).multiply(BigDecimal.valueOf(line.returnedQuantityKg))
+                    .setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
+                Math.addExact(total, prior)
+            }
+            val grossReturnedAfter = Math.addExact(grossReturnedBefore, grossReturn)
             val originalNet = Math.subtractExact(invoice.subtotalRial, invoice.discountRial)
-            val taxReturn = if (invoice.taxRial == 0L || netReturn == 0L) 0L else
-                BigDecimal.valueOf(invoice.taxRial).multiply(BigDecimal.valueOf(netReturn))
-                    .divide(BigDecimal.valueOf(originalNet), 0, java.math.RoundingMode.HALF_UP)
-                    .longValueExact().coerceAtMost(invoice.taxRial)
+            fun proportional(total: Long, part: Long, whole: Long): Long =
+                if (total == 0L || part == 0L) 0L else
+                    BigDecimal.valueOf(total).multiply(BigDecimal.valueOf(part))
+                        .divide(BigDecimal.valueOf(whole), 0, java.math.RoundingMode.HALF_UP)
+                        .longValueExact()
+            val discountBefore = proportional(invoice.discountRial, grossReturnedBefore, invoice.subtotalRial)
+                .coerceAtMost(invoice.discountRial)
+            val discountAfter = proportional(invoice.discountRial, grossReturnedAfter, invoice.subtotalRial)
+                .coerceAtMost(invoice.discountRial)
+            val discountReturn = Math.subtractExact(discountAfter, discountBefore)
+            val netReturn = Math.subtractExact(grossReturn, discountReturn)
+            val netReturnedBefore = Math.subtractExact(grossReturnedBefore, discountBefore)
+            val netReturnedAfter = Math.subtractExact(grossReturnedAfter, discountAfter)
+            val taxBefore = proportional(invoice.taxRial, netReturnedBefore, originalNet).coerceAtMost(invoice.taxRial)
+            val taxAfter = proportional(invoice.taxRial, netReturnedAfter, originalNet).coerceAtMost(invoice.taxRial)
+            val taxReturn = Math.subtractExact(taxAfter, taxBefore)
             val returnAmount = Math.addExact(netReturn, taxReturn)
             require(returnAmount > 0) { "مبلغ برگشت باید بیشتر از صفر باشد" }
             val alreadyReturned = db.invoiceReturnDao().returnedForInvoice(invoiceId)

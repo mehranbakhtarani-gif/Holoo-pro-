@@ -5,6 +5,11 @@ on:
     paths:
       - 'pwa/**'
       - '.github/workflows/package-pwa.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pwa/**'
+      - '.github/workflows/package-pwa.yml'
   workflow_dispatch:
 permissions:
   contents: read

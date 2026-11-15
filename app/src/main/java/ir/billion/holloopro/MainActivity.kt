@@ -503,15 +503,23 @@ private fun BankReconciliationSection(
                 val movements = bankStatements.filter {
                     it.bankName.equals(period.bankName, ignoreCase = true) &&
                         it.transactionDateEpoch >= period.startDateEpoch && it.transactionDateEpoch <= period.endDateEpoch
-                }.sumOf { it.signedAmountRial }
-                val calculated = period.openingBalanceRial + movements
-                val difference = calculated - period.closingBalanceRial
+                }.map { it.signedAmountRial }
+                val reconciliation = ir.billion.holloopro.data.BankStatementReconciliation.calculate(
+                    period.openingBalanceRial, movements, period.closingBalanceRial
+                )
                 val dateFormat = java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("${period.bankName} • ${dateFormat.format(java.util.Date(period.startDateEpoch))} تا ${dateFormat.format(java.util.Date(period.endDateEpoch))}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    Text("افتتاحیه: ${formatMoney(period.openingBalanceRial, showToman)} • گردش خالص: ${formatMoney(movements, showToman)}", color = Muted, fontSize = 10.sp)
-                    Text("مانده محاسباتی: ${formatMoney(calculated, showToman)} • مانده بانک: ${formatMoney(period.closingBalanceRial, showToman)}", color = Muted, fontSize = 10.sp)
-                    Text(if (difference == 0L) "مانده‌ها برابرند؛ اختلاف صفر است." else "اختلاف مانده: ${formatMoney(difference, showToman)}", color = if (difference == 0L) Turquoise else Color(0xFFFF9D9D), fontSize = 10.sp)
+                    if (reconciliation.overflow) {
+                        Text("خطای محاسباتی: جمع گردش‌ها یا مانده دوره از محدوده عددی مجاز خارج شده است.", color = Color(0xFFFF9D9D), fontSize = 10.sp)
+                    } else {
+                        val net = reconciliation.netMovementRial ?: 0L
+                        val calculated = reconciliation.calculatedClosingBalanceRial ?: 0L
+                        val difference = reconciliation.differenceRial ?: 0L
+                        Text("افتتاحیه: ${formatMoney(period.openingBalanceRial, showToman)} • گردش خالص: ${formatMoney(net, showToman)}", color = Muted, fontSize = 10.sp)
+                        Text("مانده محاسباتی: ${formatMoney(calculated, showToman)} • مانده بانک: ${formatMoney(period.closingBalanceRial, showToman)}", color = Muted, fontSize = 10.sp)
+                        Text(if (difference == 0L) "مانده‌ها برابرند؛ اختلاف صفر است." else "اختلاف مانده: ${formatMoney(difference, showToman)}", color = if (difference == 0L) Turquoise else Color(0xFFFF9D9D), fontSize = 10.sp)
+                    }
                 }
                 Divider(color = CardBorder)
             }

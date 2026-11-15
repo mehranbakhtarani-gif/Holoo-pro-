@@ -1,6 +1,12 @@
 package ir.billion.holloopro
 
 import android.os.Bundle
+import android.os.Process
+import android.widget.Toast
+import android.net.Uri
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
 import androidx.activity.compose.setContent
@@ -29,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import ir.billion.holloopro.accounting.LandedCostCalculator
 import ir.billion.holloopro.accounting.Money
 import ir.billion.holloopro.data.CheckEntity
+import ir.billion.holloopro.data.DatabaseBackup
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.AccountBalanceRow
@@ -52,12 +59,35 @@ private val Muted = Color(0xFF9FB5C9)
 private val CardBorder = Color(0x5536D6C5)
 
 class MainActivity : ComponentActivity() {
+    private lateinit var exportBackupLauncher: androidx.activity.result.ActivityResultLauncher<String>
+    private lateinit var importBackupLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
+
     private val vm by viewModels<AppViewModel> {
         AppViewModel.Factory((application as HolooApplication).repository)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        exportBackupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                runCatching { DatabaseBackup.export(this@MainActivity, (application as HolooApplication).database, uri) }
+                    .onSuccess { Toast.makeText(this@MainActivity, "پشتیبان با موفقیت ذخیره شد", Toast.LENGTH_LONG).show() }
+                    .onFailure { Toast.makeText(this@MainActivity, "خطا در پشتیبان‌گیری: ${it.message}", Toast.LENGTH_LONG).show() }
+            }
+        }
+        importBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                runCatching { DatabaseBackup.restore(this@MainActivity, (application as HolooApplication).database, uri) }
+                    .onSuccess {
+                        Toast.makeText(this@MainActivity, "بازیابی انجام شد؛ برنامه را دوباره باز کنید", Toast.LENGTH_LONG).show()
+                        window.decorView.postDelayed({
+                            finishAffinity()
+                            Process.killProcess(Process.myPid())
+                        }, 1200)
+                    }
+                    .onFailure { Toast.makeText(this@MainActivity, "بازیابی ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
+            }
+        }
         setContent {
             HolooTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -94,7 +124,9 @@ class MainActivity : ComponentActivity() {
                         onAddTreasury = vm::addTreasury,
                         onAddCheck = vm::addCheck,
                         onUpdateCheckStatus = vm::updateCheckStatus,
-                        onClearMessage = vm::clearMessage
+                        onClearMessage = vm::clearMessage,
+                        onExportBackup = { exportBackupLauncher.launch("holloo-backup-${System.currentTimeMillis()}.db") },
+                        onImportBackup = { importBackupLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*")) }
                     )
                 }
             }
@@ -157,7 +189,9 @@ private fun HolooApp(
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateCheckStatus: (Long, String) -> Unit,
-    onClearMessage: () -> Unit
+    onClearMessage: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showToman by remember { mutableStateOf(true) }
@@ -213,8 +247,12 @@ private fun HolooApp(
                     Text("HOLLOO PRO+", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     Text("مدیریت مالی و بازرگانی نخ", fontSize = 11.sp, color = Muted)
                 }
-                TextButton(onClick = { showToman = !showToman }) {
-                    Text(if (showToman) "نمایش تومان" else "نمایش ریال", color = Turquoise)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onExportBackup) { Text("پشتیبان", color = Turquoise, fontSize = 10.sp) }
+                    TextButton(onClick = onImportBackup) { Text("بازیابی", color = Color(0xFFFFC47A), fontSize = 10.sp) }
+                    TextButton(onClick = { showToman = !showToman }) {
+                        Text(if (showToman) "تومان" else "ریال", color = Turquoise, fontSize = 10.sp)
+                    }
                 }
             }
             if (message != null) {

@@ -104,11 +104,50 @@ object BankStatementCsv {
                 else -> ch
             }
         }.joinToString("").replace('/', '-')
+        val parts = normalized.split('-').mapNotNull { it.toIntOrNull() }
+        if (parts.size == 3 && parts[0] in 1300..1600) {
+            val (gy, gm, gd) = jalaliToGregorian(parts[0], parts[1], parts[2]) ?: return null
+            return runCatching {
+                SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
+                    .parse("%04d-%02d-%02d".format(Locale.US, gy, gm, gd))?.time
+            }.getOrNull()
+        }
         val formats = listOf("yyyy-MM-dd", "yyyy-M-d")
         return formats.firstNotNullOfOrNull { pattern ->
             runCatching {
                 SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }.parse(normalized)?.time
             }.getOrNull()
         }
+    }
+
+    private fun jalaliToGregorian(jy: Int, jm: Int, jd: Int): Triple<Int, Int, Int>? {
+        if (jm !in 1..12 || jd !in 1..31) return null
+        val jy2 = jy + 1595
+        var days = -355668L + 365L * jy2 + (jy2 / 33) * 8L + ((jy2 % 33 + 3) / 4) + jd
+        days += if (jm < 7) (jm - 1) * 31L else (jm - 7) * 30L + 186L
+        var gy = (400L * (days / 146097L)).toInt()
+        days %= 146097L
+        if (days > 36524L) {
+            gy += (100L * ((days - 1L) / 36524L)).toInt()
+            days = (days - 1L) % 36524L
+            if (days >= 365L) days++
+        }
+        gy += (4L * (days / 1461L)).toInt()
+        days %= 1461L
+        if (days > 365L) {
+            gy += ((days - 1L) / 365L).toInt()
+            days = (days - 1L) % 365L
+        }
+        val gd = (days + 1L).toInt()
+        val leap = gy % 4 == 0 && (gy % 100 != 0 || gy % 400 == 0)
+        val monthDays = intArrayOf(31, if (leap) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        var remaining = gd
+        var gm = 1
+        while (gm <= 12 && remaining > monthDays[gm - 1]) {
+            remaining -= monthDays[gm - 1]
+            gm++
+        }
+        if (gm !in 1..12 || remaining !in 1..monthDays[gm - 1]) return null
+        return Triple(gy, gm, remaining)
     }
 }

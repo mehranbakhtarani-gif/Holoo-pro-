@@ -847,6 +847,36 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun importBankStatementCsv(bankName: String, rows: List<BankStatementCsvRow>): Pair<Int, Int> {
+        require(bankName.isNotBlank()) { "نام بانک الزامی است" }
+        require(rows.isNotEmpty()) { "فایلی برای ورود وجود ندارد" }
+        val normalizedBank = bankName.trim()
+        return db.withTransaction {
+            var inserted = 0
+            var skipped = 0
+            rows.forEach { row ->
+                val duplicate = db.bankStatementDao().countDuplicate(
+                    normalizedBank, row.transactionDateEpoch, row.signedAmountRial, row.bankReference.trim()
+                ) > 0
+                if (duplicate) {
+                    skipped++
+                } else {
+                    db.bankStatementDao().insert(
+                        BankStatementLineEntity(
+                            bankName = normalizedBank,
+                            transactionDateEpoch = row.transactionDateEpoch,
+                            signedAmountRial = row.signedAmountRial,
+                            bankReference = row.bankReference.trim(),
+                            description = row.description.trim()
+                        )
+                    )
+                    inserted++
+                }
+            }
+            inserted to skipped
+        }
+    }
+
     suspend fun addBankStatementPeriod(
         bankName: String, startDateEpoch: Long, endDateEpoch: Long,
         openingBalanceRial: Long, closingBalanceRial: Long

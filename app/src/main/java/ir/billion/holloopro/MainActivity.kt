@@ -39,6 +39,8 @@ import java.math.BigInteger
 import ir.billion.holloopro.data.CheckEntity
 import ir.billion.holloopro.data.BankStatementLineEntity
 import ir.billion.holloopro.data.BankStatementPeriodEntity
+import ir.billion.holloopro.data.BankStatementCsv
+import ir.billion.holloopro.data.BankStatementCsvRow
 import ir.billion.holloopro.data.DatabaseBackup
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.ImportReceiptLineInput
@@ -77,6 +79,9 @@ private val CardBorder = Color(0x5536D6C5)
 class MainActivity : ComponentActivity() {
     private lateinit var exportBackupLauncher: androidx.activity.result.ActivityResultLauncher<String>
     private lateinit var importBackupLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
+    private lateinit var importBankCsvLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
+    private val pendingBankCsvRows = mutableStateOf<List<BankStatementCsvRow>>(emptyList())
+    private val pendingBankCsvName = mutableStateOf("")
     private lateinit var exportReportsLauncher: androidx.activity.result.ActivityResultLauncher<String>
     private lateinit var exportReportsPdfLauncher: androidx.activity.result.ActivityResultLauncher<String>
     private var pendingReportsCsv: String = ""
@@ -112,6 +117,21 @@ class MainActivity : ComponentActivity() {
                     output.use { it.write(bytes) }
                 }.onSuccess { Toast.makeText(this@MainActivity, "گزارش PDF ذخیره شد", Toast.LENGTH_LONG).show() }
                     .onFailure { Toast.makeText(this@MainActivity, "ذخیره PDF ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
+            }
+        }
+        importBankCsvLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                runCatching {
+                    val csv = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                        ?: error("خواندن فایل انتخاب‌شده ممکن نیست")
+                    BankStatementCsv.parse(csv)
+                }.onSuccess { rows ->
+                    pendingBankCsvRows.value = rows
+                    pendingBankCsvName.value = ""
+                    Toast.makeText(this@MainActivity, "${rows.size} گردش برای پیش‌نمایش آماده شد", Toast.LENGTH_LONG).show()
+                }.onFailure {
+                    Toast.makeText(this@MainActivity, "خواندن CSV ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show()
+                }
             }
         }
         importBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -201,10 +221,23 @@ class MainActivity : ComponentActivity() {
                         onMatchBankStatementLineToCheck = vm::matchBankStatementLineToCheck,
                         onAddBankFee = vm::addBankFee,
                         onAddBankStatementPeriod = vm::addBankStatementPeriod,
+                        onImportBankCsv = { importBankCsvLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "application/vnd.ms-excel", "text/plain", "*/*")) },
                         onClearMessage = vm::clearMessage,
                         onExportBackup = { exportBackupLauncher.launch("holloo-backup-${System.currentTimeMillis()}.db") },
                         onImportBackup = { importBackupLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*")) }
                     )
+                    if (pendingBankCsvRows.value.isNotEmpty()) {
+                        BankCsvImportPreviewDialog(
+                            rows = pendingBankCsvRows.value,
+                            bankName = pendingBankCsvName.value,
+                            onBankNameChange = { pendingBankCsvName.value = it },
+                            onDismiss = { pendingBankCsvRows.value = emptyList() },
+                            onConfirm = {
+                                vm.importBankStatementCsv(pendingBankCsvName.value, pendingBankCsvRows.value)
+                                pendingBankCsvRows.value = emptyList()
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -299,6 +332,7 @@ private fun HolooApp(
     onMatchBankStatementLineToCheck: (Long, Long) -> Unit,
     onAddBankFee: (String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddBankStatementPeriod: (String, Long, Long, Long, Long) -> Unit,
+    onImportBankCsv: () -> Unit,
     onClearMessage: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit
@@ -403,7 +437,8 @@ private fun BankReconciliationSection(
     onUnmatch: (Long) -> Unit,
     onMatchCheck: (Long, Long) -> Unit,
     onAddFee: (String, Long, Long, String, String, () -> Unit) -> Unit,
-    onAddPeriod: (String, Long, Long, Long, Long) -> Unit
+    onAddPeriod: (String, Long, Long, Long, Long) -> Unit,
+    onImportCsv: () -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showFeeDialog by remember { mutableStateOf(false) }
@@ -423,6 +458,7 @@ private fun BankReconciliationSection(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { showFeeDialog = true }) { Text("ثبت کارمزد بانکی") }
             OutlinedButton(onClick = { showPeriodDialog = true }) { Text("ثبت دوره صورت‌حساب") }
+            OutlinedButton(onClick = onImportCsv) { Text("ورود فایل CSV") }
         }
         val matchedCount = bankStatements.count { it.matchedTreasuryEntryId != null || it.matchedCheckId != null || it.matchedVoucherId != null }
         Text("تطبیق‌شده: $matchedCount • تطبیق‌نشده: ${bankStatements.size - matchedCount}", color = Muted, fontSize = 10.sp)
@@ -1612,7 +1648,7 @@ private fun AccountingScreen(
             }
         }
         item {
-            BankReconciliationSection(bankStatements, bankStatementPeriods, treasury, checks, showToman, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod)
+            BankReconciliationSection(bankStatements, bankStatementPeriods, treasury, checks, showToman, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
         }
         item {
             GlassCard {

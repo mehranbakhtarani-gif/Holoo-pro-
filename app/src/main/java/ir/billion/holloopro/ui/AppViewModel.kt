@@ -143,6 +143,9 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun addTreasury(kind: String, method: String, partyId: Long, amountRial: Long, reference: String, note: String, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addTreasuryEntry(kind, method, partyId, amountRial, reference, note); "دریافت/پرداخت و سند حسابداری ثبت شد" }
 
+    fun editTreasury(id: Long, kind: String, method: String, partyId: Long, amountRial: Long, reference: String, note: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.editTreasuryEntry(id, kind, method, partyId, amountRial, reference, note); "سند دریافت/پرداخت اصلاح شد و سوابق حسابداری حفظ شدند" }
+
     fun addCheck(number: String, kind: String, partyId: Long, amount: Long, issueAt: Long, dueAt: Long, bank: String, note: String, onSuccess: () -> Unit) = execute(onSuccess) { repository.addCheck(number, kind, partyId, amount, issueAt, dueAt, bank, note); "چک ثبت شد" }
 
     fun addBankStatementLine(bankName: String, dateEpoch: Long, signedAmount: Long, reference: String, description: String, onSuccess: () -> Unit) =

@@ -30,6 +30,7 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         repository.treasury.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val accountBalances: StateFlow<List<AccountBalanceRow>> =
         repository.accountBalances.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val profitLoss = repository.profitLoss.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ir.billion.holloopro.data.ProfitLossRow(0, 0))
     val imports: StateFlow<List<ImportOrderEntity>> =
         repository.imports.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val productCount = repository.productCount.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
@@ -68,32 +69,32 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun createInvoice(kind: String, partyId: Long, productId: Long, quantity: Double, price: Long, discount: Long, tax: Long) =
         execute { repository.createAndPostInvoice(kind, partyId, productId, quantity, price, discount, tax); "فاکتور ثبت و سند حسابداری صادر شد" }
 
-    fun createMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discount: Long, tax: Long) =
-        execute { repository.createAndPostMultiLineInvoice(kind, partyId, lines, discount, tax); "فاکتور چندردیفی ثبت و سند حسابداری صادر شد" }
+    fun createMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discount: Long, tax: Long, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.createAndPostMultiLineInvoice(kind, partyId, lines, discount, tax); "فاکتور چندردیفی ثبت و سند حسابداری صادر شد" }
 
     fun reverseInvoice(id: Long) = execute { repository.reverseInvoice(id); "فاکتور برگشت شد" }
 
-    fun addTreasury(kind: String, method: String, partyId: Long, amountRial: Long, reference: String, note: String) =
-        execute { repository.addTreasuryEntry(kind, method, partyId, amountRial, reference, note); "دریافت/پرداخت و سند حسابداری ثبت شد" }
+    fun addTreasury(kind: String, method: String, partyId: Long, amountRial: Long, reference: String, note: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.addTreasuryEntry(kind, method, partyId, amountRial, reference, note); "دریافت/پرداخت و سند حسابداری ثبت شد" }
 
     fun addImport(
         supplierId: Long, currency: String, rate: Long, container: String, weight: Double,
-        goods: Long, freight: Long, customs: Long, other: Long, creditDays: Int
-    ) = execute {
+        goods: Long, freight: Long, customs: Long, other: Long, creditDays: Int, onSuccess: () -> Unit
+    ) = execute(onSuccess) {
         repository.addImportOrder(supplierId, currency, rate, container, weight, goods, freight, customs, other, creditDays)
         "سفارش واردات ثبت شد"
     }
 
-    fun receiveImport(orderId: Long, lines: List<ImportReceiptLineInput>) = execute {
+    fun receiveImport(orderId: Long, lines: List<ImportReceiptLineInput>, onSuccess: () -> Unit) = execute(onSuccess) {
         repository.receiveImport(orderId, lines)
         "رسید انبار صادر شد؛ موجودی و سند بهای تمام‌شده ثبت شد"
     }
 
-    private fun execute(block: suspend () -> String) {
+    private fun execute(onSuccess: () -> Unit = {}, block: suspend () -> String) {
         viewModelScope.launch {
             _message.value = null
             runCatching { block() }
-                .onSuccess { _message.value = it }
+                .onSuccess { _message.value = it; onSuccess() }
                 .onFailure { _message.value = it.message ?: "خطای نامشخص" }
         }
     }

@@ -78,6 +78,9 @@ interface InvoiceDao {
     @Update
     suspend fun update(invoice: InvoiceEntity)
 
+    @Query("SELECT COALESCE((SELECT SUM(subtotalRial - discountRial) FROM invoices WHERE kind = 'SALE' AND status = 'POSTED'), 0) AS salesRial, COALESCE((SELECT SUM(il.inventoryCostRial) FROM invoice_lines il INNER JOIN invoices i ON i.id = il.invoiceId WHERE i.kind = 'SALE' AND i.status = 'POSTED'), 0) AS costOfGoodsSoldRial")
+    fun observeProfitLoss(): Flow<ProfitLossRow>
+
     @Query("SELECT COUNT(*) FROM invoices")
     fun observeCount(): Flow<Int>
 }

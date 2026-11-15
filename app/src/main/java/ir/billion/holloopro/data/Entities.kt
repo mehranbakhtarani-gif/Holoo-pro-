@@ -193,3 +193,5 @@ data class AccountBalanceRow(
     val debitRial: Long,
     val creditRial: Long
 )
+
+data class ProfitLossRow(val salesRial: Long, val costOfGoodsSoldRial: Long)

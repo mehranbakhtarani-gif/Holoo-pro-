@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
                     val imports by vm.imports.collectAsState()
                     val treasury by vm.treasury.collectAsState()
                     val accountBalances by vm.accountBalances.collectAsState()
+                    val profitLoss by vm.profitLoss.collectAsState()
                     val productCount by vm.productCount.collectAsState()
                     val partyCount by vm.partyCount.collectAsState()
                     val invoiceCount by vm.invoiceCount.collectAsState()
@@ -72,7 +73,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, partyBalances, invoices, imports, treasury, accountBalances,
+                        products, parties, partyBalances, invoices, imports, treasury, accountBalances, profitLoss,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -125,6 +126,7 @@ private fun HolooApp(
     imports: List<ImportOrderEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
+    profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     productCount: Int,
     partyCount: Int,
     invoiceCount: Int,
@@ -136,11 +138,11 @@ private fun HolooApp(
     onSetOpeningValuation: (Long, Long) -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
     onDeleteParty: (Long) -> Unit,
-    onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long) -> Unit,
+    onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
     onReverseInvoice: (Long) -> Unit,
-    onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit,
-    onReceiveImport: (Long, List<ImportReceiptLineInput>) -> Unit,
-    onAddTreasury: (String, String, Long, Long, String, String) -> Unit,
+    onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
+    onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
+    onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onClearMessage: () -> Unit
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -218,7 +220,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, parties, showToman, onAddTreasury)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, profitLoss, parties, showToman, onAddTreasury)
             }
         }
     }
@@ -411,7 +413,7 @@ private fun PartiesScreen(
 @Composable
 private fun InvoicesScreen(
     parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>, showToman: Boolean,
-    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long) -> Unit, onReverse: (Long) -> Unit
+    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit, onReverse: (Long) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -436,14 +438,14 @@ private fun InvoicesScreen(
             }
         }
     }
-    if (dialog) InvoiceDialog(parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax -> onCreate(kind, partyId, lines, discount, tax); dialog = false })
+    if (dialog) InvoiceDialog(parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax -> onCreate(kind, partyId, lines, discount, tax) { dialog = false } })
 }
 
 @Composable
 private fun ImportsScreen(
     products: List<ProductWithStock>, parties: List<PartyEntity>, imports: List<ImportOrderEntity>, showToman: Boolean,
-    onAdd: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit,
-    onReceive: (Long, List<ImportReceiptLineInput>) -> Unit
+    onAdd: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
+    onReceive: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
     var receivingOrder by remember { mutableStateOf<ImportOrderEntity?>(null) }
@@ -490,12 +492,12 @@ private fun ImportsScreen(
             }
         }
     }
-    if (dialog) ImportDialog(parties, onDismiss = { dialog = false }, onSave = { a,b,c,d,e,f,g,h,i,j -> onAdd(a,b,c,d,e,f,g,h,i,j); dialog = false })
+    if (dialog) ImportDialog(parties, onDismiss = { dialog = false }, onSave = { a,b,c,d,e,f,g,h,i,j -> onAdd(a,b,c,d,e,f,g,h,i,j) { dialog = false } })
     receivingOrder?.let { order ->
         ImportReceiptDialog(
             order = order, products = products,
             onDismiss = { receivingOrder = null },
-            onSave = { lines -> onReceive(order.id, lines); receivingOrder = null }
+            onSave = { lines -> onReceive(order.id, lines) { receivingOrder = null } }
         )
     }
 }
@@ -572,9 +574,10 @@ private fun AccountingScreen(
     invoices: List<InvoiceEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
+    profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     parties: List<PartyEntity>,
     showToman: Boolean,
-    onAddTreasury: (String, String, Long, Long, String, String) -> Unit
+    onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val sales = invoices.filter { it.kind == "SALE" && it.status == "POSTED" }.sumOf { it.totalRial }
@@ -589,6 +592,9 @@ private fun AccountingScreen(
             }
         }
         item { StatCard("اسناد صادرشده", voucherCount.toString(), "≋", Modifier.fillMaxWidth()) }
+        item { SummaryCard("درآمد فروش (بدون مالیات)", profitLoss.salesRial, showToman) }
+        item { SummaryCard("بهای تمام‌شده کالای فروش‌رفته", profitLoss.costOfGoodsSoldRial, showToman) }
+        item { SummaryCard("سود ناخالص", profitLoss.salesRial - profitLoss.costOfGoodsSoldRial, showToman) }
         item { SummaryCard("جمع فاکتورهای فروش ثبت‌شده", sales, showToman) }
         item { SummaryCard("جمع فاکتورهای خرید ثبت‌شده", purchases, showToman) }
         item {
@@ -642,7 +648,7 @@ private fun AccountingScreen(
         TreasuryDialog(
             parties,
             onDismiss = { showDialog = false },
-            onSave = { a, b, c, d, e, f -> onAddTreasury(a, b, c, d, e, f); showDialog = false }
+            onSave = { a, b, c, d, e, f -> onAddTreasury(a, b, c, d, e, f) { showDialog = false } }
         )
     }
 }

@@ -241,7 +241,8 @@ class MainActivity : ComponentActivity() {
                         onAddCheck = vm::addCheck,
                         onEditCheck = vm::editCheck,
                         onUpdateCheckStatus = vm::updateCheckStatus,
-                        onAddBankStatementLine = vm::addBankStatementLine,
+                                                onAddBankStatementLine = vm::addBankStatementLine,
+                        onEditBankStatementLine = vm::editBankStatementLine,
                         onMatchBankStatementLine = vm::matchBankStatementLine,
                         onUnmatchBankStatementLine = vm::unmatchBankStatementLine,
                         onMatchBankStatementLineToCheck = vm::matchBankStatementLineToCheck,
@@ -358,6 +359,7 @@ private fun HolooApp(
     onEditCheck: (Long, String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateCheckStatus: (Long, String) -> Unit,
     onAddBankStatementLine: (String, Long, Long, String, String, () -> Unit) -> Unit,
+    onEditBankStatementLine: (Long, String, Long, Long, String, String, () -> Unit) -> Unit,
     onMatchBankStatementLine: (Long, Long) -> Unit,
     onUnmatchBankStatementLine: (Long) -> Unit,
     onMatchBankStatementLineToCheck: (Long, Long) -> Unit,
@@ -448,7 +450,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onEditInvoice, onShareInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onEditImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onEditTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onEditTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onEditBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onEditCheck, onUpdateCheckStatus)
             }
         }
@@ -464,6 +466,7 @@ private fun BankReconciliationSection(
     checks: List<CheckEntity>,
     showToman: Boolean,
     onAdd: (String, Long, Long, String, String, () -> Unit) -> Unit,
+    onEdit: (Long, String, Long, Long, String, String, () -> Unit) -> Unit,
     onMatch: (Long, Long) -> Unit,
     onUnmatch: (Long) -> Unit,
     onMatchCheck: (Long, Long) -> Unit,
@@ -472,6 +475,7 @@ private fun BankReconciliationSection(
     onImportCsv: () -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
+    var editingLine by remember { mutableStateOf<BankStatementLineEntity?>(null) }
     var showFeeDialog by remember { mutableStateOf(false) }
     var showPeriodDialog by remember { mutableStateOf(false) }
     val matchedTreasuryIds = bankStatements.mapNotNull { it.matchedTreasuryEntryId }.toSet()
@@ -533,6 +537,7 @@ private fun BankReconciliationSection(
                     }
                     line.matchedVoucherId != null -> Text("کارمزد بانکی با سند دفترکل شماره " + line.matchedVoucherId + " ثبت و تطبیق شد.", color = Turquoise, fontSize = 10.sp)
                     else -> {
+                        TextButton(onClick = { editingLine = line; showDialog = true }) { Text("ویرایش گردش", color = Turquoise) }
                         val options = candidates.filter { entry ->
                             (if (entry.kind == "RECEIPT") entry.amountRial else -entry.amountRial) == line.signedAmountRial
                         }
@@ -628,8 +633,13 @@ private fun BankReconciliationSection(
         }
     )
     if (showDialog) BankStatementDialog(
-        onDismiss = { showDialog = false },
-        onSave = { bank, date, amount, ref, description -> onAdd(bank, date, amount, ref, description) { showDialog = false } }
+        existing = editingLine,
+        onDismiss = { showDialog = false; editingLine = null },
+        onSave = { bank, date, amount, ref, description ->
+            val current = editingLine
+            if (current == null) onAdd(bank, date, amount, ref, description) { showDialog = false }
+            else onEdit(current.id, bank, date, amount, ref, description) { showDialog = false; editingLine = null }
+        }
     )
     if (showFeeDialog) BankFeeDialog(
         onDismiss = { showFeeDialog = false },
@@ -761,20 +771,21 @@ private fun BankFeeDialog(
 
 @Composable
 private fun BankStatementDialog(
+    existing: BankStatementLineEntity? = null,
     onDismiss: () -> Unit,
     onSave: (String, Long, Long, String, String) -> Unit
 ) {
-    var bank by remember { mutableStateOf("") }
-    var dateText by remember { mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(java.util.Date())) }
-    var amountText by remember { mutableStateOf("") }
-    var reference by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
+    var bank by remember(existing?.id) { mutableStateOf(existing?.bankName ?: "") }
+    var dateText by remember(existing?.id) { mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(java.util.Date(existing?.transactionDateEpoch ?: System.currentTimeMillis()))) }
+    var amountText by remember(existing?.id) { mutableStateOf(existing?.signedAmountRial?.toString() ?: "") }
+    var reference by remember(existing?.id) { mutableStateOf(existing?.bankReference ?: "") }
+    var description by remember(existing?.id) { mutableStateOf(existing?.description ?: "") }
     val date = runCatching { java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateText)?.time }.getOrNull() ?: 0L
     val amount = amountText.toLongOrNull() ?: 0L
     val valid = bank.isNotBlank() && date > 0L && amount != 0L
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("ثبت گردش صورت‌حساب بانکی") },
+        title = { Text(if (existing == null) "ثبت گردش صورت‌حساب بانکی" else "ویرایش گردش بانکی") },
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 FormField("نام بانک / حساب", bank) { bank = it }
@@ -1684,6 +1695,7 @@ private fun AccountingScreen(
     onSaveAccount: (String, String, String, () -> Unit) -> Unit,
     onReverseManualVoucher: (String) -> Unit,
     onAddBankStatementLine: (String, Long, Long, String, String, () -> Unit) -> Unit,
+    onEditBankStatementLine: (Long, String, Long, Long, String, String, () -> Unit) -> Unit,
     onMatchBankStatementLine: (Long, Long) -> Unit,
     onUnmatchBankStatementLine: (Long) -> Unit,
     onMatchBankStatementLineToCheck: (Long, Long) -> Unit,
@@ -1841,7 +1853,7 @@ private fun AccountingScreen(
             }
         }
         item {
-            BankReconciliationSection(bankStatements, bankStatementPeriods, treasury, checks, showToman, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
+            BankReconciliationSection(bankStatements, bankStatementPeriods, treasury, checks, showToman, onAddBankStatementLine, onEditBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
         }
         item {
             GlassCard {

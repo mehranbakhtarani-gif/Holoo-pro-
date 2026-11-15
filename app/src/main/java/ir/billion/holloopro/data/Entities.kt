@@ -246,3 +246,37 @@ data class InvoiceSettlementRow(val invoiceId: Long, val paidRial: Long)
 data class TreasuryAllocationRow(val entryId: Long, val allocatedRial: Long)
 
 data class InvoiceSettlementDetailRow(val settlementId: Long, val invoiceId: Long, val treasuryEntryId: Long, val amountRial: Long, val createdAt: Long, val entryKind: String, val method: String, val referenceNumber: String, val entryCreatedAt: Long)
+
+
+@Entity(tableName = "invoice_returns", indices = [Index(value = ["invoiceId"]), Index(value = ["createdAt"])])
+data class InvoiceReturnEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val invoiceId: Long,
+    val amountRial: Long,
+    val note: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "invoice_return_lines", indices = [Index(value = ["returnId"]), Index(value = ["invoiceLineId"])])
+data class InvoiceReturnLineEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val returnId: Long,
+    val invoiceLineId: Long,
+    val quantityKg: Double,
+    val refundAmountRial: Long,
+    val inventoryCostRial: Long
+)
+
+data class ReturnableInvoiceLineRow(
+    val invoiceId: Long,
+    val invoiceLineId: Long,
+    val productId: Long,
+    val productName: String,
+    val originalQuantityKg: Double,
+    val returnedQuantityKg: Double,
+    val unitPriceRial: Long,
+    val lineTotalRial: Long,
+    val inventoryCostRial: Long
+)
+
+data class InvoiceReturnSummaryRow(val invoiceId: Long, val returnedRial: Long)

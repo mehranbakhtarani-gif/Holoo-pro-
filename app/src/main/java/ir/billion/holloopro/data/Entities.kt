@@ -280,3 +280,5 @@ data class ReturnableInvoiceLineRow(
 )
 
 data class InvoiceReturnSummaryRow(val invoiceId: Long, val returnedRial: Long)
+
+data class InvoiceReturnLineInput(val invoiceLineId: Long, val quantityKg: Double)

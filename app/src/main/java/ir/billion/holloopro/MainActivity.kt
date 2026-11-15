@@ -41,6 +41,8 @@ import ir.billion.holloopro.data.BankStatementLineEntity
 import ir.billion.holloopro.data.BankStatementPeriodEntity
 import ir.billion.holloopro.data.BankStatementCsv
 import ir.billion.holloopro.data.BankStatementCsvRow
+import ir.billion.holloopro.data.BankMatchCandidate
+import ir.billion.holloopro.data.BankReconciliationMatcher
 import ir.billion.holloopro.data.DatabaseBackup
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.ImportReceiptLineInput
@@ -506,6 +508,35 @@ private fun BankReconciliationSection(
                             (if (entry.kind == "RECEIPT") entry.amountRial else -entry.amountRial) == line.signedAmountRial
                         }
                         if (options.isNotEmpty()) {
+                            val smartSuggestions = BankReconciliationMatcher.suggest(
+                                line,
+                                options.map { entry ->
+                                    BankMatchCandidate(
+                                        id = entry.id,
+                                        title = "سند ${entry.id} • ${if (entry.kind == "RECEIPT") "دریافت" else "پرداخت"}",
+                                        signedAmountRial = if (entry.kind == "RECEIPT") entry.amountRial else -entry.amountRial,
+                                        reference = entry.referenceNumber,
+                                        description = entry.note,
+                                        dateEpoch = entry.createdAt
+                                    )
+                                }
+                            )
+                            smartSuggestions.take(2).forEach { suggestion ->
+                                Column(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0x3329B6A8)).padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("پیشنهاد هوشمند: ${suggestion.candidate.title}", modifier = Modifier.weight(1f), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text("${suggestion.score}٪", color = Turquoise, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Text(suggestion.reasons.joinToString(" • "), color = Muted, fontSize = 9.sp)
+                                    TextButton(onClick = { onMatch(line.id, suggestion.candidate.id) }) {
+                                        Text("تأیید و تطبیق این پیشنهاد", color = Turquoise)
+                                    }
+                                }
+                            }
                             val labels = options.map { "سند " + it.id + " • " + (if (it.kind == "RECEIPT") "دریافت" else "پرداخت") + " • " + formatMoney(it.amountRial, showToman) }
                             ChoiceField("سند دریافت/پرداخت", options.firstOrNull { it.id == selectedEntryId }?.let { labels[options.indexOf(it)] } ?: "انتخاب سند", labels) { chosen ->
                                 selectedEntryId = options.getOrNull(labels.indexOf(chosen))?.id
@@ -517,6 +548,35 @@ private fun BankReconciliationSection(
                             (if (check.kind == "RECEIVED") check.amountRial else -check.amountRial) == line.signedAmountRial
                         }
                         if (matchingChecks.isNotEmpty()) {
+                            val smartCheckSuggestions = BankReconciliationMatcher.suggest(
+                                line,
+                                matchingChecks.map { check ->
+                                    BankMatchCandidate(
+                                        id = check.id,
+                                        title = "چک ${check.checkNumber}",
+                                        signedAmountRial = if (check.kind == "RECEIVED") check.amountRial else -check.amountRial,
+                                        reference = check.checkNumber,
+                                        description = check.note,
+                                        dateEpoch = check.dueDateEpoch
+                                    )
+                                }
+                            )
+                            smartCheckSuggestions.take(2).forEach { suggestion ->
+                                Column(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0x3329B6A8)).padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("پیشنهاد هوشمند: ${suggestion.candidate.title}", modifier = Modifier.weight(1f), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text("${suggestion.score}٪", color = Turquoise, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Text(suggestion.reasons.joinToString(" • "), color = Muted, fontSize = 9.sp)
+                                    TextButton(onClick = { onMatchCheck(line.id, suggestion.candidate.id) }) {
+                                        Text("تأیید و تطبیق این پیشنهاد", color = Turquoise)
+                                    }
+                                }
+                            }
                             val labels = matchingChecks.map { "چک ${it.checkNumber} • ${formatMoney(it.amountRial, showToman)}" }
                             ChoiceField("چک وصول/پرداخت‌شده", matchingChecks.firstOrNull { it.id == selectedCheckId }?.let { labels[matchingChecks.indexOf(it)] } ?: "انتخاب چک", labels) { chosen ->
                                 selectedCheckId = matchingChecks.getOrNull(labels.indexOf(chosen))?.id

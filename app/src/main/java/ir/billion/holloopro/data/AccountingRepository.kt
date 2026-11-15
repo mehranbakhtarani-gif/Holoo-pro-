@@ -175,23 +175,24 @@ class AccountingRepository(private val db: AppDatabase) {
 
     suspend fun createAndPostInvoice(
         kind: String, partyId: Long, productId: Long, quantityKg: Double,
-        unitPriceRial: Long, discountRial: Long, taxRial: Long
+        unitPriceRial: Long, discountRial: Long, taxRial: Long, extraCostsRial: Long = 0
     ) = createAndPostMultiLineInvoice(
         kind, partyId, listOf(InvoiceLineInput(productId, quantityKg, unitPriceRial)),
-        discountRial, taxRial
+        discountRial, taxRial, extraCostsRial
     )
 
-    suspend fun createAndPostMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discountRial: Long, taxRial: Long) {
+    suspend fun createAndPostMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discountRial: Long, taxRial: Long, extraCostsRial: Long = 0) {
         require(kind == "SALE" || kind == "PURCHASE")
         require(lines.isNotEmpty()) { "فاکتور باید حداقل یک ردیف کالا داشته باشد" }
-        require(discountRial >= 0 && taxRial >= 0)
+        require(discountRial >= 0 && taxRial >= 0 && extraCostsRial >= 0)
+        require(kind == "PURCHASE" || extraCostsRial == 0L) { "هزینه جانبی فقط برای خرید قابل ثبت است" }
         lines.forEach { require(it.quantityKg > 0 && it.quantityKg.isFinite() && it.unitPriceRial > 0) { "مقدار و قیمت هر ردیف باید مثبت باشد" } }
         val amounts = lines.map { line -> BigDecimal.valueOf(line.quantityKg).multiply(BigDecimal.valueOf(line.unitPriceRial)).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact() }
         val subtotal = amounts.fold(0L) { sum, amount -> Math.addExact(sum, amount) }
         require(discountRial <= subtotal) { "تخفیف از مبلغ کالا بیشتر است" }
         val netGoods = Math.subtractExact(subtotal, discountRial)
         require(netGoods > 0) { "مبلغ خالص کالا پس از تخفیف باید بیشتر از صفر باشد" }
-        val total = Math.addExact(netGoods, taxRial)
+        val total = Math.addExact(Math.addExact(netGoods, taxRial), extraCostsRial)
         require(total > 0) { "مبلغ فاکتور باید بیشتر از صفر باشد" }
         db.withTransaction {
             val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
@@ -233,11 +234,11 @@ class AccountingRepository(private val db: AppDatabase) {
                 db.productValuationDao().upsert(ProductValuationEntity(line.productId, next.quantityKg, next.valueRial))
             }
             val number = "HP-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8)
-            val invoiceId = db.invoiceDao().insert(InvoiceEntity(number = number, kind = kind, partyId = partyId, subtotalRial = subtotal, discountRial = discountRial, taxRial = taxRial, totalRial = total, status = "POSTED"))
+            val invoiceId = db.invoiceDao().insert(InvoiceEntity(number = number, kind = kind, partyId = partyId, subtotalRial = subtotal, discountRial = discountRial, taxRial = taxRial, totalRial = total, status = "POSTED", extraCostsRial = extraCostsRial))
             db.invoiceLineDao().insertAll(resolved.mapIndexed { index, (line, _, amount) -> InvoiceLineEntity(invoiceId = invoiceId, productId = line.productId, quantityKg = line.quantityKg, unitPriceRial = line.unitPriceRial, lineTotalRial = amount, inventoryCostRial = inventoryCosts[index]) })
             resolved.forEach { (line, _, _) -> db.stockDao().insert(StockMovementEntity(productId = line.productId, quantityKg = if (kind == "SALE") -line.quantityKg else line.quantityKg, kind = if (kind == "SALE") "SALE" else "PURCHASE", referenceId = invoiceId, note = number)) }
             ensureBaseAccounts()
-            val drafts = AccountingEngine.invoicePostingLines(kind, subtotal, discountRial, taxRial)
+            val drafts = AccountingEngine.invoicePostingLines(kind, subtotal, discountRial, taxRial, extraCostsRial)
             val voucherId = db.voucherDao().insert(VoucherEntity(number = "S-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8), description = if (kind == "SALE") "ثبت فروش چندردیفی " + number else "ثبت خرید چندردیفی " + number, reference = "INVOICE:" + invoiceId))
             val voucherLines = drafts.map { draft ->
                 val account = db.accountDao().byCode(draft.accountCode)
@@ -315,7 +316,12 @@ class AccountingRepository(private val db: AppDatabase) {
             val taxBefore = proportional(invoice.taxRial, netReturnedBefore, originalNet).coerceAtMost(invoice.taxRial)
             val taxAfter = proportional(invoice.taxRial, netReturnedAfter, originalNet).coerceAtMost(invoice.taxRial)
             val taxReturn = Math.subtractExact(taxAfter, taxBefore)
-            val returnAmount = Math.addExact(netReturn, taxReturn)
+            val extraCostsBefore = proportional(invoice.extraCostsRial, grossReturnedBefore, invoice.subtotalRial)
+                .coerceAtMost(invoice.extraCostsRial)
+            val extraCostsAfter = proportional(invoice.extraCostsRial, grossReturnedAfter, invoice.subtotalRial)
+                .coerceAtMost(invoice.extraCostsRial)
+            val extraCostsReturn = Math.subtractExact(extraCostsAfter, extraCostsBefore)
+            val returnAmount = Math.addExact(Math.addExact(netReturn, taxReturn), extraCostsReturn)
             require(returnAmount > 0) { "مبلغ برگشت باید بیشتر از صفر باشد" }
             val alreadyReturned = db.invoiceReturnDao().returnedForInvoice(invoiceId)
             val alreadySettled = db.invoiceDao().settledForInvoice(invoiceId)

@@ -40,6 +40,32 @@ class AccountingEngineTest {
         assertTrue(AccountingEngine.isBalanced(lines))
     }
 
+    @Test fun purchaseReversalAdjustmentBalancesWhenActualCostIsHigher() {
+        val lines = AccountingEngine.purchaseReversalAdjustment(1_250_000L, 1_000_000L)
+        assertEquals(2, lines.size)
+        assertEquals("1301", lines[0].accountCode)
+        assertEquals(250_000L, lines[0].creditRial)
+        assertEquals("5202", lines[1].accountCode)
+        assertEquals(250_000L, lines[1].debitRial)
+        assertTrue(AccountingEngine.isBalanced(lines))
+    }
+
+    @Test fun purchaseReversalAdjustmentBalancesWhenActualCostIsLower() {
+        val lines = AccountingEngine.purchaseReversalAdjustment(750_000L, 1_000_000L)
+        assertEquals(250_000L, lines[0].debitRial)
+        assertEquals(250_000L, lines[1].creditRial)
+        assertTrue(AccountingEngine.isBalanced(lines))
+    }
+
+    @Test fun purchaseReversalAdjustmentIsEmptyWhenCostsMatch() {
+        assertTrue(AccountingEngine.purchaseReversalAdjustment(1_000_000L, 1_000_000L).isEmpty())
+    }
+
+    @Test(expected = ArithmeticException::class)
+    fun purchaseReversalAdjustmentRejectsOverflow() {
+        AccountingEngine.purchaseReversalAdjustment(Long.MAX_VALUE, 0L)
+    }
+
     @Test fun unbalancedVoucherIsRejected() {
         val lines = listOf(
             VoucherLineDraft("1103", debitRial = 1_250_000),

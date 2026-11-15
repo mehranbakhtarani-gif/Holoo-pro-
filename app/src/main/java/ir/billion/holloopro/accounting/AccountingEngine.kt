@@ -119,6 +119,28 @@ object AccountingEngine {
         require(isBalanced(lines)) { "سند حسابداری تراز نیست یا ردیف نامعتبر دارد" }
     }
 
+    fun purchaseReversalAdjustment(
+        actualInventoryCostRial: Long,
+        originalInventoryDebitRial: Long
+    ): List<VoucherLineDraft> {
+        require(actualInventoryCostRial >= 0 && originalInventoryDebitRial >= 0)
+        val difference = Math.subtractExact(actualInventoryCostRial, originalInventoryDebitRial)
+        return when {
+            difference > 0 -> listOf(
+                VoucherLineDraft("1301", creditRial = difference),
+                VoucherLineDraft("5202", debitRial = difference)
+            )
+            difference < 0 -> {
+                val adjustment = Math.negateExact(difference)
+                listOf(
+                    VoucherLineDraft("1301", debitRial = adjustment),
+                    VoucherLineDraft("5202", creditRial = adjustment)
+                )
+            }
+            else -> emptyList()
+        }
+    }
+
     fun treasuryVoucherLines(kind: String, method: String, amountRial: Long): List<VoucherLineDraft> {
         require(kind == "RECEIPT" || kind == "PAYMENT")
         require(method == "CASH" || method == "BANK")

@@ -333,29 +333,23 @@ class AccountingRepository(private val db: AppDatabase) {
                 val originalInventoryDebit = oldLines
                     .filter { it.accountId == inventoryAccount.id }
                     .fold(0L) { total, line -> Math.addExact(total, line.debitRial) }
-                val difference = Math.subtractExact(purchaseReversalInventoryCost, originalInventoryDebit)
-                if (difference > 0L) {
+                AccountingEngine.purchaseReversalAdjustment(
+                    actualInventoryCostRial = purchaseReversalInventoryCost,
+                    originalInventoryDebitRial = originalInventoryDebit
+                ).forEach { adjustment ->
+                    val accountId = when (adjustment.accountCode) {
+                        "1301" -> inventoryAccount.id
+                        "5202" -> varianceAccount.id
+                        else -> error("حساب تعدیل برگشت خرید ناشناخته است")
+                    }
                     reversalVoucherLines += VoucherLineEntity(
-                        voucherId = reverseId, accountId = inventoryAccount.id,
-                        debitRial = 0L, creditRial = difference,
-                        description = "تعدیل بهای خروج موجودی در برگشت خرید"
-                    )
-                    reversalVoucherLines += VoucherLineEntity(
-                        voucherId = reverseId, accountId = varianceAccount.id,
-                        debitRial = difference, creditRial = 0L,
-                        description = "اختلاف بهای برگشت خرید"
-                    )
-                } else if (difference < 0L) {
-                    val adjustment = Math.negateExact(difference)
-                    reversalVoucherLines += VoucherLineEntity(
-                        voucherId = reverseId, accountId = inventoryAccount.id,
-                        debitRial = adjustment, creditRial = 0L,
-                        description = "تعدیل بهای خروج موجودی در برگشت خرید"
-                    )
-                    reversalVoucherLines += VoucherLineEntity(
-                        voucherId = reverseId, accountId = varianceAccount.id,
-                        debitRial = 0L, creditRial = adjustment,
-                        description = "اختلاف بهای برگشت خرید"
+                        voucherId = reverseId,
+                        accountId = accountId,
+                        debitRial = adjustment.debitRial,
+                        creditRial = adjustment.creditRial,
+                        description = if (adjustment.accountCode == "1301")
+                            "تعدیل بهای خروج موجودی در برگشت خرید"
+                        else "اختلاف بهای برگشت خرید"
                     )
                 }
             }

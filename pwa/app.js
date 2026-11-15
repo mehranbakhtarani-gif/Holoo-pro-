@@ -262,4 +262,4 @@ async function restoreBackup(file){
  toast("بازیابی با موفقیت انجام شد");await render()
 }
 $("#exportBtn").onclick=exportBackup;$("#importBtn").onclick=()=>$("#restoreFile").click();$("#restoreFile").onchange=e=>{if(e.target.files[0])restoreBackup(e.target.files[0]).catch(x=>toast(x.message))};$("#unitBtn").onclick=()=>{showToman=!showToman;$("#unitBtn").textContent=moneyUnit();render()};$("#closeModal").onclick=$("#cancelModal").onclick=()=>$("#modal").hidden=true;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").hidden=true};
-(async()=>{db=await openDB();await ensureBaseAccounts();nav();await render();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=audit-escape1").catch(()=>{})})().catch(e=>{$("#main").innerHTML='<div class="card">خطا در راه‌اندازی پایگاه داده: '+h(e.message)+'</div>'});
+(async()=>{db=await openDB();await ensureBaseAccounts();nav();await render();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=audit-escape2").catch(()=>{})})().catch(e=>{$("#main").innerHTML='<div class="card">خطا در راه‌اندازی پایگاه داده: '+h(e.message)+'</div>'});

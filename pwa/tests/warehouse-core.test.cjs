@@ -37,3 +37,21 @@ test("rejects same-warehouse, overdrawn, duplicate and malformed transfers", () 
  assert.throws(()=>calculateWarehouseTransfer({...base,sourceRows:[...base.sourceRows,...base.sourceRows]}));
  assert.throws(()=>calculateWarehouseTransfer({...base,sourceRows:[{productId:8,warehouseId:1,stock:4,value:1.5}]}));
 });
+
+const fs = require("node:fs");
+const path = require("node:path");
+test("PWA wires warehouse core into invoice and transfer workflows", () => {
+ const root=path.resolve(__dirname,"..");
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
+ const sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
+ assert.match(app,/DB_VERSION=7/);
+ assert.match(app,/"warehouseTransfers"/);
+ assert.match(app,/calculateWarehouseStockMovement\(/);
+ assert.match(app,/calculateWarehouseTransfer\(/);
+ assert.match(app,/name="warehouseId"/);
+ assert.ok(html.indexOf("warehouse-stock.js") < html.indexOf("app.js"));
+ assert.ok(html.indexOf("warehouse-transfer.js") < html.indexOf("app.js"));
+ assert.match(sw,/\.\/warehouse-stock\.js/);
+ assert.match(sw,/\.\/warehouse-transfer\.js/);
+});

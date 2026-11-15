@@ -317,6 +317,7 @@ private fun CheckDialog(
     )
 }
 
+@Composable
 private fun HomeScreen(
     productCount: Int, partyCount: Int, invoiceCount: Int, voucherCount: Int, importCount: Int, showToman: Boolean
 ) {

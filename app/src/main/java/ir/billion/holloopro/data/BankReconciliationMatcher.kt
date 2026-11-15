@@ -82,6 +82,7 @@ object BankReconciliationMatcher {
             }
         }
         .filter { it.isLetterOrDigit() }
+        .joinToString("")
 
     private fun normalizeWords(value: String): Set<String> = value
         .lowercase()

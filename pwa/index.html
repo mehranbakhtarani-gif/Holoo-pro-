@@ -23,7 +23,15 @@
 <nav class="mobile-nav" id="mobileNav"></nav>
 </div>
 <div class="toast" id="toast" role="status"></div><div class="modal-backdrop" id="modal" hidden><section class="modal"><div class="modal-head"><h2 id="modalTitle"></h2><button class="close" id="closeModal">×</button></div><form id="entryForm"><div id="formFields" class="form-grid"></div><div class="modal-actions"><button type="button" class="btn secondary" id="cancelModal">انصراف</button><button type="submit" class="btn primary">ذخیره</button></div></form></section></div>
+<script>
+(function(){
+ const show=function(title,detail){const main=document.getElementById("main");if(!main)return;main.innerHTML="<section class=\"card\"><h2>"+title+"</h2><p>"+detail+"</p><p>نشانی صفحه: "+location.href+"</p><p>لطفاً از این صفحه عکس بگیرید و برای پشتیبانی بفرستید؛ اطلاعات ذخیره‌شده را پاک نکنید.</p></section>"};
+ window.addEventListener("error",function(e){if(e.target&&e.target!==window){show("یکی از فایل‌های برنامه بارگذاری نشد",e.target.src||e.target.href||"خطای بارگذاری فایل");return}show("خطای اجرای برنامه",e.message||"خطای ناشناخته جاوااسکریپت")},true);
+ window.addEventListener("unhandledrejection",function(e){show("خطا در آماده‌سازی دفتر",e.reason&&e.reason.message?e.reason.message:String(e.reason||"خطای ناشناخته"))});
+ setTimeout(function(){const main=document.getElementById("main");if(!window.__HOLLOO_READY__&&main&&main.querySelector(".loading"))show("راه‌اندازی برنامه کامل نشد","فایل‌های برنامه اجرا شدند اما دفتر در زمان مقرر آماده نشد. اتصال اینترنت و نسخه مرورگر را بررسی کنید.")},12000);
+})();
+</script>
 <script src="./import-cost.js?v=pwa-completion-v2" defer></script>
-<script src="./settlement.js?v=pwa-startup-fix-1" defer></script>
-<script src="./app.js?v=pwa-startup-fix-1" defer></script>
+<script src="./settlement.js?v=diagnostic-1" defer></script>
+<script src="./app.js?v=diagnostic-1" defer></script>
 </body></html>

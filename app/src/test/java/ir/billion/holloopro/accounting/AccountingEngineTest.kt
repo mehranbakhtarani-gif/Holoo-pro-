@@ -57,6 +57,18 @@ class AccountingEngineTest {
         assertTrue(AccountingEngine.isBalanced(lines))
     }
 
+    @Test fun purchaseAncillaryCostsAreCapitalizedIntoInventory() {
+        val lines = AccountingEngine.invoicePostingLines("PURCHASE", 1_000L, 100L, 90L, 25L)
+        assertEquals(1_015L, lines.first { it.accountCode == "1301" }.debitRial)
+        assertEquals(1_015L, lines.first { it.accountCode == "2101" }.creditRial)
+        assertTrue(AccountingEngine.isBalanced(lines))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun salesInvoiceCannotIncludePurchaseAncillaryCosts() {
+        AccountingEngine.invoicePostingLines("SALE", 1_000L, 0L, 90L, 25L)
+    }
+
     @Test fun invoicePostingWithoutTaxUsesTwoBalancedLines() {
         val sale = AccountingEngine.invoicePostingLines("SALE", 500_000L, 50_000L, 0L)
         val purchase = AccountingEngine.invoicePostingLines("PURCHASE", 500_000L, 50_000L, 0L)
@@ -189,6 +201,12 @@ class AccountingEngineTest {
         assertEquals(20.0, result.quantityKg, 0.000001)
         assertEquals(2_400_000L, result.valueRial)
         assertEquals(120_000L, InventoryValuationEngine.averageCostPerKgRial(result))
+    }
+
+    @Test fun zeroCostReturnedInventoryCanBeReceivedWithoutInventingValue() {
+        val result = InventoryValuationEngine.receive(InventoryValuation(2.0, 200L), 1.0, 0L)
+        assertEquals(3.0, result.quantityKg, 0.000001)
+        assertEquals(200L, result.valueRial)
     }
 
     @Test fun weightedAverageIssueReducesQuantityAndBookValueTogether() {

@@ -813,7 +813,7 @@ class AccountingRepository(private val db: AppDatabase) {
     suspend fun matchBankStatementLine(statementLineId: Long, treasuryEntryId: Long) {
         db.withTransaction {
             val line = db.bankStatementDao().getById(statementLineId) ?: error("ردیف صورت‌حساب بانکی پیدا نشد")
-            require(line.matchedTreasuryEntryId == null) { "این ردیف بانکی قبلاً تطبیق داده شده است" }
+            require(line.matchedTreasuryEntryId == null && line.matchedCheckId == null && line.matchedVoucherId == null) { "این ردیف بانکی قبلاً تطبیق داده شده است" }
             val entry = db.treasuryDao().byId(treasuryEntryId) ?: error("سند دریافت/پرداخت پیدا نشد")
             require(entry.method == "BANK") { "فقط دریافت یا پرداخت بانکی قابل تطبیق است" }
             require(db.bankStatementDao().countMatches(treasuryEntryId) == 0) { "این سند قبلاً با گردش بانکی دیگری تطبیق داده شده است" }

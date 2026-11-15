@@ -729,8 +729,8 @@ private fun InvoicesScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (remaining > 0L) OutlinedButton(onClick = { allocationTarget = invoice }) { Text("تخصیص دریافت/پرداخت") }
                                 if (returnableLines.any { it.invoiceId == invoice.id && it.originalQuantityKg - it.returnedQuantityKg > 0.000001 }) OutlinedButton(onClick = { returnTarget = invoice }) { Text("برگشت جزئی") }
-                                if (paid == 0L) TextButton(onClick = { onReverse(invoice.id) }) { Text("برگشت", color = Color(0xFFFFA4A4)) }
-                                else Text("برای برگشت، ابتدا تخصیص تسویه را لغو کن", color = Muted, fontSize = 10.sp)
+                                if (paid == 0L && returned == 0L) TextButton(onClick = { onReverse(invoice.id) }) { Text("برگشت کامل", color = Color(0xFFFFA4A4)) }
+                                else Text("برای برگشت کامل، ابتدا تخصیص‌ها و برگشت‌های جزئی را بررسی کن", color = Muted, fontSize = 10.sp)
                             }
                         }
                     }
@@ -770,7 +770,7 @@ private fun InvoicesScreen(
 
 @Composable
 private fun InvoiceAllocationDialog(
-    invoice: InvoiceEntity, party: PartyEntity?, settlements: List<InvoiceSettlementRow>,
+    invoice: InvoiceEntity, party: PartyEntity?, settlements: List<InvoiceSettlementRow>, returnTotals: List<InvoiceReturnSummaryRow>,
     treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
     onDismiss: () -> Unit, onAllocate: (Long, Long, () -> Unit) -> Unit
 ) {

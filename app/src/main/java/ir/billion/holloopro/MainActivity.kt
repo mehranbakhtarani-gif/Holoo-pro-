@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import ir.billion.holloopro.accounting.LandedCostCalculator
 import ir.billion.holloopro.accounting.Money
 import ir.billion.holloopro.accounting.VoucherLineDraft
+import java.math.BigInteger
 import ir.billion.holloopro.data.CheckEntity
 import ir.billion.holloopro.data.DatabaseBackup
 import ir.billion.holloopro.data.ImportOrderEntity
@@ -126,6 +127,7 @@ class MainActivity : ComponentActivity() {
                         onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
                         onAddManualVoucher = vm::addManualVoucher,
+                        onUpdateOpeningBalances = vm::updateOpeningBalances,
                         onLoadDemoData = vm::loadDemoData,
                         onAddCheck = vm::addCheck,
                         onUpdateCheckStatus = vm::updateCheckStatus,
@@ -194,6 +196,7 @@ private fun HolooApp(
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
+    onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
     onLoadDemoData: () -> Unit,
     onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateCheckStatus: (Long, String) -> Unit,
@@ -280,7 +283,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -736,6 +739,7 @@ private fun AccountingScreen(
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }
+    var showOpeningDialog by remember { mutableStateOf(false) }
     val sales = invoices.filter { it.kind == "SALE" && it.status == "POSTED" }.sumOf { it.totalRial }
     val purchases = invoices.filter { it.kind == "PURCHASE" && it.status == "POSTED" }.sumOf { it.totalRial }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -743,6 +747,7 @@ private fun AccountingScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("دفتر و حسابداری دوبل", modifier = Modifier.weight(1f), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = { showOpeningDialog = true }) { Text("مانده افتتاحیه") }
                     OutlinedButton(onClick = { showManualDialog = true }) { Text("سند دستی") }
                     Button(onClick = { showDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) {
                         Text("دریافت/پرداخت")
@@ -869,6 +874,63 @@ private fun AccountingScreen(
             }
         )
     }
+    if (showOpeningDialog) {
+        OpeningBalancesDialog(
+            accounts = trialBalance,
+            onDismiss = { showOpeningDialog = false },
+            onSave = { values -> onUpdateOpeningBalances(values); showOpeningDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun OpeningBalancesDialog(
+    accounts: List<AccountTrialBalanceRow>,
+    onDismiss: () -> Unit,
+    onSave: (Map<String, Pair<Long, Long>>) -> Unit
+) {
+    var values by remember {
+        mutableStateOf(accounts.associate { it.accountCode to (it.openingDebitRial to it.openingCreditRial) })
+    }
+    val debitTotal = values.values.fold(BigInteger.ZERO) { total, value -> total + BigInteger.valueOf(value.first) }
+    val creditTotal = values.values.fold(BigInteger.ZERO) { total, value -> total + BigInteger.valueOf(value.second) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ثبت مانده افتتاحیه حساب‌ها") },
+        text = {
+            Column(
+                modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("مانده‌های ابتدای دوره را وارد کنید. جمع دو ستون باید برابر باشد.", color = Muted, fontSize = 11.sp)
+                accounts.forEach { account ->
+                    val amount = values[account.accountCode] ?: (0L to 0L)
+                    GlassCard {
+                        Text("${account.accountCode} • ${account.accountTitle}", color = Turquoise, fontWeight = FontWeight.Bold)
+                        OutlinedTextField(
+                            amount.first.takeIf { it > 0 }?.toString() ?: "",
+                            { raw -> values = values.toMutableMap().also { it[account.accountCode] = (raw.filter(Char::isDigit).toLongOrNull() ?: 0L) to 0L } },
+                            label = { Text("افتتاحیه بدهکار (ریال)") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        OutlinedTextField(
+                            amount.second.takeIf { it > 0 }?.toString() ?: "",
+                            { raw -> values = values.toMutableMap().also { it[account.accountCode] = 0L to (raw.filter(Char::isDigit).toLongOrNull() ?: 0L) } },
+                            label = { Text("افتتاحیه بستانکار (ریال)") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
+                }
+                Text("جمع بدهکار: $debitTotal ریال", color = Turquoise, fontSize = 11.sp)
+                Text("جمع بستانکار: $creditTotal ریال", color = if (debitTotal == creditTotal && debitTotal.signum() > 0) Turquoise else Color(0xFFFF9D9D), fontSize = 11.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(values) }) { Text("ذخیره مانده‌ها") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
+    )
 }
 
 @Composable

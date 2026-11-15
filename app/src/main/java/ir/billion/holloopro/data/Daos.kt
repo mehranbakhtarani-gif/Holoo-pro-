@@ -146,6 +146,9 @@ interface AccountDao {
 
     @Query("SELECT * FROM accounts WHERE id = :id LIMIT 1")
     suspend fun byId(id: Long): AccountEntity?
+
+    @Update
+    suspend fun update(account: AccountEntity)
 }
 
 @Dao

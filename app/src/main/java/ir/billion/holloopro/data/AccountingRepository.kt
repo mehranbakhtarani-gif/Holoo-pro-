@@ -259,6 +259,22 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun updateOpeningBalances(values: Map<String, Pair<Long, Long>>) {
+        require(values.isNotEmpty()) { "مانده افتتاحیه‌ای برای ثبت وجود ندارد" }
+        require(values.values.all { (debit, credit) -> debit >= 0 && credit >= 0 && !(debit > 0 && credit > 0) }) {
+            "هر حساب باید مانده بدهکار یا بستانکار داشته باشد، نه هر دو"
+        }
+        val debitTotal = values.values.fold(java.math.BigInteger.ZERO) { total, value -> total + java.math.BigInteger.valueOf(value.first) }
+        val creditTotal = values.values.fold(java.math.BigInteger.ZERO) { total, value -> total + java.math.BigInteger.valueOf(value.second) }
+        require(debitTotal.signum() > 0 && debitTotal == creditTotal) { "جمع مانده افتتاحیه بدهکار و بستانکار باید برابر و بیشتر از صفر باشد" }
+        db.withTransaction {
+            values.forEach { (code, amount) ->
+                val account = db.accountDao().byCode(code) ?: error("حساب $code پیدا نشد")
+                db.accountDao().update(account.copy(openingDebitRial = amount.first, openingCreditRial = amount.second))
+            }
+        }
+    }
+
     suspend fun addManualVoucher(description: String, drafts: List<VoucherLineDraft>) {
         require(description.isNotBlank()) { "شرح سند الزامی است" }
         require(drafts.size >= 2) { "سند باید حداقل دو ردیف داشته باشد" }

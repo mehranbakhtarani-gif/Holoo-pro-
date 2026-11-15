@@ -881,6 +881,30 @@ class AccountingRepository(private val db: AppDatabase) {
         ))
     }
 
+    suspend fun editBankStatementLine(
+        id: Long, bankName: String, transactionDateEpoch: Long, signedAmountRial: Long,
+        bankReference: String, description: String
+    ) {
+        require(bankName.isNotBlank()) { "نام بانک الزامی است" }
+        require(transactionDateEpoch > 0L) { "تاریخ گردش بانکی معتبر نیست" }
+        require(signedAmountRial != 0L && signedAmountRial != Long.MIN_VALUE) { "مبلغ گردش بانکی معتبر نیست" }
+        db.withTransaction {
+            val old = db.bankStatementDao().getById(id) ?: error("ردیف صورت‌حساب بانکی پیدا نشد")
+            require(old.matchedTreasuryEntryId == null && old.matchedCheckId == null && old.matchedVoucherId == null) {
+                "ابتدا تطبیق این گردش را لغو کنید؛ گردش تطبیق‌شده قابل ویرایش مستقیم نیست"
+            }
+            val duplicateCount = db.bankStatementDao().countDuplicate(
+                bankName.trim(), transactionDateEpoch, signedAmountRial, bankReference.trim(), description.trim()
+            )
+            require(duplicateCount <= 1) { "گردش مشابه دیگری با همین مشخصات ثبت شده است" }
+            db.bankStatementDao().update(old.copy(
+                bankName = bankName.trim(), transactionDateEpoch = transactionDateEpoch,
+                signedAmountRial = signedAmountRial, bankReference = bankReference.trim(),
+                description = description.trim()
+            ))
+        }
+    }
+
     suspend fun matchBankStatementLine(statementLineId: Long, treasuryEntryId: Long) {
         db.withTransaction {
             val line = db.bankStatementDao().getById(statementLineId) ?: error("ردیف صورت‌حساب بانکی پیدا نشد")

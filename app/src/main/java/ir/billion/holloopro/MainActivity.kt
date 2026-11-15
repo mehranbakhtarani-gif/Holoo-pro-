@@ -129,6 +129,7 @@ class MainActivity : ComponentActivity() {
                         onAddTreasury = vm::addTreasury,
                         onAddManualVoucher = vm::addManualVoucher,
                         onUpdateOpeningBalances = vm::updateOpeningBalances,
+                        onSaveAccount = vm::saveAccount,
                         onReverseManualVoucher = vm::reverseManualVoucher,
                         onLoadDemoData = vm::loadDemoData,
                         onAddCheck = vm::addCheck,
@@ -200,6 +201,7 @@ private fun HolooApp(
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
     onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
+    onSaveAccount: (String, String, String, () -> Unit) -> Unit,
     onReverseManualVoucher: (String) -> Unit,
     onLoadDemoData: () -> Unit,
     onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
@@ -287,7 +289,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onReverseManualVoucher)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -811,12 +813,15 @@ private fun AccountingScreen(
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
     onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
+    onSaveAccount: (String, String, String, () -> Unit) -> Unit,
     onReverseManualVoucher: (String) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }
     var showOpeningDialog by remember { mutableStateOf(false) }
     var reversalTarget by remember { mutableStateOf<String?>(null) }
+    var accountEditor by remember { mutableStateOf<AccountTrialBalanceRow?>(null) }
+    var showNewAccount by remember { mutableStateOf(false) }
     var ledgerAccountFilter by remember { mutableStateOf("همه حساب‌ها") }
     var ledgerFromFilter by remember { mutableStateOf("") }
     var ledgerToFilter by remember { mutableStateOf("") }

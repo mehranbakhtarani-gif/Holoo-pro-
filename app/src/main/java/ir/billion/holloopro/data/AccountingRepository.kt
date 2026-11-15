@@ -321,6 +321,19 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun saveAccount(code: String, title: String, type: String) {
+        val normalizedCode = code.trim()
+        require(normalizedCode.matches(Regex("[0-9]{3,12}"))) { "کد حساب باید ۳ تا ۱۲ رقم باشد" }
+        require(title.isNotBlank()) { "عنوان حساب الزامی است" }
+        require(type in setOf("ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE")) { "گروه حساب معتبر نیست" }
+        val existing = db.accountDao().byCode(normalizedCode)
+        if (existing == null) {
+            db.accountDao().insertIgnore(AccountEntity(code = normalizedCode, title = title.trim(), type = type))
+        } else {
+            db.accountDao().update(existing.copy(title = title.trim(), type = type))
+        }
+    }
+
     suspend fun updateOpeningBalances(values: Map<String, Pair<Long, Long>>) {
         require(values.isNotEmpty()) { "مانده افتتاحیه‌ای برای ثبت وجود ندارد" }
         require(values.values.all { (debit, credit) -> debit >= 0 && credit >= 0 && !(debit > 0 && credit > 0) }) {

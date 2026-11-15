@@ -90,6 +90,9 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
 
     fun reverseInvoice(id: Long) = execute { repository.reverseInvoice(id); "فاکتور برگشت شد" }
 
+    fun saveAccount(code: String, title: String, type: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.saveAccount(code, title, type); "کد حساب ذخیره شد" }
+
     fun updateOpeningBalances(values: Map<String, Pair<Long, Long>>) =
         execute { repository.updateOpeningBalances(values); "مانده افتتاحیه حساب‌ها ذخیره و تراز شد" }
 

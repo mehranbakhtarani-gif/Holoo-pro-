@@ -975,6 +975,93 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun editCheck(
+        id: Long, checkNumber: String, kind: String, partyId: Long, amountRial: Long,
+        issueDateEpoch: Long, dueDateEpoch: Long, bankName: String, note: String
+    ) {
+        val normalized = checkNumber.trim()
+        require(normalized.isNotBlank()) { "شماره چک الزامی است" }
+        require(kind == "RECEIVED" || kind == "PAYABLE") { "نوع چک نامعتبر است" }
+        require(amountRial > 0L) { "مبلغ چک باید بیشتر از صفر باشد" }
+        require(issueDateEpoch > 0L && dueDateEpoch >= issueDateEpoch) { "تاریخ‌های چک معتبر نیستند" }
+        db.withTransaction {
+            val old = db.checkDao().getById(id) ?: error("چک پیدا نشد")
+            require(old.status == "OPEN") { "فقط چک باز و تسویه‌نشده قابل ویرایش است" }
+            require(db.bankStatementDao().countCheckMatches(id) == 0) { "چک به گردش بانکی متصل است و قابل ویرایش نیست" }
+            val duplicate = db.checkDao().byCheckNumber(normalized)
+            require(duplicate == null || duplicate.id == id) { "این شماره چک قبلاً ثبت شده است" }
+            val oldParty = db.partyDao().getById(old.partyId) ?: error("طرف حساب قبلی پیدا نشد")
+            val newParty = db.partyDao().getById(partyId) ?: error("طرف حساب جدید پیدا نشد")
+            if (kind == "RECEIVED") require(newParty.kind != "SUPPLIER") { "برای چک دریافتی مشتری انتخاب کنید" }
+            else require(newParty.kind != "CUSTOMER") { "برای چک پرداختی تأمین‌کننده انتخاب کنید" }
+
+            ensureBaseAccounts()
+            var originalVoucher = db.voucherDao().byReference("CHECK:$id:ISSUE")
+            if (originalVoucher == null) {
+                postCheckVoucher(
+                    id, "ISSUE",
+                    if (old.kind == "RECEIVED") "دریافت چک از ${oldParty.name}" else "صدور چک برای ${oldParty.name}",
+                    AccountingEngine.checkVoucherLines(old.kind, "ISSUE", old.amountRial)
+                )
+                if (db.partyLedgerDao().countCheckEntries(old.partyId, id) == 0) {
+                    db.partyLedgerDao().insert(PartyLedgerEntity(
+                        partyId = old.partyId,
+                        debitRial = if (old.kind == "PAYABLE") old.amountRial else 0L,
+                        creditRial = if (old.kind == "RECEIVED") old.amountRial else 0L,
+                        description = "ثبت اولیه حسابداری چک شماره ${old.checkNumber}",
+                        referenceId = id
+                    ))
+                }
+                originalVoucher = db.voucherDao().byReference("CHECK:$id:ISSUE")
+            }
+            val sourceVoucher = originalVoucher ?: error("سند اولیه چک پیدا نشد")
+            val sourceLines = db.voucherLineDao().byVoucher(sourceVoucher.id)
+            require(sourceLines.isNotEmpty()) { "سند اولیه چک ردیف حسابداری ندارد" }
+            val token = UUID.randomUUID().toString().take(8)
+            val reversalDescription = "سند اصلاحی چک شماره ${old.checkNumber}"
+            val reversalId = db.voucherDao().insert(VoucherEntity(
+                number = "CH-$id-EDIT-REV-$token",
+                description = reversalDescription,
+                reference = "CHECK:$id:EDIT_REV:$token"
+            ))
+            db.voucherLineDao().insertAll(sourceLines.map { line ->
+                VoucherLineEntity(
+                    voucherId = reversalId, accountId = line.accountId,
+                    debitRial = line.creditRial, creditRial = line.debitRial,
+                    description = reversalDescription
+                )
+            })
+            if (db.partyLedgerDao().countCheckEntries(old.partyId, id) > 0) {
+                db.partyLedgerDao().insert(PartyLedgerEntity(
+                    partyId = old.partyId,
+                    debitRial = if (old.kind == "RECEIVED") old.amountRial else 0L,
+                    creditRial = if (old.kind == "PAYABLE") old.amountRial else 0L,
+                    description = "اصلاح و برگشت ثبت قبلی چک شماره ${old.checkNumber}",
+                    referenceId = id
+                ))
+            }
+            val updated = old.copy(
+                checkNumber = normalized, kind = kind, partyId = partyId, amountRial = amountRial,
+                issueDateEpoch = issueDateEpoch, dueDateEpoch = dueDateEpoch,
+                bankName = bankName.trim(), note = note.trim()
+            )
+            db.checkDao().update(updated)
+            val event = "ISSUE_EDIT_$token"
+            postCheckVoucher(
+                id, event,
+                if (kind == "RECEIVED") "اصلاح دریافت چک از ${newParty.name}" else "اصلاح صدور چک برای ${newParty.name}",
+                AccountingEngine.checkVoucherLines(kind, "ISSUE", amountRial)
+            )
+            db.partyLedgerDao().insert(PartyLedgerEntity(
+                partyId = partyId,
+                debitRial = if (kind == "PAYABLE") amountRial else 0L,
+                creditRial = if (kind == "RECEIVED") amountRial else 0L,
+                description = if (kind == "RECEIVED") "اصلاح و ثبت دریافت چک شماره $normalized" else "اصلاح و ثبت صدور چک شماره $normalized",
+                referenceId = id
+            ))
+        }
+    }
+
     suspend fun updateCheckStatus(id: Long, status: String) {
         require(status in setOf("OPEN", "CLEARED", "BOUNCED", "CANCELLED")) { "وضعیت چک نامعتبر است" }
         db.withTransaction {

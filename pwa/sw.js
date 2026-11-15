@@ -1,4 +1,4 @@
-const CACHE="holloo-pwa-v35-financial-statements";
+const CACHE="holloo-pwa-v36-accounting-close";
 const ASSETS=["./","./index.html","./style.css","./app.js","./import-cost.js","./settlement.js","./warehouse-stock.js","./warehouse-transfer.js","./foreign-currency.js","./accounting-reports.js","./manifest.webmanifest","./icon.svg"];
 const NETWORK_FIRST=/\/(?:index\.html|app\.js|import-cost\.js|settlement\.js|warehouse-stock\.js|warehouse-transfer\.js|foreign-currency\.js|accounting-reports\.js|style\.css|manifest\.webmanifest|sw\.js)(?:\?.*)?$/;
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));

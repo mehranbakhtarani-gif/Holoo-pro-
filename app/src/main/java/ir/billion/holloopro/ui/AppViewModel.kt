@@ -93,8 +93,8 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun createInvoice(kind: String, partyId: Long, productId: Long, quantity: Double, price: Long, discount: Long, tax: Long) =
         execute { repository.createAndPostInvoice(kind, partyId, productId, quantity, price, discount, tax); "فاکتور ثبت و سند حسابداری صادر شد" }
 
-    fun createMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discount: Long, tax: Long, onSuccess: () -> Unit) =
-        execute(onSuccess) { repository.createAndPostMultiLineInvoice(kind, partyId, lines, discount, tax); "فاکتور چندردیفی ثبت و سند حسابداری صادر شد" }
+    fun createMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discount: Long, tax: Long, extraCosts: Long, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.createAndPostMultiLineInvoice(kind, partyId, lines, discount, tax, extraCosts); "فاکتور چندردیفی ثبت و سند حسابداری صادر شد" }
 
     fun reverseInvoice(id: Long) = execute { repository.reverseInvoice(id); "فاکتور برگشت شد" }
 

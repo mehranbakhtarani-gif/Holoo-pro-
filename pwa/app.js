@@ -226,9 +226,13 @@ if(page==="invoices"){
   const lineTotal=Math.round(qty*price);if(!Number.isSafeInteger(lineTotal)||lineTotal<=0)throw Error("مبلغ ردیف خارج از محدوده مجاز است");
   let lineCogs=0;
   if(kind==="SALE"){
-   if(Number(product.stock||0)+1e-9<qty)throw Error("موجودی کالای "+product.name+" کافی نیست");
-   if(!(Number(product.avg)>0))throw Error("بهای موجودی "+product.name+" مشخص نیست؛ ابتدا خرید یا رسید دارای بهای تمام‌شده ثبت کنید");
-   lineCogs=Math.round(qty*Number(product.avg));product.stock=Number(product.stock)-qty;product.value=Math.max(0,Number(product.value||0)-lineCogs);cogs+=lineCogs;
+   const available=Number(product.stock||0),currentValue=Number(product.value||0);
+   if(!Number.isFinite(available)||available+1e-9<qty)throw Error("موجودی کالای "+product.name+" کافی نیست");
+   if(!(Number(product.avg)>0)||!Number.isSafeInteger(currentValue)||currentValue<0)throw Error("بهای موجودی "+product.name+" مشخص نیست؛ ابتدا خرید یا رسید دارای بهای تمام‌شده ثبت کنید");
+   const fullIssue=qty>=available-1e-9;
+   lineCogs=fullIssue?currentValue:Math.round(qty*Number(product.avg));
+   if(!Number.isSafeInteger(lineCogs)||lineCogs<0||lineCogs>currentValue)throw Error("بهای خروج موجودی نامعتبر است");
+   product.stock=fullIssue?0:available-qty;product.value=fullIssue?0:currentValue-lineCogs;product.avg=product.stock>1e-9?product.value/product.stock:0;cogs+=lineCogs;
   }else{
    product.value=Number(product.value||0)+lineTotal;product.stock=Number(product.stock||0)+qty;product.avg=product.value/product.stock;
   }

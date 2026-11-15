@@ -45,6 +45,8 @@ import ir.billion.holloopro.data.AccountTrialBalanceRow
 import ir.billion.holloopro.data.LedgerRow
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.InvoiceLineInput
+import ir.billion.holloopro.data.InvoiceSettlementRow
+import ir.billion.holloopro.data.TreasuryEntryEntity
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductEntity
 import ir.billion.holloopro.data.ProductWithStock
@@ -98,6 +100,7 @@ class MainActivity : ComponentActivity() {
                     val parties by vm.parties.collectAsState()
                     val partyBalances by vm.partyBalances.collectAsState()
                     val invoices by vm.invoices.collectAsState()
+                    val invoiceSettlements by vm.invoiceSettlements.collectAsState()
                     val imports by vm.imports.collectAsState()
                     val treasury by vm.treasury.collectAsState()
                     val accountBalances by vm.accountBalances.collectAsState()
@@ -124,6 +127,8 @@ class MainActivity : ComponentActivity() {
                         onDeleteParty = vm::deleteParty,
                         onCreateInvoice = vm::createMultiLineInvoice,
                         onReverseInvoice = vm::reverseInvoice,
+                        invoiceSettlements = invoiceSettlements,
+                        onAllocateTreasury = vm::allocateTreasuryToInvoice,
                         onAddImport = vm::addImport,
                         onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
@@ -174,6 +179,7 @@ private fun HolooApp(
     parties: List<PartyEntity>,
     partyBalances: List<ir.billion.holloopro.data.PartyBalanceRow>,
     invoices: List<InvoiceEntity>,
+    invoiceSettlements: List<InvoiceSettlementRow>,
     imports: List<ImportOrderEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
@@ -196,6 +202,7 @@ private fun HolooApp(
     onDeleteParty: (Long) -> Unit,
     onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
     onReverseInvoice: (Long) -> Unit,
+    onAllocateTreasury: (Long, Long, Long) -> Unit,
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
@@ -287,7 +294,7 @@ private fun HolooApp(
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
-                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
+                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, treasury, showToman, onCreateInvoice, onReverseInvoice, onAllocateTreasury)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
@@ -644,26 +651,37 @@ private fun PartiesScreen(
 
 @Composable
 private fun InvoicesScreen(
-    parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>, showToman: Boolean,
-    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit, onReverse: (Long) -> Unit
+    parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>,
+    settlements: List<InvoiceSettlementRow>, treasury: List<TreasuryEntryEntity>, showToman: Boolean,
+    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
+    onReverse: (Long) -> Unit, onAllocate: (Long, Long, Long) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
+    var allocationTarget by remember { mutableStateOf<InvoiceEntity?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        SectionHeader("فاکتور خرید و فروش", "ثبت سند، کنترل موجودی و برگشت فاکتور") { dialog = true }
+        SectionHeader("فاکتور خرید و فروش", "ثبت سند، کنترل موجودی و تسویه مرحله‌ای") { dialog = true }
         if (invoices.isEmpty()) EmptyState("فاکتوری ثبت نشده است", "برای ثبت خرید یا فروش، فاکتور جدید بساز")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
             items(invoices, key = { it.id }) { invoice ->
                 val partyName = parties.firstOrNull { it.id == invoice.partyId }?.name ?: "طرف حساب"
+                val paid = settlements.firstOrNull { it.invoiceId == invoice.id }?.paidRial ?: 0L
+                val remaining = (invoice.totalRial - paid).coerceAtLeast(0L)
                 GlassCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(if (invoice.kind == "SALE") "فروش به $partyName" else "خرید از $partyName", color = Color.White, fontWeight = FontWeight.Bold)
-                            Text(invoice.number, color = Muted, fontSize = 10.sp)
-                            Text("${formatMoney(invoice.totalRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise)
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(if (invoice.kind == "SALE") "فروش به $partyName" else "خرید از $partyName", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(invoice.number, color = Muted, fontSize = 10.sp)
+                            }
                             Text(if (invoice.status == "POSTED") "ثبت‌شده" else "برگشت‌شده", color = Muted, fontSize = 11.sp)
                         }
-                        if (invoice.status == "POSTED") TextButton(onClick = { onReverse(invoice.id) }) {
-                            Text("برگشت", color = Color(0xFFFFA4A4))
+                        Text("مبلغ فاکتور: ${formatMoney(invoice.totalRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Color.White)
+                        Text("تسویه‌شده: ${formatMoney(paid, showToman)}  •  مانده: ${formatMoney(remaining, showToman)} ${if (showToman) "تومان" else "ریال"}", color = if (remaining == 0L) Turquoise else Color(0xFFFFC47A), fontSize = 12.sp)
+                        if (invoice.status == "POSTED") {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (remaining > 0L) OutlinedButton(onClick = { allocationTarget = invoice }) { Text("تخصیص دریافت/پرداخت") }
+                                TextButton(onClick = { onReverse(invoice.id) }) { Text("برگشت", color = Color(0xFFFFA4A4)) }
+                            }
                         }
                     }
                 }
@@ -671,6 +689,67 @@ private fun InvoicesScreen(
         }
     }
     if (dialog) InvoiceDialog(parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax -> onCreate(kind, partyId, lines, discount, tax) { dialog = false } })
+    allocationTarget?.let { invoice ->
+        InvoiceAllocationDialog(
+            invoice = invoice, party = parties.firstOrNull { it.id == invoice.partyId},
+            settlements = settlements, treasury = treasury, showToman = showToman,
+            onDismiss = { allocationTarget = null },
+            onAllocate = { entryId, amount -> onAllocate(entryId, invoice.id, amount) }
+        )
+    }
+}
+
+@Composable
+private fun InvoiceAllocationDialog(
+    invoice: InvoiceEntity, party: PartyEntity?, settlements: List<InvoiceSettlementRow>,
+    treasury: List<TreasuryEntryEntity>, showToman: Boolean,
+    onDismiss: () -> Unit, onAllocate: (Long, Long) -> Unit
+) {
+    var selectedEntry by remember(invoice.id) { mutableStateOf(0L) }
+    var amountText by remember(invoice.id) { mutableStateOf("") }
+    val paid = settlements.firstOrNull { it.invoiceId == invoice.id }?.paidRial ?: 0L
+    val invoiceRemaining = (invoice.totalRial - paid).coerceAtLeast(0L)
+    val expectedKind = if (invoice.kind == "SALE") "RECEIPT" else "PAYMENT"
+    val candidates = treasury.filter { it.partyId == invoice.partyId && it.kind == expectedKind }
+    val used = selectedEntry.takeIf { it > 0L }?.let { id -> treasury.firstOrNull { it.id == id } }
+    val entryAllocated = used?.let { entry -> 0L } ?: 0L
+    val amount = amountText.toLongOrNull()?.let { if (showToman) it * 10L else it }
+    val entryRemaining = used?.let { entry -> (entry.amountRial - entryAllocated).coerceAtLeast(0L) } ?: 0L
+    val valid = selectedEntry > 0L && amount != null && amount > 0L && amount <= invoiceRemaining && amount <= entryRemaining
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("تخصیص به ${invoice.number}") },
+        text = {
+            Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("مانده فاکتور: ${formatMoney(invoiceRemaining, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise)
+                Text("طرف حساب: ${party?.name ?: "نامشخص"}", color = Muted, fontSize = 12.sp)
+                if (candidates.isEmpty()) Text("برای این طرف حساب هنوز دریافت/پرداختی ثبت نشده است. ابتدا از بخش حسابداری یک رسید ثبت کن.", color = Color(0xFFFFC47A), fontSize = 12.sp)
+                else {
+                    Text("رسید دریافت/پرداخت", color = Color.White, fontWeight = FontWeight.Bold)
+                    candidates.forEach { entry ->
+                        val selected = selectedEntry == entry.id
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                .background(if (selected) Color(0x4436D6C5) else Color(0x22102030))
+                                .clickable { selectedEntry = entry.id }.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = selected, onClick = { selectedEntry = entry.id })
+                            Column(Modifier.weight(1f)) {
+                                Text("${if (entry.kind == "RECEIPT") "دریافت" else "پرداخت"} • ${entry.referenceNumber.ifBlank { "بدون شماره" }}", color = Color.White)
+                                Text("${formatMoney(entry.amountRial, showToman)} ${if (showToman) "تومان" else "ریال"} • ${entry.note}", color = Muted, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                    FormField("مبلغ تخصیص ${if (showToman) "(تومان)" else "(ریال)"}", amountText, KeyboardType.Number) { amountText = it.filter(Char::isDigit) }
+                    Text("می‌توانی با چند رسید، این فاکتور را مرحله‌ای تسویه کنی.", color = Muted, fontSize = 10.sp)
+                }
+            }
+        },
+        confirmButton = { TextButton(enabled = valid, onClick = { onAllocate(selectedEntry, amount!!); onDismiss() }) { Text("ثبت تخصیص") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("بستن") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+    )
 }
 
 @Composable

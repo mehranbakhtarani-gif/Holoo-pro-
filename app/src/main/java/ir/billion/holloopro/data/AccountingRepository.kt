@@ -1080,6 +1080,40 @@ class AccountingRepository(private val db: AppDatabase) {
     }
 
 
+    suspend fun updateImportOrder(
+        orderId: Long, supplierId: Long, currency: String, fxRateToRial: Long, containerCode: String,
+        grossWeightKg: Double, goodsAmountMinor: Long, freightRial: Long, customsRial: Long,
+        otherCostsRial: Long, creditDays: Int
+    ) {
+        val normalizedContainer = containerCode.trim().uppercase(Locale.ROOT)
+        require(currency in setOf("USD", "CNY", "IRR")) { "ارز انتخاب‌شده معتبر نیست" }
+        require(fxRateToRial > 0) { "نرخ ارز باید بیشتر از صفر باشد" }
+        require(grossWeightKg > 0.0 && grossWeightKg.isFinite()) { "وزن کانتینر باید مثبت و معتبر باشد" }
+        require(goodsAmountMinor > 0) { "مبلغ کالا باید بیشتر از صفر باشد" }
+        require(freightRial >= 0 && customsRial >= 0 && otherCostsRial >= 0) { "هزینه‌ها نمی‌توانند منفی باشند" }
+        require(creditDays in 0..3650) { "مهلت تسویه خارج از محدوده مجاز است" }
+        require(normalizedContainer.isNotBlank()) { "شماره کانتینر الزامی است" }
+        val effectiveRate = if (currency == "IRR") 1L else fxRateToRial
+        LandedCostCalculator.totalCostRial(goodsAmountMinor, effectiveRate, freightRial, customsRial, otherCostsRial)
+        db.withTransaction {
+            val old = db.importOrderDao().getById(orderId) ?: error("سفارش واردات پیدا نشد")
+            require(old.status != "RECEIVED" && db.importReceiptDao().byOrder(orderId) == null) {
+                "پس از صدور رسید انبار، ویرایش سفارش مجاز نیست"
+            }
+            val supplier = db.partyDao().getById(supplierId) ?: error("تأمین‌کننده پیدا نشد")
+            require(supplier.kind != "CUSTOMER") { "طرف حساب انتخاب‌شده تأمین‌کننده نیست" }
+            val duplicate = db.importOrderDao().byContainerCode(normalizedContainer)
+            require(duplicate == null || duplicate.id == orderId) { "این شماره کانتینر برای سفارش دیگری ثبت شده است" }
+            val dueAt = Math.addExact(old.orderedAt, Math.multiplyExact(creditDays.toLong(), 86_400_000L))
+            db.importOrderDao().update(old.copy(
+                supplierId = supplierId, currency = currency, fxRateToRial = effectiveRate,
+                containerCode = normalizedContainer, grossWeightKg = grossWeightKg,
+                goodsAmountMinor = goodsAmountMinor, freightRial = freightRial,
+                customsRial = customsRial, otherCostsRial = otherCostsRial, supplierDueAt = dueAt
+            ))
+        }
+    }
+
     suspend fun receiveImport(orderId: Long, lines: List<ImportReceiptLineInput>) {
         val quantities = AccountingEngine.aggregateQuantities(lines.map { it.productId to it.quantityKg })
         db.withTransaction {

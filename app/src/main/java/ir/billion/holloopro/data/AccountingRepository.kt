@@ -853,7 +853,6 @@ class AccountingRepository(private val db: AppDatabase) {
     ) {
         require(bankName.isNotBlank()) { "نام بانک الزامی است" }
         require(startDateEpoch > 0L && endDateEpoch >= startDateEpoch) { "بازه زمانی صورت‌حساب معتبر نیست" }
-        require(openingBalanceRial >= 0L && closingBalanceRial >= 0L) { "مانده‌های بانکی نمی‌توانند منفی باشند" }
         db.withTransaction {
             val normalized = bankName.trim()
             require(db.bankStatementPeriodDao().find(normalized, startDateEpoch, endDateEpoch) == null) {

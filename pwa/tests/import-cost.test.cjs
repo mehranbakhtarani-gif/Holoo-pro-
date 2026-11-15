@@ -5,6 +5,7 @@ const path = require("node:path");
 const { calculateImportShipmentCost } = require("../import-cost.js");
 const { getInvoiceSettlement, validateTreasuryAllocation } = require("../settlement.js");
 const { calculateWarehouseStockMovement } = require("../warehouse-stock.js");
+const { calculateWarehouseTransfer } = require("../warehouse-transfer.js");
 const root = path.resolve(__dirname, "..");
 
 test("calculates converted goods cost, landed cost and cost per kg", () => {
@@ -110,4 +111,25 @@ test("uses the warehouse-specific average cost for partial issues", () => {
  assert.equal(result.cogs,6000);
  assert.equal(result.stock,8);
  assert.equal(result.value,24000);
+});
+
+test("transfers stock and book value between warehouses without changing total value", () => {
+ const result=calculateWarehouseTransfer({
+  product:{id:8,name:"FDY"},
+  source:{id:1},destination:{id:2},quantity:4,
+  sourceRows:[{id:11,productId:8,warehouseId:1,stock:10,value:30000}],
+  destinationRows:[{id:12,productId:8,warehouseId:2,stock:2,value:5000}]
+ });
+ assert.equal(result.quantity,4);
+ assert.equal(result.value,12000);
+ assert.equal(result.sourceRecord.stock,6);
+ assert.equal(result.sourceRecord.value,18000);
+ assert.equal(result.destinationRecord.stock,6);
+ assert.equal(result.destinationRecord.value,17000);
+});
+
+test("rejects same-warehouse transfers and transfers beyond source stock", () => {
+ const base={product:{id:8,name:"FDY"},source:{id:1},destination:{id:2},quantity:5,sourceRows:[{id:11,productId:8,warehouseId:1,stock:4,value:12000}],destinationRows:[]};
+ assert.throws(()=>calculateWarehouseTransfer({...base,destination:{id:1}}));
+ assert.throws(()=>calculateWarehouseTransfer(base));
 });

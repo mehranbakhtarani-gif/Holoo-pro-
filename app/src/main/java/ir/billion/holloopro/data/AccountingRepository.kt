@@ -761,6 +761,61 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun editTreasuryEntry(id: Long, kind: String, method: String, partyId: Long, amountRial: Long, referenceNumber: String, note: String) {
+        require(kind == "RECEIPT" || kind == "PAYMENT")
+        require(method == "CASH" || method == "BANK")
+        require(amountRial > 0L) { "مبلغ باید بیشتر از صفر باشد" }
+        db.withTransaction {
+            val old = db.treasuryDao().byId(id) ?: error("سند پیدا نشد")
+            require(db.treasuryDao().allocatedAmount(id) == 0L) { "ابتدا تخصیص‌های این رسید به فاکتورها را لغو کنید" }
+            require(db.bankStatementDao().countMatches(id) == 0) { "ابتدا تطبیق بانکی این سند را لغو کنید" }
+            val oldParty = db.partyDao().getById(old.partyId) ?: error("طرف حساب قبلی پیدا نشد")
+            val newParty = db.partyDao().getById(partyId) ?: error("طرف حساب جدید پیدا نشد")
+            require(if (kind == "RECEIPT") newParty.kind != "SUPPLIER" else newParty.kind != "CUSTOMER") { "نوع طرف حساب با دریافت/پرداخت سازگار نیست" }
+            ensureBaseAccounts()
+            val source = db.voucherDao().byReference("TREASURY:$id") ?: error("سند حسابداری اصلی پیدا نشد")
+            val sourceLines = db.voucherLineDao().byVoucher(source.id)
+            require(sourceLines.isNotEmpty()) { "سند حسابداری اصلی ردیف ندارد" }
+            val token = UUID.randomUUID().toString().take(8)
+            val reversalDescription = "اصلاح سند دریافت/پرداخت شماره $id"
+            val reversalId = db.voucherDao().insert(VoucherEntity(
+                number = "TR-$id-REV-$token", description = reversalDescription,
+                reference = "TREASURY:$id:EDIT_REV:$token"
+            ))
+            db.voucherLineDao().insertAll(sourceLines.map { line ->
+                VoucherLineEntity(voucherId = reversalId, accountId = line.accountId,
+                    debitRial = line.creditRial, creditRial = line.debitRial, description = reversalDescription)
+            })
+            db.partyLedgerDao().insert(PartyLedgerEntity(
+                partyId = old.partyId, debitRial = if (old.kind == "RECEIPT") old.amountRial else 0L,
+                creditRial = if (old.kind == "PAYMENT") old.amountRial else 0L,
+                description = "برگشت ثبت قبلی دریافت/پرداخت شماره $id", referenceId = id
+            ))
+            db.treasuryDao().update(old.copy(kind = kind, method = method, partyId = partyId,
+                amountRial = amountRial, referenceNumber = referenceNumber.trim(), note = note.trim()))
+            val drafts = AccountingEngine.treasuryVoucherLines(kind, method, amountRial)
+            val accountDrafts = drafts.map { draft ->
+                (db.accountDao().byCode(draft.accountCode) ?: error("حساب تعریف نشده: ${draft.accountCode}")) to draft
+            }
+            val voucherId = db.voucherDao().insert(VoucherEntity(
+                number = "T-$id-EDIT-$token",
+                description = if (kind == "RECEIPT") "اصلاح دریافت از ${newParty.name}" else "اصلاح پرداخت به ${newParty.name}",
+                reference = "TREASURY:$id:EDIT:$token"
+            ))
+            db.voucherLineDao().insertAll(accountDrafts.map { (account, draft) ->
+                VoucherLineEntity(voucherId = voucherId, accountId = account.id,
+                    debitRial = draft.debitRial, creditRial = draft.creditRial,
+                    description = if (method == "CASH") "صندوق" else "بانک")
+            })
+            db.partyLedgerDao().insert(PartyLedgerEntity(
+                partyId = partyId, debitRial = if (kind == "PAYMENT") amountRial else 0L,
+                creditRial = if (kind == "RECEIPT") amountRial else 0L,
+                description = if (kind == "RECEIPT") "اصلاح و ثبت رسید دریافت" else "اصلاح و ثبت حواله پرداخت",
+                referenceId = id
+            ))
+        }
+    }
+
     suspend fun addTreasuryEntry(
         kind: String, method: String, partyId: Long, amountRial: Long,
         referenceNumber: String, note: String

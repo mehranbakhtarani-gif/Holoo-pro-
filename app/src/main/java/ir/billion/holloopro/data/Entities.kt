@@ -194,6 +194,17 @@ data class AccountBalanceRow(
     val creditRial: Long
 )
 
+data class AccountTrialBalanceRow(
+    val accountId: Long,
+    val accountCode: String,
+    val accountTitle: String,
+    val accountType: String,
+    val debitTurnoverRial: Long,
+    val creditTurnoverRial: Long,
+    val endingDebitRial: Long,
+    val endingCreditRial: Long
+)
+
 data class ProfitLossRow(val salesRial: Long, val costOfGoodsSoldRial: Long)
 
 data class LedgerRow(val voucherNumber: String, val dateEpoch: Long, val voucherDescription: String, val accountCode: String, val accountTitle: String, val debitRial: Long, val creditRial: Long)

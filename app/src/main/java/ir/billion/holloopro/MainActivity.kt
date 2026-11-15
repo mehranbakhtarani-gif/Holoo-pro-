@@ -463,8 +463,8 @@ private fun AccountingScreen(
         }
         item {
             GlassCard {
-                Text("تراز گردش حساب‌ها", color = Turquoise, fontWeight = FontWeight.Bold)
-                if (accountBalances.isEmpty()) Text("پس از ثبت نخستین سند، گردش حساب‌ها نمایش داده می‌شود.", color = Muted, fontSize = 11.sp)
+                Text("مانده خالص حساب‌ها", color = Turquoise, fontWeight = FontWeight.Bold)
+                if (accountBalances.isEmpty()) Text("مانده بدهکار یا بستانکار هر حساب پس از تهاتر گردش‌ها نمایش داده می‌شود.", color = Muted, fontSize = 11.sp)
                 accountBalances.forEach { account ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {

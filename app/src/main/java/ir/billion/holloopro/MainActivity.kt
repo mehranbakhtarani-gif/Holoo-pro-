@@ -844,7 +844,7 @@ private fun InvoiceReturnDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("برگشت جزئی • \${invoice.number}") },
+        title = { Text("برگشت جزئی • ${invoice.number}") },
         text = {
             Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("مقدار برگشتی را برای هر کالا وارد کن. موجودی و سند حسابداری متناسب با مقدار برگشتی اصلاح می‌شود.", color = Muted, fontSize = 11.sp)
@@ -853,7 +853,7 @@ private fun InvoiceReturnDialog(
                     GlassCard {
                         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(line.productName, color = Color.White, fontWeight = FontWeight.Bold)
-                            Text("فاکتور: \${formatQuantity(line.originalQuantityKg)} کیلو • برگشتی: \${formatQuantity(line.returnedQuantityKg)} • باقی‌مانده: \${formatQuantity(remaining)}", color = Muted, fontSize = 10.sp)
+                            Text("فاکتور: ${formatQuantity(line.originalQuantityKg)} کیلو • برگشتی: ${formatQuantity(line.returnedQuantityKg)} • باقی‌مانده: ${formatQuantity(remaining)}", color = Muted, fontSize = 10.sp)
                             FormField("مقدار برگشتی (کیلوگرم)", quantities[line.invoiceLineId] ?: "", KeyboardType.Decimal) {
                                 quantities[line.invoiceLineId] = it.filter { ch -> ch.isDigit() || ch == '.' }
                             }

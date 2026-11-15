@@ -483,11 +483,11 @@ private fun StatCard(label: String, value: String, symbol: String, modifier: Mod
 
 @Composable
 private fun InventoryScreen(
-    products: List<ProductWithStock>, showToman: Boolean,
+    warehouses: List<WarehouseEntity>, warehouseStocks: List<WarehouseStockRow>, products: List<ProductWithStock>, showToman: Boolean,
     onSave: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit,
     onDelete: (Long) -> Unit,
-    onSetOpeningValuation: (Long, Long) -> Unit,
-    onAdjustStock: (Long, Double, Long) -> Unit
+    onSetOpeningValuation: (Long, Long, Long) -> Unit,
+    onAdjustStock: (Long, Double, Long, Long) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
     var valuationProduct by remember { mutableStateOf<ProductWithStock?>(null) }
@@ -525,17 +525,17 @@ private fun InventoryScreen(
     }
     if (dialog) ProductDialog(existing = editing, onDismiss = { dialog = false; editing = null }, onSave = { id,a,b,c,d,e,f,g,h -> onSave(id,a,b,c,d,e,f,g,h); dialog = false; editing = null })
     valuationProduct?.let { item -> OpeningValuationDialog(
-        product = item,
+        product = item, warehouses = warehouses, warehouseStocks = warehouseStocks,
         showToman = showToman,
         onDismiss = { valuationProduct = null },
-        onSave = { costPerKgRial -> onSetOpeningValuation(item.product.id, costPerKgRial); valuationProduct = null }
+        onSave = { costPerKgRial, warehouseId -> onSetOpeningValuation(item.product.id, costPerKgRial, warehouseId); valuationProduct = null }
     ) }
     adjustmentProduct?.let { item -> StockAdjustmentDialog(
-        product = item,
+        product = item, warehouses = warehouses, warehouseStocks = warehouseStocks,
         showToman = showToman,
         onDismiss = { adjustmentProduct = null },
-        onSave = { deltaKg, costPerKgRial ->
-            onAdjustStock(item.product.id, deltaKg, costPerKgRial)
+        onSave = { deltaKg, costPerKgRial, warehouseId ->
+            onAdjustStock(item.product.id, deltaKg, costPerKgRial, warehouseId)
             adjustmentProduct = null
         }
     ) }
@@ -545,10 +545,12 @@ private fun InventoryScreen(
 @Composable
 private fun StockAdjustmentDialog(
     product: ProductWithStock,
+    warehouses: List<WarehouseEntity>, warehouseStocks: List<WarehouseStockRow>,
     showToman: Boolean,
     onDismiss: () -> Unit,
-    onSave: (Double, Long) -> Unit
+    onSave: (Double, Long, Long) -> Unit
 ) {
+    var warehouseId by remember(product.product.id) { mutableStateOf(warehouses.firstOrNull()?.id ?: 1L) }
     var quantity by remember(product.product.id) { mutableStateOf("") }
     var increase by remember(product.product.id) { mutableStateOf(true) }
     var cost by remember(product.product.id) { mutableStateOf("") }
@@ -563,7 +565,9 @@ private fun StockAdjustmentDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(product.product.name, color = Color.White, fontWeight = FontWeight.Bold)
-                Text("موجودی فعلی: ${formatQuantity(product.stockKg)} کیلوگرم", color = Muted)
+                ChoiceField("انبار", warehouses.firstOrNull { it.id == warehouseId }?.name ?: "انبار اصلی", warehouses.map { it.name }) { selected -> warehouseId = warehouses.firstOrNull { it.name == selected }?.id ?: 1L }
+                val warehouseStock = warehouseStocks.firstOrNull { it.warehouseId == warehouseId && it.productId == product.product.id }?.quantityKg ?: 0.0
+                Text("موجودی فعلی در این انبار: ${formatQuantity(warehouseStock)} کیلوگرم", color = Muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = increase, onClick = { increase = true }, label = { Text("افزایش") })
                     FilterChip(selected = !increase, onClick = { increase = false }, label = { Text("کاهش") })
@@ -574,16 +578,16 @@ private fun StockAdjustmentDialog(
                 } else {
                     Text("برای کاهش، بهای میانگین فعلی موجودی مبنای ثبت کسری قرار می‌گیرد.", color = Muted, fontSize = 10.sp)
                 }
-                Text("موجودی پس از اصلاح: ${formatQuantity(product.stockKg + delta)} کیلوگرم", color = Turquoise)
-                if (product.stockKg + delta < -0.000001) Text("موجودی نمی‌تواند منفی شود.", color = Color(0xFFFF9D9D), fontSize = 10.sp)
+                Text("موجودی پس از اصلاح: ${formatQuantity(warehouseStock + delta)} کیلوگرم", color = Turquoise)
+                if (warehouseStock + delta < -0.000001) Text("موجودی نمی‌تواند منفی شود.", color = Color(0xFFFF9D9D), fontSize = 10.sp)
             }
         },
         confirmButton = {
             TextButton(
                 enabled = quantityValue.isFinite() && quantityValue > 0.0 &&
-                    product.stockKg + delta >= -0.000001 &&
-                    (if (increase) costValue > 0 else product.inventoryValueRial > 0),
-                onClick = { onSave(delta, costValue) }
+                    (warehouseStocks.firstOrNull { it.warehouseId == warehouseId && it.productId == product.product.id }?.quantityKg ?: 0.0) + delta >= -0.000001 &&
+                    (if (increase) costValue > 0 else (warehouseStocks.firstOrNull { it.warehouseId == warehouseId && it.productId == product.product.id }?.valueRial ?: 0L) > 0),
+                onClick = { onSave(delta, costValue, warehouseId) }
             ) { Text("ثبت اصلاح") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
@@ -594,16 +598,18 @@ private fun StockAdjustmentDialog(
 @Composable
 private fun OpeningValuationDialog(
     product: ProductWithStock,
+    warehouses: List<WarehouseEntity>, warehouseStocks: List<WarehouseStockRow>,
     showToman: Boolean,
     onDismiss: () -> Unit,
-    onSave: (Long) -> Unit
+    onSave: (Long, Long) -> Unit
 ) {
+    var warehouseId by remember(product.product.id) { mutableStateOf(warehouses.firstOrNull()?.id ?: 1L) }
     var cost by remember(product.product.id) { mutableStateOf("") }
     val costRial = (cost.toBigDecimalOrNull() ?: BigDecimal.ZERO)
         .multiply(if (showToman) BigDecimal.TEN else BigDecimal.ONE)
         .setScale(0, java.math.RoundingMode.HALF_UP).toLong()
     val estimatedValue = runCatching {
-        BigDecimal.valueOf(product.stockKg).multiply(BigDecimal.valueOf(costRial))
+        BigDecimal.valueOf(warehouseStocks.firstOrNull { it.warehouseId == warehouseId && it.productId == product.product.id }?.quantityKg ?: 0.0).multiply(BigDecimal.valueOf(costRial))
             .setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
     }.getOrDefault(0L)
     AlertDialog(

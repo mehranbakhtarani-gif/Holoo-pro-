@@ -125,6 +125,7 @@ class MainActivity : ComponentActivity() {
                         onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
                         onAddManualVoucher = vm::addManualVoucher,
+                        onLoadDemoData = vm::loadDemoData,
                         onAddCheck = vm::addCheck,
                         onUpdateCheckStatus = vm::updateCheckStatus,
                         onClearMessage = vm::clearMessage,
@@ -192,6 +193,7 @@ private fun HolooApp(
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, String, String, Long, () -> Unit) -> Unit,
+    onLoadDemoData: () -> Unit,
     onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateCheckStatus: (Long, String) -> Unit,
     onClearMessage: () -> Unit,
@@ -272,7 +274,7 @@ private fun HolooApp(
                 }
             }
             when (screen) {
-                Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman)
+                Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
@@ -362,7 +364,8 @@ private fun CheckDialog(
 
 @Composable
 private fun HomeScreen(
-    productCount: Int, partyCount: Int, invoiceCount: Int, voucherCount: Int, importCount: Int, showToman: Boolean
+    productCount: Int, partyCount: Int, invoiceCount: Int, voucherCount: Int, importCount: Int, showToman: Boolean,
+    onLoadDemoData: () -> Unit
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -393,6 +396,7 @@ private fun HomeScreen(
             }
         }
         item { StatCard("سفارش‌های واردات", importCount.toString(), "▣", Modifier.fillMaxWidth()) }
+        item { OutlinedButton(onClick = onLoadDemoData, modifier = Modifier.fillMaxWidth()) { Text("بارگذاری داده‌های آزمایشی") } }
         item {
             GlassCard {
                 Text("گردش کار پیشنهادی", color = Turquoise, fontWeight = FontWeight.Bold)

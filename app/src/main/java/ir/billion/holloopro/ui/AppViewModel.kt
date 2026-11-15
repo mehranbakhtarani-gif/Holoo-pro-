@@ -52,6 +52,8 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
 
     fun clearMessage() { _message.value = null }
 
+    fun loadDemoData() = execute { repository.loadDemoData(); "داده‌های آزمایشی شامل سه کالا، دو شخص، یک خرید و یک فروش ثبت شد" }
+
     fun saveProduct(id: Long?, sku: String, name: String, group: String, yarnType: String, color: String, denier: Int, twisted: Boolean, notes: String) =
         execute {
             if (id == null) repository.addProduct(sku, name, group, yarnType, color, denier, twisted, notes)

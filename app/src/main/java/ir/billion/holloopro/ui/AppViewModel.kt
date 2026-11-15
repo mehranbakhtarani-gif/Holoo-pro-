@@ -61,6 +61,11 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
             if (id == null) "کالا ثبت شد" else "تغییرات کالا ذخیره شد"
         }
 
+    fun adjustStock(productId: Long, deltaKg: Double, costPerKgRial: Long) = execute {
+        repository.adjustStock(productId, deltaKg, costPerKgRial)
+        "اصلاح موجودی و سند حسابداری آن ثبت شد"
+    }
+
     fun deleteProduct(id: Long) = execute { repository.deleteProduct(id); "کالا حذف شد" }
 
     fun setOpeningInventoryValuation(productId: Long, costPerKgRial: Long) = execute {

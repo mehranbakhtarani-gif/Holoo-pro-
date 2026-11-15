@@ -73,6 +73,68 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun adjustStock(productId: Long, deltaKg: Double, costPerKgRial: Long) {
+        require(deltaKg.isFinite() && kotlin.math.abs(deltaKg) > 0.000001) { "مقدار اصلاح موجودی نباید صفر باشد" }
+        require(costPerKgRial >= 0) { "بهای هر کیلو معتبر نیست" }
+        db.withTransaction {
+            val product = db.productDao().getById(productId) ?: error("کالا پیدا نشد")
+            val stock = db.stockDao().stockForProduct(productId)
+            val stored = db.productValuationDao().get(productId)
+            if (stored == null && stock > 0.000001) {
+                error("ابتدا بهای افتتاحیه موجودی این کالا را ثبت کنید")
+            }
+            val current = stored?.let { InventoryValuation(it.quantityKg, it.valueRial) }
+                ?: InventoryValuation(0.0, 0L)
+            val next: InventoryValuation
+            val adjustmentValue: Long
+            val debitCode: String
+            val creditCode: String
+            if (deltaKg > 0) {
+                require(costPerKgRial > 0) { "برای افزایش موجودی، بهای هر کیلو الزامی است" }
+                val receivedValue = BigDecimal.valueOf(deltaKg)
+                    .multiply(BigDecimal.valueOf(costPerKgRial))
+                    .setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
+                require(receivedValue > 0) { "ارزش افزایش موجودی باید بیشتر از صفر باشد" }
+                next = InventoryValuationEngine.receive(current, deltaKg, receivedValue)
+                adjustmentValue = receivedValue
+                debitCode = "1301"
+                creditCode = "4201"
+            } else {
+                require(stored != null && current.quantityKg > 0.000001) { "برای کاهش موجودی، بهای موجودی باید مشخص باشد" }
+                val issue = InventoryValuationEngine.issue(current, -deltaKg)
+                next = issue.remaining
+                adjustmentValue = issue.cogsRial
+                debitCode = "5201"
+                creditCode = "1301"
+            }
+            db.productValuationDao().upsert(ProductValuationEntity(productId, next.quantityKg, next.valueRial))
+            db.stockDao().insert(
+                StockMovementEntity(
+                    productId = productId,
+                    quantityKg = deltaKg,
+                    kind = "STOCKTAKE_ADJUSTMENT",
+                    note = "اصلاح موجودی انبار: ${product.name}"
+                )
+            )
+            ensureBaseAccounts()
+            val debitAccount = db.accountDao().byCode(debitCode) ?: error("حساب اصلاح موجودی پیدا نشد")
+            val creditAccount = db.accountDao().byCode(creditCode) ?: error("حساب اصلاح موجودی پیدا نشد")
+            val voucherId = db.voucherDao().insert(
+                VoucherEntity(
+                    number = "ADJ-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(6)}",
+                    description = "اصلاح موجودی کالا: ${product.name}",
+                    reference = "STOCK_ADJUSTMENT:${productId}:${System.currentTimeMillis()}"
+                )
+            )
+            db.voucherLineDao().insertAll(
+                listOf(
+                    VoucherLineEntity(voucherId = voucherId, accountId = debitAccount.id, debitRial = adjustmentValue, creditRial = 0, description = "اصلاح موجودی"),
+                    VoucherLineEntity(voucherId = voucherId, accountId = creditAccount.id, debitRial = 0, creditRial = adjustmentValue, description = "اصلاح موجودی")
+                )
+            )
+        }
+    }
+
     suspend fun deleteProduct(id: Long) {
         val stock = db.stockDao().stockForProduct(id)
         require(kotlin.math.abs(stock) < 0.000001) { "کالای دارای موجودی را نمی‌توان حذف کرد" }
@@ -533,7 +595,9 @@ class AccountingRepository(private val db: AppDatabase) {
             AccountEntity(code = "2101", title = "حساب‌های پرداختنی تأمین‌کنندگان", type = "LIABILITY"),
             AccountEntity(code = "2102", title = "هزینه‌های حمل و گمرک پرداختنی", type = "LIABILITY"),
             AccountEntity(code = "4101", title = "فروش کالا", type = "REVENUE"),
-            AccountEntity(code = "5101", title = "بهای تمام‌شده کالای فروش‌رفته", type = "EXPENSE")
+            AccountEntity(code = "5101", title = "بهای تمام‌شده کالای فروش‌رفته", type = "EXPENSE"),
+            AccountEntity(code = "4201", title = "مازاد و افزایش موجودی انبار", type = "REVENUE"),
+            AccountEntity(code = "5201", title = "کسری و کاهش موجودی انبار", type = "EXPENSE")
         )
         accounts.forEach { db.accountDao().insertIgnore(it) }
     }

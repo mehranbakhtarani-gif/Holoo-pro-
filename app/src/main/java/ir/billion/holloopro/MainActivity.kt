@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
                         onSaveProduct = vm::saveProduct,
                         onDeleteProduct = vm::deleteProduct,
                         onSetOpeningValuation = vm::setOpeningInventoryValuation,
+                        onAdjustStock = vm::adjustStock,
                         onSaveParty = vm::saveParty,
                         onPartyLedger = vm::partyLedger,
                         onDeleteParty = vm::deleteParty,
@@ -187,6 +188,7 @@ private fun HolooApp(
     onSaveProduct: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit,
     onDeleteProduct: (Long) -> Unit,
     onSetOpeningValuation: (Long, Long) -> Unit,
+    onAdjustStock: (Long, Double, Long) -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
     onPartyLedger: (Long) -> Flow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
     onDeleteParty: (Long) -> Unit,
@@ -279,7 +281,7 @@ private fun HolooApp(
             }
             when (screen) {
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
-                Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation)
+                Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
@@ -440,10 +442,12 @@ private fun InventoryScreen(
     products: List<ProductWithStock>, showToman: Boolean,
     onSave: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit,
     onDelete: (Long) -> Unit,
-    onSetOpeningValuation: (Long, Long) -> Unit
+    onSetOpeningValuation: (Long, Long) -> Unit,
+    onAdjustStock: (Long, Double, Long) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
     var valuationProduct by remember { mutableStateOf<ProductWithStock?>(null) }
+    var adjustmentProduct by remember { mutableStateOf<ProductWithStock?>(null) }
     var editing by remember { mutableStateOf<ProductEntity?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("کالا و انبار", "تعریف، ویرایش و کنترل موجودی کالاهای نخ") { editing = null; dialog = true }
@@ -466,6 +470,7 @@ private fun InventoryScreen(
                             }
                         }
                         Column {
+                            TextButton(onClick = { adjustmentProduct = item }) { Text("اصلاح موجودی", color = Turquoise) }
                             TextButton(onClick = { editing = item.product; dialog = true }) { Text("ویرایش", color = Turquoise) }
                             TextButton(onClick = { onDelete(item.product.id) }) { Text("حذف", color = Color(0xFFFF9D9D)) }
                         }
@@ -481,8 +486,66 @@ private fun InventoryScreen(
         onDismiss = { valuationProduct = null },
         onSave = { costPerKgRial -> onSetOpeningValuation(item.product.id, costPerKgRial); valuationProduct = null }
     ) }
+    adjustmentProduct?.let { item -> StockAdjustmentDialog(
+        product = item,
+        showToman = showToman,
+        onDismiss = { adjustmentProduct = null },
+        onSave = { deltaKg, costPerKgRial ->
+            onAdjustStock(item.product.id, deltaKg, costPerKgRial)
+            adjustmentProduct = null
+        }
+    ) }
 }
 
+
+@Composable
+private fun StockAdjustmentDialog(
+    product: ProductWithStock,
+    showToman: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (Double, Long) -> Unit
+) {
+    var quantity by remember(product.product.id) { mutableStateOf("") }
+    var increase by remember(product.product.id) { mutableStateOf(true) }
+    var cost by remember(product.product.id) { mutableStateOf("") }
+    val quantityValue = quantity.replace(',', '.').toDoubleOrNull() ?: 0.0
+    val costValue = (cost.toBigDecimalOrNull() ?: BigDecimal.ZERO)
+        .multiply(if (showToman) BigDecimal.TEN else BigDecimal.ONE)
+        .setScale(0, java.math.RoundingMode.HALF_UP).toLong()
+    val delta = if (increase) quantityValue else -quantityValue
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("اصلاح موجودی / انبارگردانی") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(product.product.name, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("موجودی فعلی: ${formatQuantity(product.stockKg)} کیلوگرم", color = Muted)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = increase, onClick = { increase = true }, label = { Text("افزایش") })
+                    FilterChip(selected = !increase, onClick = { increase = false }, label = { Text("کاهش") })
+                }
+                FormField("مقدار اصلاح (کیلوگرم)", quantity, KeyboardType.Decimal) { quantity = it }
+                if (increase) {
+                    FormField("بهای هر کیلو (${if (showToman) "تومان" else "ریال"})", cost, KeyboardType.Number) { cost = it }
+                } else {
+                    Text("برای کاهش، بهای میانگین فعلی موجودی مبنای ثبت کسری قرار می‌گیرد.", color = Muted, fontSize = 10.sp)
+                }
+                Text("موجودی پس از اصلاح: ${formatQuantity(product.stockKg + delta)} کیلوگرم", color = Turquoise)
+                if (product.stockKg + delta < -0.000001) Text("موجودی نمی‌تواند منفی شود.", color = Color(0xFFFF9D9D), fontSize = 10.sp)
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = quantityValue.isFinite() && quantityValue > 0.0 &&
+                    product.stockKg + delta >= -0.000001 &&
+                    (if (increase) costValue > 0 else product.inventoryValueRial > 0),
+                onClick = { onSave(delta, costValue) }
+            ) { Text("ثبت اصلاح") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+    )
+}
 
 @Composable
 private fun OpeningValuationDialog(

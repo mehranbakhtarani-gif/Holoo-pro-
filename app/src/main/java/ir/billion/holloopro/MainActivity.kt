@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     val products by vm.products.collectAsState()
                     val parties by vm.parties.collectAsState()
+                    val partyBalances by vm.partyBalances.collectAsState()
                     val invoices by vm.invoices.collectAsState()
                     val imports by vm.imports.collectAsState()
                     val treasury by vm.treasury.collectAsState()
@@ -64,7 +65,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, invoices, imports, treasury,
+                        products, parties, partyBalances, invoices, imports, treasury,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onAddProduct = vm::addProduct,
@@ -109,6 +110,7 @@ private enum class Screen(val title: String, val symbol: String) {
 private fun HolooApp(
     products: List<ProductWithStock>,
     parties: List<PartyEntity>,
+    partyBalances: List<ir.billion.holloopro.data.PartyBalanceRow>,
     invoices: List<InvoiceEntity>,
     imports: List<ImportOrderEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
@@ -199,7 +201,7 @@ private fun HolooApp(
             when (screen) {
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman)
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onAddProduct, onDeleteProduct)
-                Screen.PARTIES -> PartiesScreen(parties, onAddParty)
+                Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onAddParty)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(parties, imports, showToman, onAddImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, parties, showToman, onAddTreasury)
@@ -312,7 +314,7 @@ private fun InventoryScreen(
 }
 
 @Composable
-private fun PartiesScreen(parties: List<PartyEntity>, onAdd: (String, String, String, String, Long) -> Unit) {
+private fun PartiesScreen(parties: List<PartyEntity>, balances: List<ir.billion.holloopro.data.PartyBalanceRow>, showToman: Boolean, onAdd: (String, String, String, String, Long) -> Unit) {
     var dialog by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("اشخاص و طرف حساب", "مشتری، تأمین‌کننده و مانده افتتاحیه") { dialog = true }
@@ -324,7 +326,9 @@ private fun PartiesScreen(parties: List<PartyEntity>, onAdd: (String, String, St
                     Text(partyKind(party.kind), color = Turquoise, fontSize = 11.sp)
                     if (party.phone.isNotBlank()) Text(party.phone, color = Muted, fontSize = 12.sp)
                     if (party.address.isNotBlank()) Text(party.address, color = Muted, fontSize = 11.sp)
-                    Text("مانده افتتاحیه: ${formatMoney(party.openingBalanceRial, true)} تومان", color = Muted, fontSize = 11.sp)
+                    val balance = balances.firstOrNull { it.partyId == party.id }?.balanceRial ?: party.openingBalanceRial
+                    Text("مانده جاری: ${formatMoney(balance, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("مانده افتتاحیه: ${formatMoney(party.openingBalanceRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Muted, fontSize = 10.sp)
                 }
             }
         }

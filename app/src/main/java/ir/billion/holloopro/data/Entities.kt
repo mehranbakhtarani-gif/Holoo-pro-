@@ -140,3 +140,11 @@ data class TreasuryEntryEntity(
     val note: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
+
+
+data class PartyBalanceRow(
+    val partyId: Long,
+    val partyName: String,
+    val partyKind: String,
+    val balanceRial: Long
+)

@@ -33,6 +33,9 @@ interface PartyDao {
     @Query("SELECT * FROM parties ORDER BY name")
     fun observeAll(): Flow<List<PartyEntity>>
 
+    @Query("SELECT p.id AS partyId, p.name AS partyName, p.kind AS partyKind, p.openingBalanceRial + COALESCE(SUM(l.debitRial - l.creditRial), 0) AS balanceRial FROM parties p LEFT JOIN party_ledger l ON l.partyId = p.id GROUP BY p.id ORDER BY p.name")
+    fun observeBalances(): Flow<List<PartyBalanceRow>>
+
     @Query("SELECT * FROM parties WHERE kind IN ('SUPPLIER','BOTH') ORDER BY name")
     fun observeSuppliers(): Flow<List<PartyEntity>>
 

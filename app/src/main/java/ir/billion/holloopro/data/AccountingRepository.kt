@@ -9,6 +9,7 @@ import java.util.Locale
 class AccountingRepository(private val db: AppDatabase) {
     val products = db.productDao().observeWithStock()
     val parties = db.partyDao().observeAll()
+    val partyBalances = db.partyDao().observeBalances()
     val suppliers = db.partyDao().observeSuppliers()
     val invoices = db.invoiceDao().observeAll()
     val imports = db.importOrderDao().observeAll()

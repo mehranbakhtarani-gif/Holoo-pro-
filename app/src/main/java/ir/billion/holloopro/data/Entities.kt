@@ -50,6 +50,8 @@ data class InvoiceEntity(
     val note: String = ""
 )
 
+data class InvoiceLineInput(val productId: Long, val quantityKg: Double, val unitPriceRial: Long)
+
 @Entity(tableName = "invoice_lines", indices = [Index(value = ["invoiceId"])])
 data class InvoiceLineEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

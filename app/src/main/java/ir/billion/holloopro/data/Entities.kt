@@ -1,5 +1,6 @@
 package ir.billion.holloopro.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -49,7 +50,8 @@ data class InvoiceEntity(
     val taxRial: Long,
     val totalRial: Long,
     val status: String = "POSTED",
-    val note: String = ""
+    val note: String = "",
+    @ColumnInfo(defaultValue = "0") val extraCostsRial: Long = 0
 )
 
 data class InvoiceLineInput(val productId: Long, val quantityKg: Double, val unitPriceRial: Long)

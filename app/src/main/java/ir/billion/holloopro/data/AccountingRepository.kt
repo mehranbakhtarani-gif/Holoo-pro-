@@ -116,29 +116,33 @@ class AccountingRepository(private val db: AppDatabase) {
         db.productDao().update(old.copy(sku = sku.trim().uppercase(Locale.ROOT), name = name.trim(), groupName = groupName.trim(), yarnType = yarnType.trim().uppercase(Locale.ROOT), color = color.trim(), denier = denier, twisted = twisted, notes = notes.trim()))
     }
 
-    suspend fun setOpeningInventoryValuation(productId: Long, costPerKgRial: Long) {
+
+    suspend fun setOpeningInventoryValuation(productId: Long, costPerKgRial: Long, warehouseId: Long = 1L) {
         require(costPerKgRial > 0) { "بهای هر کیلو باید بیشتر از صفر باشد" }
         db.withTransaction {
-            val product = db.productDao().getById(productId) ?: error("کالا پیدا نشد")
-            val stock = db.stockDao().stockForProduct(productId)
-            require(stock.isFinite() && stock > 0.000001) { "برای این کالا موجودی مثبت ثبت نشده است" }
-            require(db.productValuationDao().get(productId) == null) { "ارزش موجودی این کالا قبلاً ثبت شده است" }
+            db.productDao().getById(productId) ?: error("کالا پیدا نشد")
+            db.warehouseDao().getById(warehouseId) ?: error("انبار پیدا نشد")
+            val stock = db.warehouseStockDao().stockForProduct(warehouseId, productId)
+            require(stock.isFinite() && stock > 0.000001) { "برای این کالا در انبار انتخاب‌شده موجودی مثبت ثبت نشده است" }
+            require(db.warehouseStockDao().valuation(warehouseId, productId) == null) { "ارزش موجودی این کالا در این انبار قبلاً ثبت شده است" }
             val value = BigDecimal.valueOf(stock).multiply(BigDecimal.valueOf(costPerKgRial))
                 .setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
             require(value > 0) { "ارزش موجودی باید بیشتر از صفر باشد" }
-            db.productValuationDao().upsert(ProductValuationEntity(productId, stock, value))
+            db.warehouseStockDao().upsertValuation(WarehouseValuationEntity(warehouseId, productId, stock, value))
+            syncGlobalValuation(productId)
         }
     }
 
-    suspend fun adjustStock(productId: Long, deltaKg: Double, costPerKgRial: Long) {
+    suspend fun adjustStock(productId: Long, deltaKg: Double, costPerKgRial: Long, warehouseId: Long = 1L) {
         require(deltaKg.isFinite() && kotlin.math.abs(deltaKg) > 0.000001) { "مقدار اصلاح موجودی نباید صفر باشد" }
         require(costPerKgRial >= 0) { "بهای هر کیلو معتبر نیست" }
         db.withTransaction {
             val product = db.productDao().getById(productId) ?: error("کالا پیدا نشد")
-            val stock = db.stockDao().stockForProduct(productId)
-            val stored = db.productValuationDao().get(productId)
+            db.warehouseDao().getById(warehouseId) ?: error("انبار پیدا نشد")
+            val stock = db.warehouseStockDao().stockForProduct(warehouseId, productId)
+            val stored = db.warehouseStockDao().valuation(warehouseId, productId)
             if (stored == null && stock > 0.000001) {
-                error("ابتدا بهای افتتاحیه موجودی این کالا را ثبت کنید")
+                error("ابتدا بهای افتتاحیه موجودی این کالا را در انبار انتخاب‌شده ثبت کنید")
             }
             val current = stored?.let { InventoryValuation(it.quantityKg, it.valueRial) }
                 ?: InventoryValuation(0.0, 0L)
@@ -164,14 +168,15 @@ class AccountingRepository(private val db: AppDatabase) {
                 debitCode = "5201"
                 creditCode = "1301"
             }
-            db.productValuationDao().upsert(ProductValuationEntity(productId, next.quantityKg, next.valueRial))
+            db.warehouseStockDao().upsertValuation(
+                WarehouseValuationEntity(warehouseId, productId, next.quantityKg, next.valueRial)
+            )
+            syncGlobalValuation(productId)
             db.stockDao().insert(
-                StockMovementEntity(
-                    productId = productId,
-                    quantityKg = deltaKg,
-                    kind = "STOCKTAKE_ADJUSTMENT",
-                    note = "اصلاح موجودی انبار: ${product.name}"
-                )
+                StockMovementEntity(productId = productId, quantityKg = deltaKg, kind = "STOCKTAKE_ADJUSTMENT", note = "اصلاح موجودی انبار: ${product.name}")
+            )
+            db.warehouseStockDao().insertMovement(
+                WarehouseStockMovementEntity(warehouseId = warehouseId, productId = productId, quantityKg = deltaKg, kind = "STOCKTAKE_ADJUSTMENT", note = "اصلاح موجودی انبار: ${product.name}")
             )
             ensureBaseAccounts()
             val debitAccount = db.accountDao().byCode(debitCode) ?: error("حساب اصلاح موجودی پیدا نشد")

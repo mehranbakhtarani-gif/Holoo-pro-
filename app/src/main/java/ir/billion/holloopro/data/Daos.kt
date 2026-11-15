@@ -81,7 +81,7 @@ interface InvoiceDao {
     @Update
     suspend fun update(invoice: InvoiceEntity)
 
-    @Query("SELECT COALESCE((SELECT SUM(subtotalRial - discountRial) FROM invoices WHERE kind = 'SALE' AND status = 'POSTED'), 0) AS salesRial, (COALESCE((SELECT SUM(il.inventoryCostRial) FROM invoice_lines il INNER JOIN invoices i ON i.id = il.invoiceId WHERE i.kind = 'SALE' AND i.status = 'POSTED'), 0) + COALESCE((SELECT SUM(vl.debitRial - vl.creditRial) FROM voucher_lines vl INNER JOIN accounts a ON a.id = vl.accountId WHERE a.code = '5202'), 0)) AS costOfGoodsSoldRial")
+    @Query("SELECT (COALESCE((SELECT SUM(subtotalRial - discountRial) FROM invoices WHERE kind = 'SALE' AND status = 'POSTED'), 0) - COALESCE((SELECT SUM(vl.debitRial - vl.creditRial) FROM voucher_lines vl INNER JOIN accounts a ON a.id = vl.accountId INNER JOIN vouchers v ON v.id = vl.voucherId WHERE a.code = '4101' AND v.reference LIKE 'INVOICE_RETURN:%'), 0)) AS salesRial, (COALESCE((SELECT SUM(il.inventoryCostRial) FROM invoice_lines il INNER JOIN invoices i ON i.id = il.invoiceId WHERE i.kind = 'SALE' AND i.status = 'POSTED'), 0) - COALESCE((SELECT SUM(vl.creditRial - vl.debitRial) FROM voucher_lines vl INNER JOIN accounts a ON a.id = vl.accountId INNER JOIN vouchers v ON v.id = vl.voucherId WHERE a.code = '5101' AND v.reference LIKE 'INVOICE_RETURN:%'), 0) + COALESCE((SELECT SUM(vl.debitRial - vl.creditRial) FROM voucher_lines vl INNER JOIN accounts a ON a.id = vl.accountId WHERE a.code = '5202'), 0)) AS costOfGoodsSoldRial")
     fun observeProfitLoss(): Flow<ProfitLossRow>
 
     @Query("SELECT COUNT(*) FROM invoices")

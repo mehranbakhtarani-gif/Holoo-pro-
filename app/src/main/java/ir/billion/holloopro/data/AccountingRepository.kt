@@ -855,9 +855,12 @@ class AccountingRepository(private val db: AppDatabase) {
             var inserted = 0
             var skipped = 0
             rows.forEach { row ->
-                val duplicate = db.bankStatementDao().countDuplicate(
-                    normalizedBank, row.transactionDateEpoch, row.signedAmountRial, row.bankReference.trim()
-                ) > 0
+                val reference = row.bankReference.trim()
+                val description = row.description.trim()
+                val duplicate = (reference.isNotBlank() || description.isNotBlank()) &&
+                    db.bankStatementDao().countDuplicate(
+                        normalizedBank, row.transactionDateEpoch, row.signedAmountRial, reference, description
+                    ) > 0
                 if (duplicate) {
                     skipped++
                 } else {

@@ -836,6 +836,7 @@ private fun InvoicesScreen(
                             Column(Modifier.weight(1f)) {
                                 Text(if (invoice.kind == "SALE") "فروش به $partyName" else "خرید از $partyName", color = Color.White, fontWeight = FontWeight.Bold)
                                 Text(invoice.number, color = Muted, fontSize = 10.sp)
+                                Text("انبار: ${warehouses.firstOrNull { it.id == invoice.warehouseId }?.name ?: "انبار اصلی"}", color = Muted, fontSize = 9.sp)
                             }
                             Text(if (invoice.status == "POSTED") "ثبت‌شده" else "برگشت‌شده", color = Muted, fontSize = 11.sp)
                         }

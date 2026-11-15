@@ -254,7 +254,28 @@ if(page==="invoices"){
 }
 if(page==="imports"){const ps=await all("parties"),p=ps.find(x=>x.id===num("supplierId"));if(!p)throw Error("تأمین‌کننده انتخاب نشده");const fx=num("fx"),goods=num("goods"),weight=num("weight");if(fx<=0||goods<=0||weight<=0)throw Error("نرخ ارز، مبلغ کالا و وزن باید مثبت باشند");await put("imports",{supplierId:p.id,supplierName:p.name,currency:d.currency,fx,container:d.container,weight,goods,extra:Math.round(goods*fx)+num("freight")+num("customs")+num("other"),due:new Date(d.due+"T12:00:00").getTime(),status:"ثبت سفارش"})}
 if(page==="checks"){const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId"));if(!p)throw Error("طرف حساب انتخاب نشده");const amount=num("amount"),due=new Date(d.due+"T12:00:00").getTime(),issue=new Date(d.issue+"T12:00:00").getTime();if(amount<=0||due<issue)throw Error("مبلغ یا تاریخ چک نامعتبر است");await put("checks",{number:d.number,kind:d.kind==="دریافتی"?"RECEIVED":"PAYABLE",partyId:p.id,partyName:p.name,amount,issue,due,bank:d.bank,status:"OPEN",note:d.note})}
-if(page==="treasury"){const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),amount=num("amount");if(!p||amount<=0)throw Error("طرف حساب و مبلغ معتبر الزامی است");p.balance+=d.kind==="دریافت"?-amount:amount;const now=Date.now(),kind=d.kind==="دریافت"?"RECEIPT":"PAYMENT";await put("parties",p);await put("treasury",{kind,method:d.method,partyId:p.id,partyName:p.name,amount,date:now,note:d.note});await put("partyLedger",{partyId:p.id,date:now,debitRial:kind==="PAYMENT"?amount:0,creditRial:kind==="RECEIPT"?amount:0,description:kind==="RECEIPT"?"دریافت وجه":"پرداخت وجه",referenceId:"TREASURY:"+now})}}
+if(page==="treasury"){
+ const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),amount=num("amount");
+ if(!p||!Number.isSafeInteger(amount)||amount<=0)throw Error("طرف حساب و مبلغ صحیح و مثبت الزامی است");
+ if(!["صندوق","بانک"].includes(d.method))throw Error("روش دریافت یا پرداخت معتبر نیست");
+ const kind=d.kind==="دریافت"?"RECEIPT":"PAYMENT",now=Date.now(),reference="TREASURY:"+now;
+ const existing=await all("treasury");if(existing.some(x=>x.reference===reference))throw Error("شناسه عملیات تکراری است");
+ const cashAccount=d.method==="بانک"?"1102":"1101";
+ const partyAccount=kind==="RECEIPT"?(p.kind==="SUPPLIER"?"2101":"1103"):(p.kind==="CUSTOMER"?"1103":"2101");
+ const journal=kind==="RECEIPT"?[
+  {accountCode:cashAccount,debitRial:amount,creditRial:0,description:"ورود وجه به "+d.method},
+  {accountCode:partyAccount,debitRial:0,creditRial:amount,description:"تسویه طرف حساب"}
+ ]:[
+  {accountCode:partyAccount,debitRial:amount,creditRial:0,description:"تسویه طرف حساب"},
+  {accountCode:cashAccount,debitRial:0,creditRial:amount,description:"خروج وجه از "+d.method}
+ ];
+ if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند دریافت/پرداخت تراز نیست");
+ p.balance=Number(p.balance||0)+(kind==="RECEIPT"?-amount:amount);
+ const movement={partyId:p.id,date:now,debitRial:kind==="PAYMENT"?amount:0,creditRial:kind==="RECEIPT"?amount:0,description:kind==="RECEIPT"?"دریافت وجه":"پرداخت وجه",referenceId:reference};
+ const record={kind,method:d.method,partyId:p.id,partyName:p.name,amount,date:now,note:d.note,reference};
+ await ensureBaseAccounts();
+ await postVoucherAtomic([["parties",p],["treasury",record],["partyLedger",movement]],{number:"TV-"+now,date:now,description:(kind==="RECEIPT"?"دریافت ":"پرداخت ")+p.name,reference},journal);
+}}
 async function exportBackup(){const data={app:"HOLLOO PRO+ PWA",version:1,exportedAt:new Date().toISOString(),records:{}};for(const s of stores)data.records[s]=await all(s);const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="holloo-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(a.href);toast("فایل پشتیبان آماده شد")}
 async function restoreBackup(file){
  const data=JSON.parse(await file.text());

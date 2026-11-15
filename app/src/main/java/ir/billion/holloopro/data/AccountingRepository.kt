@@ -37,6 +37,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val ledger = db.accountDao().observeLedger()
     val checks = db.checkDao().observeAll()
     val bankStatements = db.bankStatementDao().observeAll()
+    val bankStatementPeriods = db.bankStatementPeriodDao().observeAll()
     val profitLoss = db.invoiceDao().observeProfitLoss()
     val productProfitability = db.productDao().observeProfitability()
     val invoiceProfitability = db.invoiceDao().observeInvoiceProfitability()
@@ -843,6 +844,25 @@ class AccountingRepository(private val db: AppDatabase) {
             val expected = if (check.kind == "RECEIVED") check.amountRial else Math.negateExact(check.amountRial)
             require(line.signedAmountRial == expected) { "مبلغ یا جهت گردش بانکی با چک انتخاب‌شده یکسان نیست" }
             db.bankStatementDao().update(line.copy(matchedCheckId = checkId))
+        }
+    }
+
+    suspend fun addBankStatementPeriod(
+        bankName: String, startDateEpoch: Long, endDateEpoch: Long,
+        openingBalanceRial: Long, closingBalanceRial: Long
+    ) {
+        require(bankName.isNotBlank()) { "نام بانک الزامی است" }
+        require(startDateEpoch > 0L && endDateEpoch >= startDateEpoch) { "بازه زمانی صورت‌حساب معتبر نیست" }
+        require(openingBalanceRial >= 0L && closingBalanceRial >= 0L) { "مانده‌های بانکی نمی‌توانند منفی باشند" }
+        db.withTransaction {
+            val normalized = bankName.trim()
+            require(db.bankStatementPeriodDao().find(normalized, startDateEpoch, endDateEpoch) == null) {
+                "برای این بانک و بازه زمانی قبلاً صورت‌حساب ثبت شده است"
+            }
+            db.bankStatementPeriodDao().insert(BankStatementPeriodEntity(
+                bankName = normalized, startDateEpoch = startDateEpoch, endDateEpoch = endDateEpoch,
+                openingBalanceRial = openingBalanceRial, closingBalanceRial = closingBalanceRial
+            ))
         }
     }
 

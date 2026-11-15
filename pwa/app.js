@@ -214,7 +214,8 @@ if(page==="parties"){const kind={"مشتری":"CUSTOMER","تأمین‌کنند�
 if(page==="invoices"){
  const ps=await all("parties"),pr=await all("products"),p=ps.find(x=>x.id===num("partyId"));
  if(!p)throw Error("طرف حساب را انتخاب کنید");
- const kind=d.kind==="فروش"?"SALE":"PURCHASE",ids=d.lineProduct||[],qtys=d.lineQty||[],prices=d.linePrice||[];
+ const kind=d.kind==="فروش"?"SALE":"PURCHASE";if(kind==="SALE"&&p.kind==="SUPPLIER")throw Error("برای فروش، مشتری انتخاب کنید");if(kind==="PURCHASE"&&p.kind==="CUSTOMER")throw Error("برای خرید، تأمین‌کننده انتخاب کنید");
+ const ids=d.lineProduct||[],qtys=d.lineQty||[],prices=d.linePrice||[];
  if(!ids.length||ids.length!==qtys.length||ids.length!==prices.length)throw Error("حداقل یک ردیف کامل کالا لازم است");
  const seen=new Set(),lines=[],updatedProducts=[];
  let subtotal=0,cogs=0;
@@ -262,4 +263,4 @@ async function restoreBackup(file){
  toast("بازیابی با موفقیت انجام شد");await render()
 }
 $("#exportBtn").onclick=exportBackup;$("#importBtn").onclick=()=>$("#restoreFile").click();$("#restoreFile").onchange=e=>{if(e.target.files[0])restoreBackup(e.target.files[0]).catch(x=>toast(x.message))};$("#unitBtn").onclick=()=>{showToman=!showToman;$("#unitBtn").textContent=moneyUnit();render()};$("#closeModal").onclick=$("#cancelModal").onclick=()=>$("#modal").hidden=true;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").hidden=true};
-(async()=>{db=await openDB();await ensureBaseAccounts();nav();await render();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=audit-escape2").catch(()=>{})})().catch(e=>{$("#main").innerHTML='<div class="card">خطا در راه‌اندازی پایگاه داده: '+h(e.message)+'</div>'});
+(async()=>{db=await openDB();await ensureBaseAccounts();nav();await render();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=audit-party-validation1").catch(()=>{})})().catch(e=>{$("#main").innerHTML='<div class="card">خطا در راه‌اندازی پایگاه داده: '+h(e.message)+'</div>'});

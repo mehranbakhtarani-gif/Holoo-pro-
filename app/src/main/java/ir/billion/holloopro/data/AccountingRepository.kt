@@ -241,7 +241,7 @@ class AccountingRepository(private val db: AppDatabase) {
         discountRial, taxRial, extraCostsRial, warehouseId
     )
 
-    suspend fun createAndPostMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discountRial: Long, taxRial: Long, extraCostsRial: Long = 0, warehouseId: Long = 1L) {
+    suspend fun createAndPostMultiLineInvoice(kind: String, partyId: Long, lines: List<InvoiceLineInput>, discountRial: Long, taxRial: Long, extraCostsRial: Long = 0, warehouseId: Long = 1L): Long {
         require(kind == "SALE" || kind == "PURCHASE")
         require(lines.isNotEmpty()) { "فاکتور باید حداقل یک ردیف کالا داشته باشد" }
         require(discountRial >= 0 && taxRial >= 0 && extraCostsRial >= 0)
@@ -329,6 +329,7 @@ class AccountingRepository(private val db: AppDatabase) {
             }
             db.voucherLineDao().insertAll(voucherLines)
             db.partyLedgerDao().insert(PartyLedgerEntity(partyId = partyId, debitRial = if (kind == "SALE") total else 0, creditRial = if (kind == "PURCHASE") total else 0, description = if (kind == "SALE") "فاکتور فروش " + number else "فاکتور خرید " + number, referenceId = invoiceId))
+            invoiceId
         }
     }
 
@@ -516,6 +517,27 @@ class AccountingRepository(private val db: AppDatabase) {
                     referenceId = returnId
                 )
             )
+        }
+    }
+
+    suspend fun editInvoice(invoiceId: Long, partyId: Long, lines: List<InvoiceLineInput>, discountRial: Long, taxRial: Long, extraCostsRial: Long, warehouseId: Long) {
+        db.withTransaction {
+            val original = db.invoiceDao().getById(invoiceId) ?: error("فاکتور پیدا نشد")
+            require(original.status == "POSTED") { "فقط فاکتور ثبت‌شده قابل ویرایش است" }
+            require(db.invoiceDao().settledForInvoice(invoiceId) == 0L) {
+                "فاکتور دارای تسویه است؛ برای حفظ سابقه مالی ابتدا تخصیص تسویه را لغو کنید"
+            }
+            require(db.invoiceReturnDao().returnedForInvoice(invoiceId) == 0L) {
+                "فاکتور دارای برگشت جزئی است و ویرایش مستقیم آن مجاز نیست"
+            }
+            require(lines.isNotEmpty()) { "فاکتور باید حداقل یک ردیف کالا داشته باشد" }
+            reverseInvoice(invoiceId)
+            db.invoiceDao().update(original.copy(status = "EDITED", note = "ویرایش‌شده؛ نسخه جایگزین در فاکتور جدید ثبت شد"))
+            val replacementId = createAndPostMultiLineInvoice(
+                original.kind, partyId, lines, discountRial, taxRial, extraCostsRial, warehouseId
+            )
+            val replacement = db.invoiceDao().getById(replacementId) ?: error("فاکتور جایگزین ثبت نشد")
+            db.invoiceDao().update(replacement.copy(note = "جایگزین فاکتور " + original.number))
         }
     }
 

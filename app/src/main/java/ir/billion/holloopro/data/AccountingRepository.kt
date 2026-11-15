@@ -586,13 +586,6 @@ class AccountingRepository(private val db: AppDatabase) {
                     quantityKg = if (invoice.kind == "SALE") line.quantityKg else -line.quantityKg,
                     kind = "REVERSAL", referenceId = invoiceId, note = "برگشت ${invoice.number}"
                 ))
-                db.warehouseStockDao().insertMovement(
-                    WarehouseStockMovementEntity(
-                        warehouseId = invoice.warehouseId, productId = line.productId,
-                        quantityKg = if (invoice.kind == "SALE") line.quantityKg else -line.quantityKg,
-                        kind = "REVERSAL", referenceId = invoiceId, note = "برگشت ${invoice.number}"
-                    )
-                )
             }
             db.partyLedgerDao().insert(
                 PartyLedgerEntity(

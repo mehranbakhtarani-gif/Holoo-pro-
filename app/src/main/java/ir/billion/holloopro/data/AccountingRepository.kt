@@ -516,6 +516,22 @@ class AccountingRepository(private val db: AppDatabase) {
             val check = db.checkDao().getById(id) ?: error("چک پیدا نشد")
             require(check.status == "OPEN") { "وضعیت این چک قبلاً نهایی شده است" }
             ensureBaseAccounts()
+            // Older databases may contain checks saved before check accounting was introduced.
+            // Establish their original posting before recording the final status transition.
+            if (db.voucherDao().byReference("CHECK:$id:ISSUE") == null) {
+                postCheckVoucher(
+                    id, "ISSUE",
+                    if (check.kind == "RECEIVED") "دریافت چک از طرف حساب" else "صدور چک برای طرف حساب",
+                    AccountingEngine.checkVoucherLines(check.kind, "ISSUE", check.amountRial)
+                )
+                db.partyLedgerDao().insert(PartyLedgerEntity(
+                    partyId = check.partyId,
+                    debitRial = if (check.kind == "PAYABLE") check.amountRial else 0,
+                    creditRial = if (check.kind == "RECEIVED") check.amountRial else 0,
+                    description = "ثبت اولیه حسابداری چک شماره ${check.checkNumber}",
+                    referenceId = id
+                ))
+            }
             when (status) {
                 "CLEARED" -> postCheckVoucher(id, "CLEARED", "تسویه چک شماره ${check.checkNumber}",
                     AccountingEngine.checkVoucherLines(check.kind, "CLEARED", check.amountRial))

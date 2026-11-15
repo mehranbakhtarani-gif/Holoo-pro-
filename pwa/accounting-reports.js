@@ -29,12 +29,14 @@ function buildFinancialStatements(input){
   return {...account,debit:activity.debit,credit:activity.credit,openingDebit,openingCredit,endingDebit:Math.max(0,net),endingCredit:Math.max(0,-net),net};
  });
  const byType=type=>trialBalance.filter(x=>x.type===type);
- const assets=byType("ASSET").reduce((n,x)=>n+x.net,0);
- const liabilities=byType("LIABILITY").reduce((n,x)=>n-x.net,0);
- const equityAccounts=byType("EQUITY").reduce((n,x)=>n-x.net,0);
- const cumulativeRevenue=byType("REVENUE").reduce((n,x)=>n-x.net,0);
- const cumulativeExpense=byType("EXPENSE").reduce((n,x)=>n+x.net,0);
+ const safeTotal=(rows,selector,label)=>{const total=rows.reduce((n,x)=>n+selector(x),0);if(!Number.isSafeInteger(total))throw new Error(label+" از محدوده عددی مجاز خارج است");return total};
+ const assets=safeTotal(byType("ASSET"),x=>x.net,"جمع دارایی‌ها");
+ const liabilities=safeTotal(byType("LIABILITY"),x=>-x.net,"جمع بدهی‌ها");
+ const equityAccounts=safeTotal(byType("EQUITY"),x=>-x.net,"جمع حقوق مالکانه");
+ const cumulativeRevenue=safeTotal(byType("REVENUE"),x=>-x.net,"جمع درآمدها");
+ const cumulativeExpense=safeTotal(byType("EXPENSE"),x=>x.net,"جمع هزینه‌ها");
  const cumulativeProfit=cumulativeRevenue-cumulativeExpense;
+ if(!Number.isSafeInteger(cumulativeProfit)||!Number.isSafeInteger(equityAccounts+cumulativeProfit))throw new Error("حقوق مالکانه از محدوده عددی مجاز خارج است");
  const equity=equityAccounts+cumulativeProfit;
  const periodRows=accounts.map(account=>{
   const activity=periodActivity.get(String(account.id))||{debit:0,credit:0};
@@ -43,6 +45,7 @@ function buildFinancialStatements(input){
  }).filter(x=>(x.type==="REVENUE"||x.type==="EXPENSE")&&x.amount!==0);
  const revenueRows=periodRows.filter(x=>x.type==="REVENUE"),expenseRows=periodRows.filter(x=>x.type==="EXPENSE");
  const revenue=revenueRows.reduce((n,x)=>n+x.amount,0),expense=expenseRows.reduce((n,x)=>n+x.amount,0);
+ if(!Number.isSafeInteger(revenue)||!Number.isSafeInteger(expense)||!Number.isSafeInteger(revenue-expense))throw new Error("جمع صورت سود و زیان از محدوده عددی مجاز خارج است");
  return {
   trialBalance,
   incomeStatement:{revenueRows,expenseRows,revenue,expense,netProfit:revenue-expense},
@@ -77,6 +80,7 @@ function buildPeriodClosingJournal(input){
   else if(balance<0)lines.push({accountCode:String(account.id),debitRial:account.type==="EXPENSE"?-balance:0,creditRial:account.type==="REVENUE"?-balance:0,description:"بستن حساب "+account.title});
  }
  const netProfit=revenue-expense;
+ if(!Number.isSafeInteger(revenue)||!Number.isSafeInteger(expense)||!Number.isSafeInteger(netProfit))throw new Error("سود/زیان دوره از محدوده عددی مجاز خارج است");
  if(netProfit>0)lines.push({accountCode:retainedEarningsCode,debitRial:0,creditRial:netProfit,description:"انتقال سود دوره به سود و زیان انباشته"});
  else if(netProfit<0)lines.push({accountCode:retainedEarningsCode,debitRial:-netProfit,creditRial:0,description:"انتقال زیان دوره به سود و زیان انباشته"});
  const debit=lines.reduce((n,x)=>n+x.debitRial,0),credit=lines.reduce((n,x)=>n+x.creditRial,0);

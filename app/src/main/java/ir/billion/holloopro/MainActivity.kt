@@ -417,7 +417,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod), onImportBankCsv
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -1567,7 +1567,8 @@ private fun AccountingScreen(
     onUnmatchBankStatementLine: (Long) -> Unit,
     onMatchBankStatementLineToCheck: (Long, Long) -> Unit,
     onAddBankFee: (String, Long, Long, String, String, () -> Unit) -> Unit,
-    onAddBankStatementPeriod: (String, Long, Long, Long, Long) -> Unit
+    onAddBankStatementPeriod: (String, Long, Long, Long, Long) -> Unit,
+    onImportBankCsv: () -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }

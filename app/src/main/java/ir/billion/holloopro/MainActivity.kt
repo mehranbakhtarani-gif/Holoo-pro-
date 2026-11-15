@@ -39,7 +39,6 @@ import ir.billion.holloopro.data.DatabaseBackup
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.AccountBalanceRow
-import ir.billion.holloopro.data.AccountTrialBalanceRow
 import ir.billion.holloopro.data.LedgerRow
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.InvoiceLineInput
@@ -99,7 +98,6 @@ class MainActivity : ComponentActivity() {
                     val imports by vm.imports.collectAsState()
                     val treasury by vm.treasury.collectAsState()
                     val accountBalances by vm.accountBalances.collectAsState()
-                    val trialBalance by vm.trialBalance.collectAsState()
                     val ledger by vm.ledger.collectAsState()
                     val checks by vm.checks.collectAsState()
                     val profitLoss by vm.profitLoss.collectAsState()
@@ -110,7 +108,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, partyBalances, invoices, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss,
+                        products, parties, partyBalances, invoices, imports, treasury, accountBalances, ledger, checks, profitLoss,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -169,7 +167,6 @@ private fun HolooApp(
     imports: List<ImportOrderEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
-    trialBalance: List<AccountTrialBalanceRow>,
     ledger: List<LedgerRow>,
     checks: List<CheckEntity>,
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
@@ -275,7 +272,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, ledger, profitLoss, parties, showToman, onAddTreasury)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -719,7 +716,6 @@ private fun AccountingScreen(
     invoices: List<InvoiceEntity>,
     treasury: List<ir.billion.holloopro.data.TreasuryEntryEntity>,
     accountBalances: List<AccountBalanceRow>,
-    trialBalance: List<AccountTrialBalanceRow>,
     ledger: List<LedgerRow>,
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     parties: List<PartyEntity>,
@@ -779,49 +775,6 @@ private fun AccountingScreen(
                         }
                     }
                 }
-            }
-        }
-        item {
-            val debitTurnover = trialBalance.sumOf { it.debitTurnoverRial }
-            val creditTurnover = trialBalance.sumOf { it.creditTurnoverRial }
-            val endingDebit = trialBalance.sumOf { it.endingDebitRial }
-            val endingCredit = trialBalance.sumOf { it.endingCreditRial }
-            GlassCard {
-                Text("تراز آزمایشی تجمعی • ۴ ستونی", color = Turquoise, fontWeight = FontWeight.Bold)
-                Text("گردش بدهکار و بستانکار و مانده خالص هر حساب از ابتدای ثبت اطلاعات", color = Muted, fontSize = 10.sp)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("جمع گردش بدهکار", color = Muted, fontSize = 10.sp)
-                    Text(formatMoney(debitTurnover, showToman), color = Color.White, fontSize = 11.sp)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("جمع گردش بستانکار", color = Muted, fontSize = 10.sp)
-                    Text(formatMoney(creditTurnover, showToman), color = Color.White, fontSize = 11.sp)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("مانده بدهکار", color = Muted, fontSize = 10.sp)
-                    Text(formatMoney(endingDebit, showToman), color = Turquoise, fontSize = 11.sp)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("مانده بستانکار", color = Muted, fontSize = 10.sp)
-                    Text(formatMoney(endingCredit, showToman), color = Turquoise, fontSize = 11.sp)
-                }
-                val isBalanced = debitTurnover == creditTurnover && endingDebit == endingCredit
-                Text(
-                    if (isBalanced) "سندها و مانده‌ها در تراز هستند" else "اختلاف تراز: ${formatMoney(kotlin.math.abs(debitTurnover - creditTurnover), showToman)} ${if (showToman) "تومان" else "ریال"}",
-                    color = if (isBalanced) Turquoise else Color(0xFFFFA4A4),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp
-                )
-                Divider(color = CardBorder)
-                trialBalance.forEach { row ->
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("${row.accountCode} • ${row.accountTitle}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text("گردش بدهکار: ${formatMoney(row.debitTurnoverRial, showToman)}  |  گردش بستانکار: ${formatMoney(row.creditTurnoverRial, showToman)}", color = Muted, fontSize = 9.sp)
-                        Text("مانده بدهکار: ${formatMoney(row.endingDebitRial, showToman)}  |  مانده بستانکار: ${formatMoney(row.endingCreditRial, showToman)}", color = Turquoise, fontSize = 9.sp)
-                    }
-                    Divider(color = CardBorder)
-                }
-                Text("این گزارش بر پایه اسناد ثبت‌شده فعلی است؛ ستون افتتاحیه و بازه تاریخی هنوز در مرحله بعد اضافه می‌شود.", color = Muted, fontSize = 10.sp)
             }
         }
         item {

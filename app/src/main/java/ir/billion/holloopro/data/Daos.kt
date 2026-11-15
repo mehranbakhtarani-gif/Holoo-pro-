@@ -129,9 +129,6 @@ interface AccountDao {
     @Query("SELECT a.id AS accountId, a.code AS accountCode, a.title AS accountTitle, a.type AS accountType, CASE WHEN COALESCE(SUM(vl.debitRial), 0) > COALESCE(SUM(vl.creditRial), 0) THEN COALESCE(SUM(vl.debitRial), 0) - COALESCE(SUM(vl.creditRial), 0) ELSE 0 END AS debitRial, CASE WHEN COALESCE(SUM(vl.creditRial), 0) > COALESCE(SUM(vl.debitRial), 0) THEN COALESCE(SUM(vl.creditRial), 0) - COALESCE(SUM(vl.debitRial), 0) ELSE 0 END AS creditRial FROM accounts a LEFT JOIN voucher_lines vl ON vl.accountId = a.id GROUP BY a.id ORDER BY a.code")
     fun observeBalances(): Flow<List<AccountBalanceRow>>
 
-    @Query("SELECT a.id AS accountId, a.code AS accountCode, a.title AS accountTitle, a.type AS accountType, COALESCE(SUM(vl.debitRial), 0) AS debitTurnoverRial, COALESCE(SUM(vl.creditRial), 0) AS creditTurnoverRial, CASE WHEN COALESCE(SUM(vl.debitRial), 0) > COALESCE(SUM(vl.creditRial), 0) THEN COALESCE(SUM(vl.debitRial), 0) - COALESCE(SUM(vl.creditRial), 0) ELSE 0 END AS endingDebitRial, CASE WHEN COALESCE(SUM(vl.creditRial), 0) > COALESCE(SUM(vl.debitRial), 0) THEN COALESCE(SUM(vl.creditRial), 0) - COALESCE(SUM(vl.debitRial), 0) ELSE 0 END AS endingCreditRial FROM accounts a LEFT JOIN voucher_lines vl ON vl.accountId = a.id GROUP BY a.id ORDER BY a.code")
-    fun observeTrialBalance(): Flow<List<AccountTrialBalanceRow>>
-
     @Query("SELECT v.number AS voucherNumber, v.dateEpoch AS dateEpoch, v.description AS voucherDescription, a.code AS accountCode, a.title AS accountTitle, vl.debitRial AS debitRial, vl.creditRial AS creditRial FROM voucher_lines vl INNER JOIN vouchers v ON v.id = vl.voucherId INNER JOIN accounts a ON a.id = vl.accountId ORDER BY v.dateEpoch DESC, v.id DESC, vl.id DESC")
     fun observeLedger(): Flow<List<LedgerRow>>
 

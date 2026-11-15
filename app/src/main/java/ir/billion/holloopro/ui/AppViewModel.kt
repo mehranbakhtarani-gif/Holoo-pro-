@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import ir.billion.holloopro.data.AccountingRepository
 import ir.billion.holloopro.data.AccountBalanceRow
-import ir.billion.holloopro.data.AccountTrialBalanceRow
 import ir.billion.holloopro.data.LedgerRow
 import ir.billion.holloopro.data.PartyLedgerRow
 import ir.billion.holloopro.data.ImportOrderEntity
@@ -33,8 +32,6 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         repository.treasury.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val accountBalances: StateFlow<List<AccountBalanceRow>> =
         repository.accountBalances.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val trialBalance: StateFlow<List<AccountTrialBalanceRow>> =
-        repository.trialBalance.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val checks = repository.checks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val ledger: StateFlow<List<LedgerRow>> =
         repository.ledger.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

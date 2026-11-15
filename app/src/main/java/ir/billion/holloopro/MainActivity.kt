@@ -433,7 +433,7 @@ private fun BankReconciliationSection(
                     }
                     line.matchedCheckId != null -> {
                         val check = checks.firstOrNull { it.id == line.matchedCheckId }
-                        Text("تطبیق با چک تسویه‌شده شماره " + (check?.checkNumber ?: line.matchedCheckId), color = Turquoise, fontSize = 10.sp)
+                        Text("تطبیق با چک تسویه‌شده شماره " + (check?.checkNumber ?: line.matchedCheckId.toString()), color = Turquoise, fontSize = 10.sp)
                         Text("برای حفظ سابقه حسابداری، تطبیق چک پس از ثبت قابل لغو نیست.", color = Muted, fontSize = 9.sp)
                     }
                     line.matchedVoucherId != null -> Text("کارمزد بانکی با سند دفترکل شماره " + line.matchedVoucherId + " ثبت و تطبیق شد.", color = Turquoise, fontSize = 10.sp)

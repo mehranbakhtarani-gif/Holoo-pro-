@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ir.billion.holloopro.accounting.LandedCostCalculator
 import ir.billion.holloopro.accounting.Money
+import ir.billion.holloopro.accounting.VoucherLineDraft
 import ir.billion.holloopro.data.CheckEntity
 import ir.billion.holloopro.data.DatabaseBackup
 import ir.billion.holloopro.data.ImportOrderEntity
@@ -192,7 +193,7 @@ private fun HolooApp(
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
-    onAddManualVoucher: (String, String, String, Long, () -> Unit) -> Unit,
+    onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
     onLoadDemoData: () -> Unit,
     onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateCheckStatus: (Long, String) -> Unit,
@@ -863,8 +864,8 @@ private fun AccountingScreen(
     if (showManualDialog) {
         ManualVoucherDialog(
             onDismiss = { showManualDialog = false },
-            onSave = { description, debitCode, creditCode, amount ->
-                onAddManualVoucher(description, debitCode, creditCode, amount) { showManualDialog = false }
+            onSave = { description, lines ->
+                onAddManualVoucher(description, lines) { showManualDialog = false }
             }
         )
     }
@@ -873,26 +874,70 @@ private fun AccountingScreen(
 @Composable
 private fun ManualVoucherDialog(
     onDismiss: () -> Unit,
-    onSave: (String, String, String, Long) -> Unit
+    onSave: (String, List<VoucherLineDraft>) -> Unit
 ) {
     var description by remember { mutableStateOf("") }
-    var debitCode by remember { mutableStateOf("") }
-    var creditCode by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
+    var rows by remember { mutableStateOf(listOf(VoucherLineDraft("1101"), VoucherLineDraft("4101", creditRial = 0))) }
+    val accounts = listOf(
+        "1101" to "صندوق", "1102" to "بانک", "1103" to "دریافتنی",
+        "1301" to "موجودی کالا", "2101" to "پرداختنی", "2102" to "هزینه واردات پرداختنی",
+        "4101" to "فروش", "5101" to "بهای تمام‌شده"
+    )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("ثبت سند حسابداری دستی") },
+        title = { Text("ثبت سند حسابداری چندردیفی") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(description, { description = it }, label = { Text("شرح سند") }, singleLine = true)
-                OutlinedTextField(debitCode, { debitCode = it }, label = { Text("کد حساب بدهکار") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(creditCode, { creditCode = it }, label = { Text("کد حساب بستانکار") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(amount, { amount = it.filter(Char::isDigit) }, label = { Text("مبلغ به ریال") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                Text("نمونه کدها: ۱۱۰۱ صندوق، ۱۱۰۲ بانک، ۱۱۰۳ دریافتنی، ۱۳۰۱ موجودی، ۲۱۰۱ پرداختنی، ۴۱۰۱ فروش، ۵۱۰۱ بهای تمام‌شده", color = Muted, fontSize = 10.sp)
+            Column(
+                modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(description, { description = it }, label = { Text("شرح سند") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                rows.forEachIndexed { index, row ->
+                    GlassCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("ردیف ${index + 1}", color = Turquoise, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                            if (rows.size > 2) TextButton(onClick = { rows = rows.filterIndexed { i, _ -> i != index } }) { Text("حذف") }
+                        }
+                        var expanded by remember(index, rows.size) { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text(accounts.firstOrNull { it.first == row.accountCode }?.let { "${it.first} • ${it.second}" } ?: "انتخاب حساب")
+                            }
+                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                accounts.forEach { (code, title) ->
+                                    DropdownMenuItem(text = { Text("$code • $title") }, onClick = {
+                                        rows = rows.toMutableList().also { it[index] = row.copy(accountCode = code) }
+                                        expanded = false
+                                    })
+                                }
+                            }
+                        }
+                        OutlinedTextField(
+                            row.debitRial.takeIf { it > 0 }?.toString() ?: "",
+                            { value -> rows = rows.toMutableList().also { it[index] = row.copy(debitRial = value.filter(Char::isDigit).toLongOrNull() ?: 0L, creditRial = 0L) } },
+                            label = { Text("بدهکار (ریال)") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        OutlinedTextField(
+                            row.creditRial.takeIf { it > 0 }?.toString() ?: "",
+                            { value -> rows = rows.toMutableList().also { it[index] = row.copy(creditRial = value.filter(Char::isDigit).toLongOrNull() ?: 0L, debitRial = 0L) } },
+                            label = { Text("بستانکار (ریال)") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
+                }
+                OutlinedButton(onClick = { rows = rows + VoucherLineDraft("1101") }, modifier = Modifier.fillMaxWidth()) {
+                    Text("＋ افزودن ردیف")
+                }
+                val debit = rows.sumOf { it.debitRial }
+                val credit = rows.sumOf { it.creditRial }
+                Text("جمع بدهکار: ${formatMoney(debit, false)} ریال", color = Turquoise, fontSize = 11.sp)
+                Text("جمع بستانکار: ${formatMoney(credit, false)} ریال", color = if (debit == credit && debit > 0) Turquoise else Color(0xFFFF9D9D), fontSize = 11.sp)
+                Text("برای ثبت، جمع بدهکار و بستانکار باید برابر و هر ردیف فقط یک سمت داشته باشد.", color = Muted, fontSize = 10.sp)
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(description, debitCode, creditCode, amount.toLongOrNull() ?: 0L) }) { Text("ثبت سند") }
+            TextButton(onClick = { onSave(description, rows) }) { Text("ثبت سند") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
         containerColor = Color(0xFF15324D),

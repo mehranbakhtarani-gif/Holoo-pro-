@@ -85,8 +85,8 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
 
     fun reverseInvoice(id: Long) = execute { repository.reverseInvoice(id); "فاکتور برگشت شد" }
 
-    fun addManualVoucher(description: String, debitAccountCode: String, creditAccountCode: String, amountRial: Long, onSuccess: () -> Unit) =
-        execute(onSuccess) { repository.addManualVoucher(description, debitAccountCode, creditAccountCode, amountRial); "سند دستی متوازن ثبت شد" }
+    fun addManualVoucher(description: String, lines: List<ir.billion.holloopro.accounting.VoucherLineDraft>, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.addManualVoucher(description, lines); "سند دستی چندردیفی و متوازن ثبت شد" }
 
     fun addTreasury(kind: String, method: String, partyId: Long, amountRial: Long, reference: String, note: String, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addTreasuryEntry(kind, method, partyId, amountRial, reference, note); "دریافت/پرداخت و سند حسابداری ثبت شد" }

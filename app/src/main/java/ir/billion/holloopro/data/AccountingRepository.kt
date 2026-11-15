@@ -259,28 +259,32 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
-    suspend fun addManualVoucher(description: String, debitAccountCode: String, creditAccountCode: String, amountRial: Long) {
+    suspend fun addManualVoucher(description: String, drafts: List<VoucherLineDraft>) {
         require(description.isNotBlank()) { "شرح سند الزامی است" }
-        require(debitAccountCode.isNotBlank() && creditAccountCode.isNotBlank()) { "کد هر دو حساب الزامی است" }
-        require(debitAccountCode != creditAccountCode) { "حساب بدهکار و بستانکار باید متفاوت باشند" }
-        require(amountRial > 0) { "مبلغ سند باید بیشتر از صفر باشد" }
+        require(drafts.size >= 2) { "سند باید حداقل دو ردیف داشته باشد" }
+        require(drafts.all { it.accountCode.isNotBlank() }) { "حساب همه ردیف‌ها را انتخاب کنید" }
+        AccountingEngine.requireBalanced(drafts)
         db.withTransaction {
             ensureBaseAccounts()
-            val debitAccount = db.accountDao().byCode(debitAccountCode.trim()) ?: error("حساب بدهکار پیدا نشد")
-            val creditAccount = db.accountDao().byCode(creditAccountCode.trim()) ?: error("حساب بستانکار پیدا نشد")
+            val resolved = drafts.map { draft ->
+                val account = db.accountDao().byCode(draft.accountCode.trim())
+                    ?: error("حساب ${draft.accountCode} پیدا نشد")
+                account to draft
+            }
+            require(resolved.map { it.first.id }.distinct().size >= 2) { "حداقل دو حساب متفاوت لازم است" }
             val number = "MAN-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(6)}"
             val voucherId = db.voucherDao().insert(
                 VoucherEntity(number = number, description = description.trim(), reference = "MANUAL:$number")
             )
-            val lines = listOf(
-                VoucherLineEntity(voucherId = voucherId, accountId = debitAccount.id, debitRial = amountRial, creditRial = 0, description = description.trim()),
-                VoucherLineEntity(voucherId = voucherId, accountId = creditAccount.id, debitRial = 0, creditRial = amountRial, description = description.trim())
-            )
-            AccountingEngine.requireBalanced(listOf(
-                VoucherLineDraft(debitAccount.code, debitRial = amountRial),
-                VoucherLineDraft(creditAccount.code, creditRial = amountRial)
-            ))
-            db.voucherLineDao().insertAll(lines)
+            db.voucherLineDao().insertAll(resolved.map { (account, draft) ->
+                VoucherLineEntity(
+                    voucherId = voucherId,
+                    accountId = account.id,
+                    debitRial = draft.debitRial,
+                    creditRial = draft.creditRial,
+                    description = description.trim()
+                )
+            })
         }
     }
 

@@ -824,6 +824,53 @@ private fun InvoiceAllocationDialog(
     )
 }
 
+
+@Composable
+private fun InvoiceReturnDialog(
+    invoice: InvoiceEntity,
+    lines: List<ReturnableInvoiceLineRow>,
+    showToman: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit
+) {
+    val quantities = remember(invoice.id) { mutableStateMapOf<Long, String>() }
+    var note by remember(invoice.id) { mutableStateOf("") }
+    val eligible = lines.filter { it.originalQuantityKg - it.returnedQuantityKg > 0.000001 }
+    val selected = eligible.mapNotNull { line ->
+        val quantity = quantities[line.invoiceLineId]?.toDoubleOrNull() ?: 0.0
+        val remaining = line.originalQuantityKg - line.returnedQuantityKg
+        if (quantity > 0.0 && quantity <= remaining + 0.000001)
+            InvoiceReturnLineInput(line.invoiceLineId, quantity) else null
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("برگشت جزئی • \${invoice.number}") },
+        text = {
+            Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("مقدار برگشتی را برای هر کالا وارد کن. موجودی و سند حسابداری متناسب با مقدار برگشتی اصلاح می‌شود.", color = Muted, fontSize = 11.sp)
+                eligible.forEach { line ->
+                    val remaining = (line.originalQuantityKg - line.returnedQuantityKg).coerceAtLeast(0.0)
+                    GlassCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(line.productName, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("فاکتور: \${formatQuantity(line.originalQuantityKg)} کیلو • برگشتی: \${formatQuantity(line.returnedQuantityKg)} • باقی‌مانده: \${formatQuantity(remaining)}", color = Muted, fontSize = 10.sp)
+                            FormField("مقدار برگشتی (کیلوگرم)", quantities[line.invoiceLineId] ?: "", KeyboardType.Decimal) {
+                                quantities[line.invoiceLineId] = it.filter { ch -> ch.isDigit() || ch == '.' }
+                            }
+                        }
+                    }
+                }
+                FormField("شرح برگشت (اختیاری)", note) { note = it }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = selected.isNotEmpty(), onClick = { onSave(selected, note) {} }) { Text("ثبت برگشت") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+    )
+}
+
 @Composable
 private fun ImportsScreen(
     products: List<ProductWithStock>, parties: List<PartyEntity>, imports: List<ImportOrderEntity>, showToman: Boolean,

@@ -259,6 +259,31 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun addManualVoucher(description: String, debitAccountCode: String, creditAccountCode: String, amountRial: Long) {
+        require(description.isNotBlank()) { "شرح سند الزامی است" }
+        require(debitAccountCode.isNotBlank() && creditAccountCode.isNotBlank()) { "کد هر دو حساب الزامی است" }
+        require(debitAccountCode != creditAccountCode) { "حساب بدهکار و بستانکار باید متفاوت باشند" }
+        require(amountRial > 0) { "مبلغ سند باید بیشتر از صفر باشد" }
+        db.withTransaction {
+            ensureBaseAccounts()
+            val debitAccount = db.accountDao().byCode(debitAccountCode.trim()) ?: error("حساب بدهکار پیدا نشد")
+            val creditAccount = db.accountDao().byCode(creditAccountCode.trim()) ?: error("حساب بستانکار پیدا نشد")
+            val number = "MAN-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(6)}"
+            val voucherId = db.voucherDao().insert(
+                VoucherEntity(number = number, description = description.trim(), reference = "MANUAL:$number")
+            )
+            val lines = listOf(
+                VoucherLineEntity(voucherId = voucherId, accountId = debitAccount.id, debitRial = amountRial, creditRial = 0, description = description.trim()),
+                VoucherLineEntity(voucherId = voucherId, accountId = creditAccount.id, debitRial = 0, creditRial = amountRial, description = description.trim())
+            )
+            AccountingEngine.requireBalanced(listOf(
+                VoucherLineDraft(debitAccount.code, debitRial = amountRial),
+                VoucherLineDraft(creditAccount.code, creditRial = amountRial)
+            ))
+            db.voucherLineDao().insertAll(lines)
+        }
+    }
+
     suspend fun addTreasuryEntry(
         kind: String, method: String, partyId: Long, amountRial: Long,
         referenceNumber: String, note: String

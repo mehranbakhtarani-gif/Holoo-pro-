@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
                         onAddImport = vm::addImport,
                         onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
+                        onAddManualVoucher = vm::addManualVoucher,
                         onAddCheck = vm::addCheck,
                         onUpdateCheckStatus = vm::updateCheckStatus,
                         onClearMessage = vm::clearMessage,
@@ -190,6 +191,7 @@ private fun HolooApp(
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
+    onAddManualVoucher: (String, String, String, Long, () -> Unit) -> Unit,
     onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateCheckStatus: (Long, String) -> Unit,
     onClearMessage: () -> Unit,
@@ -275,7 +277,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -724,17 +726,22 @@ private fun AccountingScreen(
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     parties: List<PartyEntity>,
     showToman: Boolean,
-    onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit
+    onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
+    onAddManualVoucher: (String, String, String, Long, () -> Unit) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
+    var showManualDialog by remember { mutableStateOf(false) }
     val sales = invoices.filter { it.kind == "SALE" && it.status == "POSTED" }.sumOf { it.totalRial }
     val purchases = invoices.filter { it.kind == "PURCHASE" && it.status == "POSTED" }.sumOf { it.totalRial }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("دفتر و حسابداری دوبل", modifier = Modifier.weight(1f), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Button(onClick = { showDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) {
-                    Text("دریافت/پرداخت")
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = { showManualDialog = true }) { Text("سند دستی") }
+                    Button(onClick = { showDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) {
+                        Text("دریافت/پرداخت")
+                    }
                 }
             }
         }
@@ -849,6 +856,45 @@ private fun AccountingScreen(
             onSave = { a, b, c, d, e, f -> onAddTreasury(a, b, c, d, e, f) { showDialog = false } }
         )
     }
+    if (showManualDialog) {
+        ManualVoucherDialog(
+            onDismiss = { showManualDialog = false },
+            onSave = { description, debitCode, creditCode, amount ->
+                onAddManualVoucher(description, debitCode, creditCode, amount) { showManualDialog = false }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ManualVoucherDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, Long) -> Unit
+) {
+    var description by remember { mutableStateOf("") }
+    var debitCode by remember { mutableStateOf("") }
+    var creditCode by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ثبت سند حسابداری دستی") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(description, { description = it }, label = { Text("شرح سند") }, singleLine = true)
+                OutlinedTextField(debitCode, { debitCode = it }, label = { Text("کد حساب بدهکار") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(creditCode, { creditCode = it }, label = { Text("کد حساب بستانکار") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(amount, { amount = it.filter(Char::isDigit) }, label = { Text("مبلغ به ریال") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                Text("نمونه کدها: ۱۱۰۱ صندوق، ۱۱۰۲ بانک، ۱۱۰۳ دریافتنی، ۱۳۰۱ موجودی، ۲۱۰۱ پرداختنی، ۴۱۰۱ فروش، ۵۱۰۱ بهای تمام‌شده", color = Muted, fontSize = 10.sp)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(description, debitCode, creditCode, amount.toLongOrNull() ?: 0L) }) { Text("ثبت سند") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
+    )
 }
 
 @Composable

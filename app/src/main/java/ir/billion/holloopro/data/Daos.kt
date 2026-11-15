@@ -140,6 +140,9 @@ interface AccountDao {
 
     @Query("SELECT * FROM accounts WHERE code = :code LIMIT 1")
     suspend fun byCode(code: String): AccountEntity?
+
+    @Query("SELECT * FROM accounts WHERE id = :id LIMIT 1")
+    suspend fun byId(id: Long): AccountEntity?
 }
 
 @Dao

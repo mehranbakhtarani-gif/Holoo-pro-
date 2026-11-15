@@ -238,6 +238,7 @@ class MainActivity : ComponentActivity() {
                         onReverseManualVoucher = vm::reverseManualVoucher,
                         onLoadDemoData = vm::loadDemoData,
                         onAddCheck = vm::addCheck,
+                        onEditCheck = vm::editCheck,
                         onUpdateCheckStatus = vm::updateCheckStatus,
                         onAddBankStatementLine = vm::addBankStatementLine,
                         onMatchBankStatementLine = vm::matchBankStatementLine,
@@ -352,6 +353,7 @@ private fun HolooApp(
     onReverseManualVoucher: (String) -> Unit,
     onLoadDemoData: () -> Unit,
     onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
+    onEditCheck: (Long, String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateCheckStatus: (Long, String) -> Unit,
     onAddBankStatementLine: (String, Long, Long, String, String, () -> Unit) -> Unit,
     onMatchBankStatementLine: (Long, Long) -> Unit,
@@ -445,7 +447,7 @@ private fun HolooApp(
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onEditInvoice, onShareInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onEditImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
-                Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
+                Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onEditCheck, onUpdateCheckStatus)
             }
         }
     }
@@ -790,11 +792,13 @@ private fun BankStatementDialog(
 private fun ChecksScreen(
     checks: List<CheckEntity>, parties: List<PartyEntity>, showToman: Boolean,
     onAdd: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
+    onEdit: (Long, String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateStatus: (Long, String) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
+    var editingCheck by remember { mutableStateOf<CheckEntity?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        SectionHeader("مدیریت چک‌ها", "چک‌های دریافتی و پرداختی، سررسید و وضعیت وصول") { showDialog = true }
+        SectionHeader("مدیریت چک‌ها", "چک‌های دریافتی و پرداختی، سررسید و وضعیت وصول") { editingCheck = null; showDialog = true }
         if (checks.isEmpty()) EmptyState("چکی ثبت نشده است", "چک‌های دریافتی مشتری و پرداختی تأمین‌کننده را ثبت کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
             items(checks, key = { it.id }) { item ->
@@ -809,6 +813,7 @@ private fun ChecksScreen(
                         Text("سررسید: " + java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date(item.dueDateEpoch)), color = if (overdue) Color(0xFFFF9D9D) else Muted, fontSize = 11.sp)
                         Text(when (item.status) { "CLEARED" -> "وصول/پرداخت‌شده"; "BOUNCED" -> "برگشتی"; "CANCELLED" -> "باطل‌شده"; else -> if (overdue) "سررسید گذشته" else "باز" }, color = if (overdue) Color(0xFFFF9D9D) else Turquoise, fontSize = 11.sp)
                         if (item.status == "OPEN") Row {
+                            TextButton(onClick = { editingCheck = item; showDialog = true }) { Text("ویرایش", color = Turquoise) }
                             TextButton(onClick = { onUpdateStatus(item.id, "CLEARED") }) { Text("تسویه شد", color = Turquoise) }
                             TextButton(onClick = { onUpdateStatus(item.id, "BOUNCED") }) { Text("برگشتی", color = Color(0xFFFF9D9D)) }
                             TextButton(onClick = { onUpdateStatus(item.id, "CANCELLED") }) { Text("باطل شد", color = Muted) }
@@ -818,29 +823,33 @@ private fun ChecksScreen(
             }
         }
     }
-    if (showDialog) CheckDialog(parties, onDismiss = { showDialog = false }, onSave = { a,b,c,d,e,f,g,h -> onAdd(a,b,c,d,e,f,g,h) { showDialog = false } })
+    if (showDialog) CheckDialog(parties, existing = editingCheck, onDismiss = { showDialog = false; editingCheck = null }, onSave = { a,b,c,d,e,f,g,h ->
+        val current = editingCheck
+        if (current == null) onAdd(a,b,c,d,e,f,g,h) { showDialog = false }
+        else onEdit(current.id, a,b,c,d,e,f,g,h) { showDialog = false; editingCheck = null }
+    })
 }
 
 @Composable
 private fun CheckDialog(
-    parties: List<PartyEntity>, onDismiss: () -> Unit,
+    parties: List<PartyEntity>, existing: CheckEntity? = null, onDismiss: () -> Unit,
     onSave: (String, String, Long, Long, Long, Long, String, String) -> Unit
 ) {
-    var number by remember { mutableStateOf("") }
-    var kind by remember { mutableStateOf("RECEIVED") }
-    val eligible = parties.filter { if (kind == "RECEIVED") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
-    var partyId by remember { mutableStateOf(eligible.firstOrNull()?.id ?: 0L) }
-    var amount by remember { mutableStateOf("") }
     val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    var issueDate by remember { mutableStateOf(dateFormat.format(java.util.Date())) }
-    var dueDate by remember { mutableStateOf(issueDate) }
-    var bank by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
+    var number by remember(existing?.id) { mutableStateOf(existing?.checkNumber ?: "") }
+    var kind by remember(existing?.id) { mutableStateOf(existing?.kind ?: "RECEIVED") }
+    val eligible = parties.filter { if (kind == "RECEIVED") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
+    var partyId by remember(existing?.id) { mutableStateOf(existing?.partyId ?: eligible.firstOrNull()?.id ?: 0L) }
+    var amount by remember(existing?.id) { mutableStateOf(existing?.amountRial?.toString() ?: "") }
+    var issueDate by remember(existing?.id) { mutableStateOf(existing?.let { dateFormat.format(java.util.Date(it.issueDateEpoch)) } ?: dateFormat.format(java.util.Date())) }
+    var dueDate by remember(existing?.id) { mutableStateOf(existing?.let { dateFormat.format(java.util.Date(it.dueDateEpoch)) } ?: issueDate) }
+    var bank by remember(existing?.id) { mutableStateOf(existing?.bankName ?: "") }
+    var note by remember(existing?.id) { mutableStateOf(existing?.note ?: "") }
     val issueAt = runCatching { dateFormat.parse(issueDate)?.time }.getOrNull() ?: 0L
     val dueAt = runCatching { dateFormat.parse(dueDate)?.time }.getOrNull() ?: 0L
     val valid = number.isNotBlank() && partyId > 0 && (amount.toLongOrNull() ?: 0L) > 0 && issueAt > 0 && dueAt >= issueAt
     AlertDialog(
-        onDismissRequest = onDismiss, title = { Text("ثبت چک") },
+        onDismissRequest = onDismiss, title = { Text(if (existing == null) "ثبت چک" else "ویرایش چک " + existing.checkNumber) },
         text = {
             Column(Modifier.heightIn(max = 470.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -857,7 +866,7 @@ private fun CheckDialog(
                 Text("ثبت چک به‌تنهایی به معنی وصول یا پرداخت وجه نیست.", color = Muted, fontSize = 10.sp)
             }
         },
-        confirmButton = { TextButton(enabled = valid, onClick = { onSave(number, kind, partyId, amount.toLong(), issueAt, dueAt, bank, note) }) { Text("ثبت") } },
+        confirmButton = { TextButton(enabled = valid, onClick = { onSave(number, kind, partyId, amount.toLong(), issueAt, dueAt, bank, note) }) { Text(if (existing == null) "ثبت چک" else "ذخیره تغییرات") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
         containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
     )

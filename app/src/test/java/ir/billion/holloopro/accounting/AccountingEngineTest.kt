@@ -92,9 +92,14 @@ class AccountingEngineTest {
         assertTrue(AccountingEngine.purchaseReversalAdjustment(1_000_000L, 1_000_000L).isEmpty())
     }
 
-    @Test(expected = ArithmeticException::class)
-    fun purchaseReversalAdjustmentRejectsOverflow() {
-        AccountingEngine.purchaseReversalAdjustment(Long.MAX_VALUE, 0L)
+    @Test fun purchaseReversalAdjustmentHandlesMaximumSupportedDifference() {
+        val higher = AccountingEngine.purchaseReversalAdjustment(Long.MAX_VALUE, 0L)
+        assertEquals(Long.MAX_VALUE, higher[0].creditRial)
+        assertTrue(AccountingEngine.isBalanced(higher))
+
+        val lower = AccountingEngine.purchaseReversalAdjustment(0L, Long.MAX_VALUE)
+        assertEquals(Long.MAX_VALUE, lower[0].debitRial)
+        assertTrue(AccountingEngine.isBalanced(lower))
     }
 
     @Test fun unbalancedVoucherIsRejected() {

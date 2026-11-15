@@ -287,6 +287,9 @@ interface WarehouseStockDao {
 
     @Insert
     suspend fun insertMovement(movement: WarehouseStockMovementEntity)
+
+    @Query("SELECT m.id AS id, w.id AS warehouseId, w.name AS warehouseName, p.name AS productName, m.quantityKg AS quantityKg, m.kind AS kind, m.referenceId AS referenceId, m.note AS note, m.createdAt AS createdAt FROM warehouse_stock_movements m INNER JOIN warehouses w ON w.id = m.warehouseId INNER JOIN products p ON p.id = m.productId ORDER BY m.createdAt DESC, m.id DESC LIMIT 250")
+    fun observeKardex(): Flow<List<WarehouseKardexRow>>
 }
 
 data class InventoryValuationAggregate(val quantityKg: Double, val valueRial: Long)

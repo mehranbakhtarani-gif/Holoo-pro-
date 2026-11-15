@@ -1238,7 +1238,6 @@ private fun AccountingScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("دفتر و حسابداری دوبل", modifier = Modifier.weight(1f), color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = onExportReports) { Text("خروجی گزارش") }
                     OutlinedButton(onClick = { showOpeningDialog = true }) { Text("مانده افتتاحیه") }
                     OutlinedButton(onClick = { showManualDialog = true }) { Text("سند دستی") }
                     Button(onClick = { showDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) {
@@ -1247,6 +1246,7 @@ private fun AccountingScreen(
                 }
             }
         }
+        item { OutlinedButton(onClick = onExportReports, modifier = Modifier.fillMaxWidth()) { Text("خروجی CSV گزارش‌ها و کاردکس") } }
         item { StatCard("اسناد صادرشده", voucherCount.toString(), "≋", Modifier.fillMaxWidth()) }
         item { SummaryCard("درآمد فروش (بدون مالیات)", profitLoss.salesRial, showToman) }
         item { SummaryCard("بهای تمام‌شده کالای فروش‌رفته", profitLoss.costOfGoodsSoldRial, showToman) }

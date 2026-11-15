@@ -131,6 +131,7 @@ class MainActivity : ComponentActivity() {
                         onCreateInvoice = vm::createMultiLineInvoice,
                         onReverseInvoice = vm::reverseInvoice,
                         onAllocateTreasury = vm::allocateTreasuryToInvoice,
+                        onRemoveInvoiceSettlement = vm::removeInvoiceSettlement,
                         onAddImport = vm::addImport,
                         onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
@@ -206,7 +207,8 @@ private fun HolooApp(
     onDeleteParty: (Long) -> Unit,
     onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
     onReverseInvoice: (Long) -> Unit,
-    onAllocateTreasury: (Long, Long, Long) -> Unit,
+    onAllocateTreasury: (Long, Long, Long, () -> Unit) -> Unit,
+    onRemoveInvoiceSettlement: (Long, () -> Unit) -> Unit,
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
@@ -298,7 +300,7 @@ private fun HolooApp(
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
-                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onAllocateTreasury)
+                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
@@ -658,11 +660,13 @@ private fun InvoicesScreen(
     parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>,
     settlements: List<InvoiceSettlementRow>, settlementDetails: List<ir.billion.holloopro.data.InvoiceSettlementDetailRow>, treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
     onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, () -> Unit) -> Unit,
-    onReverse: (Long) -> Unit, onAllocate: (Long, Long, Long) -> Unit
+    onReverse: (Long) -> Unit, onAllocate: (Long, Long, Long, () -> Unit) -> Unit,
+    onRemoveSettlement: (Long, () -> Unit) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
     var allocationTarget by remember { mutableStateOf<InvoiceEntity?>(null) }
     var expandedSettlementInvoice by remember { mutableStateOf<Long?>(null) }
+    var settlementToRemove by remember { mutableStateOf<ir.billion.holloopro.data.InvoiceSettlementDetailRow?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("فاکتور خرید و فروش", "ثبت سند، کنترل موجودی و تسویه مرحله‌ای") { dialog = true }
         if (invoices.isEmpty()) EmptyState("فاکتوری ثبت نشده است", "برای ثبت خرید یا فروش، فاکتور جدید بساز")
@@ -690,15 +694,22 @@ private fun InvoicesScreen(
                             if (expandedSettlementInvoice == invoice.id) {
                                 invoiceDetails.forEach { detail ->
                                     val date = java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
-                                        .format(java.util.Date(detail.entryCreatedAt))
-                                    Text(
-                                        "${if (detail.entryKind == "RECEIPT") "دریافت" else "پرداخت"} • ${detail.referenceNumber.ifBlank { "بدون شماره" }} • ${if (detail.method == "BANK") "بانک" else "نقد"}",
-                                        color = Muted, fontSize = 11.sp
-                                    )
-                                    Text(
-                                        "${formatMoney(detail.amountRial, showToman)} ${if (showToman) "تومان" else "ریال"} • $date",
-                                        color = Turquoise, fontSize = 11.sp
-                                    )
+                                        .format(java.util.Date(detail.createdAt))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                "${if (detail.entryKind == "RECEIPT") "دریافت" else "پرداخت"} • ${detail.referenceNumber.ifBlank { "بدون شماره" }} • ${if (detail.method == "BANK") "بانک" else "نقد"}",
+                                                color = Muted, fontSize = 11.sp
+                                            )
+                                            Text(
+                                                "${formatMoney(detail.amountRial, showToman)} ${if (showToman) "تومان" else "ریال"} • تاریخ تخصیص: $date",
+                                                color = Turquoise, fontSize = 11.sp
+                                            )
+                                        }
+                                        TextButton(onClick = { settlementToRemove = detail }) {
+                                            Text("لغو تخصیص", color = Color(0xFFFFA4A4), fontSize = 11.sp)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -720,7 +731,21 @@ private fun InvoicesScreen(
             invoice = invoice, party = parties.firstOrNull { it.id == invoice.partyId},
             settlements = settlements, treasury = treasury, treasuryAllocations = treasuryAllocations, showToman = showToman,
             onDismiss = { allocationTarget = null },
-            onAllocate = { entryId, amount -> onAllocate(entryId, invoice.id, amount) }
+            onAllocate = { entryId, amount, onSuccess -> onAllocate(entryId, invoice.id, amount, onSuccess) }
+        )
+    }
+    settlementToRemove?.let { settlement ->
+        AlertDialog(
+            onDismissRequest = { settlementToRemove = null },
+            title = { Text("لغو تخصیص تسویه") },
+            text = { Text("مبلغ ${formatMoney(settlement.amountRial, showToman)} ${if (showToman) "تومان" else "ریال"} از تخصیص این رسید آزاد می‌شود. سند دریافت/پرداخت حذف نمی‌شود. ادامه می‌دهی؟") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveSettlement(settlement.settlementId) { settlementToRemove = null }
+                }) { Text("بله، لغو شود", color = Color(0xFFFFA4A4)) }
+            },
+            dismissButton = { TextButton(onClick = { settlementToRemove = null }) { Text("انصراف") } },
+            containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
         )
     }
 }
@@ -729,7 +754,7 @@ private fun InvoicesScreen(
 private fun InvoiceAllocationDialog(
     invoice: InvoiceEntity, party: PartyEntity?, settlements: List<InvoiceSettlementRow>,
     treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
-    onDismiss: () -> Unit, onAllocate: (Long, Long) -> Unit
+    onDismiss: () -> Unit, onAllocate: (Long, Long, () -> Unit) -> Unit
 ) {
     var selectedEntry by remember(invoice.id) { mutableStateOf(0L) }
     var amountText by remember(invoice.id) { mutableStateOf("") }
@@ -774,7 +799,7 @@ private fun InvoiceAllocationDialog(
                 }
             }
         },
-        confirmButton = { TextButton(enabled = valid, onClick = { onAllocate(selectedEntry, amount!!); onDismiss() }) { Text("ثبت تخصیص") } },
+        confirmButton = { TextButton(enabled = valid, onClick = { onAllocate(selectedEntry, amount!!) { onDismiss() } }) { Text("ثبت تخصیص") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("بستن") } },
         containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
     )

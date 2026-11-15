@@ -49,11 +49,10 @@ class AccountingEngineTest {
         assertTrue(AccountingEngine.isBalanced(lines))
     }
 
-    @Test fun purchaseInvoiceTaxIsSeparatedFromInventoryCost() {
+    @Test fun purchaseInvoiceTaxRemainsInInventoryCostUntilInputTaxPolicyIsConfigured() {
         val lines = AccountingEngine.invoicePostingLines("PURCHASE", 1_000_000L, 100_000L, 90_000L)
-        assertEquals(3, lines.size)
-        assertEquals(900_000L, lines.first { it.accountCode == "1301" }.debitRial)
-        assertEquals(90_000L, lines.first { it.accountCode == "1202" }.debitRial)
+        assertEquals(2, lines.size)
+        assertEquals(990_000L, lines.first { it.accountCode == "1301" }.debitRial)
         assertEquals(990_000L, lines.first { it.accountCode == "2101" }.creditRial)
         assertTrue(AccountingEngine.isBalanced(lines))
     }

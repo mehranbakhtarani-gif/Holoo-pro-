@@ -207,7 +207,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 Triple(line, product, amounts[index])
             }
             val lineCosts = if (kind == "PURCHASE") {
-                AccountingEngine.allocateLandedCost(netGoods, amounts.mapIndexed { index, amount -> (index + 1L) to amount.toDouble() })
+                AccountingEngine.allocateLandedCost(total, amounts.mapIndexed { index, amount -> (index + 1L) to amount.toDouble() })
             } else emptyMap()
             val inventoryCosts = mutableListOf<Long>()
             resolved.forEachIndexed { index, (line, product, _) ->
@@ -653,7 +653,6 @@ class AccountingRepository(private val db: AppDatabase) {
             AccountEntity(code = "1101", title = "صندوق", type = "ASSET"),
             AccountEntity(code = "1102", title = "بانک", type = "ASSET"),
             AccountEntity(code = "1103", title = "حساب‌های دریافتنی", type = "ASSET"),
-            AccountEntity(code = "1202", title = "مالیات بر ارزش افزوده خرید", type = "ASSET"),
             AccountEntity(code = "1301", title = "موجودی کالا", type = "ASSET"),
             AccountEntity(code = "2101", title = "حساب‌های پرداختنی تأمین‌کنندگان", type = "LIABILITY"),
             AccountEntity(code = "2102", title = "هزینه‌های حمل و گمرک پرداختنی", type = "LIABILITY"),

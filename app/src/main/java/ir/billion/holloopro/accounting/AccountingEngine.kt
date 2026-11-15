@@ -137,11 +137,11 @@ object AccountingEngine {
                 if (taxRial > 0) add(VoucherLineDraft("2103", creditRial = taxRial))
             }
         } else {
-            buildList {
-                add(VoucherLineDraft("1301", debitRial = netGoods))
-                if (taxRial > 0) add(VoucherLineDraft("1202", debitRial = taxRial))
-                add(VoucherLineDraft("2101", creditRial = total))
-            }
+            // Until recoverable input-VAT treatment is configurable, retain tax in inventory cost.
+            listOf(
+                VoucherLineDraft("1301", debitRial = total),
+                VoucherLineDraft("2101", creditRial = total)
+            )
         }
         requireBalanced(lines)
         return lines

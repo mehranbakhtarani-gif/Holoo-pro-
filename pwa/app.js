@@ -272,6 +272,7 @@ document.querySelectorAll("[data-check-status]").forEach(b=>b.onclick=async()=>{
   toast("وضعیت چک و سوابق مالی به‌روزرسانی شد");render();
  }catch(err){toast(err.message||"تغییر وضعیت چک انجام نشد")}
 });
+}
 const fields={
 products:[["sku","کد کالا","text",1],["name","نام کالا","text",1],["group","گروه","text"],["yarn","نوع نخ (FDY / DTY / POY)","text"],["color","رنگ","text"],["denier","دنیر","number"],["twisted","نوع تاب","select",0,["بدون‌تاب","تاب‌دار"]],["notes","توضیحات","text"]],
 parties:[["name","نام شخص / شرکت","text",1],["kind","نوع طرف حساب","select",1,["مشتری","تأمین‌کننده","هر دو"]],["phone","تلفن","tel"],["address","نشانی","text"],["balance","مانده افتتاحیه (ریال)","number"]],

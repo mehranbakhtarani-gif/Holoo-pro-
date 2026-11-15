@@ -200,6 +200,7 @@ class MainActivity : ComponentActivity() {
                         onUnmatchBankStatementLine = vm::unmatchBankStatementLine,
                         onMatchBankStatementLineToCheck = vm::matchBankStatementLineToCheck,
                         onAddBankFee = vm::addBankFee,
+                        onAddBankStatementPeriod = vm::addBankStatementPeriod,
                         onClearMessage = vm::clearMessage,
                         onExportBackup = { exportBackupLauncher.launch("holloo-backup-${System.currentTimeMillis()}.db") },
                         onImportBackup = { importBackupLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*")) }
@@ -400,10 +401,12 @@ private fun BankReconciliationSection(
     onMatch: (Long, Long) -> Unit,
     onUnmatch: (Long) -> Unit,
     onMatchCheck: (Long, Long) -> Unit,
-    onAddFee: (String, Long, Long, String, String, () -> Unit) -> Unit
+    onAddFee: (String, Long, Long, String, String, () -> Unit) -> Unit,
+    onAddPeriod: (String, Long, Long, Long, Long) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showFeeDialog by remember { mutableStateOf(false) }
+    var showPeriodDialog by remember { mutableStateOf(false) }
     val matchedTreasuryIds = bankStatements.mapNotNull { it.matchedTreasuryEntryId }.toSet()
     val matchedCheckIds = bankStatements.mapNotNull { it.matchedCheckId }.toSet()
     val candidates = treasury.filter { it.method == "BANK" && it.id !in matchedTreasuryIds }
@@ -418,6 +421,7 @@ private fun BankReconciliationSection(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { showFeeDialog = true }) { Text("ثبت کارمزد بانکی") }
+            OutlinedButton(onClick = { showPeriodDialog = true }) { Text("ثبت دوره صورت‌حساب") }
         }
         val matchedCount = bankStatements.count { it.matchedTreasuryEntryId != null || it.matchedCheckId != null || it.matchedVoucherId != null }
         Text("تطبیق‌شده: $matchedCount • تطبیق‌نشده: ${bankStatements.size - matchedCount}", color = Muted, fontSize = 10.sp)

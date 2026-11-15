@@ -1,6 +1,8 @@
 package ir.billion.holloopro
 
 import android.os.Bundle
+import android.content.Intent
+import android.content.ClipData
 import android.os.Process
 import android.widget.Toast
 import android.net.Uri
@@ -44,6 +46,7 @@ import ir.billion.holloopro.data.BankStatementCsvRow
 import ir.billion.holloopro.data.BankMatchCandidate
 import ir.billion.holloopro.data.BankReconciliationMatcher
 import ir.billion.holloopro.data.DatabaseBackup
+import ir.billion.holloopro.data.InvoicePdf
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.AccountBalanceRow
@@ -79,6 +82,22 @@ private val Muted = Color(0xFF9FB5C9)
 private val CardBorder = Color(0x5536D6C5)
 
 class MainActivity : ComponentActivity() {
+    private fun shareInvoicePdf(invoice: InvoiceEntity, party: PartyEntity?, lines: List<ReturnableInvoiceLineRow>, warehouseName: String) {
+        runCatching {
+            val file = InvoicePdf.create(this, invoice, party, lines, warehouseName)
+            val uri = InvoicePdf.contentUri(this, file)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "فاکتور ${invoice.number}")
+                putExtra(Intent.EXTRA_TEXT, "فاکتور ${invoice.number} - هلو پرو پلاس")
+                clipData = ClipData.newUri(contentResolver, "فاکتور", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(send, "ارسال فاکتور"))
+        }.onFailure { Toast.makeText(this, "ساخت یا ارسال PDF ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
+    }
+
     private lateinit var exportBackupLauncher: androidx.activity.result.ActivityResultLauncher<String>
     private lateinit var importBackupLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
     private lateinit var importBankCsvLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
@@ -203,6 +222,8 @@ class MainActivity : ComponentActivity() {
                         onPartyLedger = vm::partyLedger,
                         onDeleteParty = vm::deleteParty,
                         onCreateInvoice = vm::createMultiLineInvoice,
+                        onEditInvoice = vm::editInvoice,
+                        onShareInvoice = { invoice, party, lines, warehouseName -> shareInvoicePdf(invoice, party, lines, warehouseName) },
                         onReverseInvoice = vm::reverseInvoice,
                         onPartialInvoiceReturn = vm::createPartialInvoiceReturn,
                         onAllocateTreasury = vm::allocateTreasuryToInvoice,
@@ -314,6 +335,8 @@ private fun HolooApp(
     onPartyLedger: (Long) -> Flow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
     onDeleteParty: (Long) -> Unit,
     onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, Long, Long, () -> Unit) -> Unit,
+    onEditInvoice: (Long, Long, List<InvoiceLineInput>, Long, Long, Long, Long, () -> Unit) -> Unit,
+    onShareInvoice: (InvoiceEntity, PartyEntity?, List<ReturnableInvoiceLineRow>, String) -> Unit,
     onReverseInvoice: (Long) -> Unit,
     onPartialInvoiceReturn: (Long, List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit,
     onAllocateTreasury: (Long, Long, Long, () -> Unit) -> Unit,
@@ -417,7 +440,7 @@ private fun HolooApp(
                 Screen.WAREHOUSES -> WarehouseScreen(warehouses, warehouseStocks, warehouseKardex, products, showToman, onCreateWarehouse, onTransferStock)
                 Screen.INVENTORY -> InventoryScreen(warehouses, warehouseStocks, products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
-                Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
+                Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onEditInvoice, onShareInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
@@ -1269,16 +1292,19 @@ private fun InvoicesScreen(
     warehouses: List<WarehouseEntity>, parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>,
     settlements: List<InvoiceSettlementRow>, returnTotals: List<InvoiceReturnSummaryRow>, returnableLines: List<ReturnableInvoiceLineRow>, settlementDetails: List<ir.billion.holloopro.data.InvoiceSettlementDetailRow>, treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
     onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, Long, Long, () -> Unit) -> Unit,
+    onEdit: (Long, Long, List<InvoiceLineInput>, Long, Long, Long, Long, () -> Unit) -> Unit,
+    onShare: (InvoiceEntity, PartyEntity?, List<ReturnableInvoiceLineRow>, String) -> Unit,
     onReverse: (Long) -> Unit, onPartialReturn: (Long, List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit, onAllocate: (Long, Long, Long, () -> Unit) -> Unit,
     onRemoveSettlement: (Long, () -> Unit) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
+    var editingInvoice by remember { mutableStateOf<InvoiceEntity?>(null) }
     var allocationTarget by remember { mutableStateOf<InvoiceEntity?>(null) }
     var returnTarget by remember { mutableStateOf<InvoiceEntity?>(null) }
     var expandedSettlementInvoice by remember { mutableStateOf<Long?>(null) }
     var settlementToRemove by remember { mutableStateOf<ir.billion.holloopro.data.InvoiceSettlementDetailRow?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        SectionHeader("فاکتور خرید و فروش", "ثبت سند، کنترل موجودی و تسویه مرحله‌ای") { dialog = true }
+        SectionHeader("فاکتور خرید و فروش", "صدور، ویرایش، PDF و تسویه مرحله‌ای") { editingInvoice = null; dialog = true }
         if (invoices.isEmpty()) EmptyState("فاکتوری ثبت نشده است", "برای ثبت خرید یا فروش، فاکتور جدید بساز")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
             items(invoices, key = { it.id }) { invoice ->
@@ -1294,7 +1320,7 @@ private fun InvoicesScreen(
                                 Text(invoice.number, color = Muted, fontSize = 10.sp)
                                 Text("انبار: ${warehouses.firstOrNull { it.id == invoice.warehouseId }?.name ?: "انبار اصلی"}", color = Muted, fontSize = 9.sp)
                             }
-                            Text(if (invoice.status == "POSTED") "ثبت‌شده" else "برگشت‌شده", color = Muted, fontSize = 11.sp)
+                            Text(when (invoice.status) { "POSTED" -> "ثبت‌شده"; "EDITED" -> "ویرایش‌شده"; else -> "برگشت‌شده" }, color = Muted, fontSize = 11.sp)
                         }
                         Text("مبلغ فاکتور: ${formatMoney(invoice.totalRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Color.White)
                         Text("تسویه‌شده: ${formatMoney(paid, showToman)}  •  برگشتی: ${formatMoney(returned, showToman)}", color = Muted, fontSize = 11.sp)
@@ -1326,6 +1352,14 @@ private fun InvoicesScreen(
                                 }
                             }
                         }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedButton(onClick = {
+                                onShare(invoice, parties.firstOrNull { it.id == invoice.partyId }, returnableLines.filter { it.invoiceId == invoice.id }, warehouses.firstOrNull { it.id == invoice.warehouseId }?.name ?: "انبار اصلی")
+                            }) { Text("PDF / ارسال") }
+                            if (invoice.status == "POSTED" && paid == 0L && returned == 0L) {
+                                OutlinedButton(onClick = { editingInvoice = invoice; dialog = true }) { Text("ویرایش") }
+                            }
+                        }
                         if (invoice.status == "POSTED") {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (remaining > 0L) OutlinedButton(onClick = { allocationTarget = invoice }) { Text("تخصیص دریافت/پرداخت") }
@@ -1339,7 +1373,11 @@ private fun InvoicesScreen(
             }
         }
     }
-    if (dialog) InvoiceDialog(warehouses, parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax, extraCosts, warehouseId -> onCreate(kind, partyId, lines, discount, tax, extraCosts, warehouseId) { dialog = false } })
+    if (dialog) InvoiceDialog(warehouses, parties, products, existing = editingInvoice, existingLines = editingInvoice?.let { invoice -> returnableLines.filter { it.invoiceId == invoice.id } } ?: emptyList(), onDismiss = { dialog = false; editingInvoice = null }, onSave = { kind, partyId, lines, discount, tax, extraCosts, warehouseId ->
+        val current = editingInvoice
+        if (current == null) onCreate(kind, partyId, lines, discount, tax, extraCosts, warehouseId) { dialog = false }
+        else onEdit(current.id, partyId, lines, discount, tax, extraCosts, warehouseId) { dialog = false; editingInvoice = null }
+    })
     allocationTarget?.let { invoice ->
         InvoiceAllocationDialog(
             invoice = invoice, party = parties.firstOrNull { it.id == invoice.partyId},
@@ -2157,23 +2195,28 @@ private fun PartyDialog(existing: PartyEntity? = null, onDismiss: () -> Unit, on
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }, containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White)
 }
 
-private class InvoiceDraftRow(initialProductId: Long) {
+private class InvoiceDraftRow(initialProductId: Long, initialQuantity: String = "1", initialPrice: String = "") {
     var productId by mutableStateOf(initialProductId)
-    var quantity by mutableStateOf("1")
-    var price by mutableStateOf("")
+    var quantity by mutableStateOf(initialQuantity)
+    var price by mutableStateOf(initialPrice)
 }
 
 @Composable
-private fun InvoiceDialog(warehouses: List<WarehouseEntity>, parties: List<PartyEntity>, products: List<ProductWithStock>, onDismiss: () -> Unit, onSave: (String, Long, List<InvoiceLineInput>, Long, Long, Long, Long) -> Unit) {
-    var kind by remember { mutableStateOf("SALE") }
+private fun InvoiceDialog(warehouses: List<WarehouseEntity>, parties: List<PartyEntity>, products: List<ProductWithStock>, existing: InvoiceEntity? = null, existingLines: List<ReturnableInvoiceLineRow> = emptyList(), onDismiss: () -> Unit, onSave: (String, Long, List<InvoiceLineInput>, Long, Long, Long, Long) -> Unit) {
+    var kind by remember(existing?.id) { mutableStateOf(existing?.kind ?: "SALE") }
     val eligibleParties = parties.filter { if (kind == "SALE") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
-    var partyId by remember { mutableStateOf(eligibleParties.firstOrNull()?.id ?: 0L) }
-    var warehouseId by remember { mutableStateOf(warehouses.firstOrNull()?.id ?: 1L) }
-    val rows = remember { mutableStateListOf(InvoiceDraftRow(products.firstOrNull()?.product?.id ?: 0L)) }
-    var discount by remember { mutableStateOf("0") }
-    var tax by remember { mutableStateOf("0") }
-    var extraCosts by remember { mutableStateOf("0") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("فاکتور چندردیفی") },
+    var partyId by remember(existing?.id) { mutableStateOf(existing?.partyId ?: eligibleParties.firstOrNull()?.id ?: 0L) }
+    var warehouseId by remember(existing?.id) { mutableStateOf(existing?.warehouseId ?: warehouses.firstOrNull()?.id ?: 1L) }
+    val rows = remember(existing?.id) {
+        mutableStateListOf<InvoiceDraftRow>().apply {
+            if (existing != null && existingLines.isNotEmpty()) existingLines.forEach { add(InvoiceDraftRow(it.productId, it.originalQuantityKg.toString(), BigDecimal.valueOf(it.unitPriceRial).divide(BigDecimal.TEN).stripTrailingZeros().toPlainString())) }
+            else add(InvoiceDraftRow(products.firstOrNull()?.product?.id ?: 0L))
+        }
+    }
+    var discount by remember(existing?.id) { mutableStateOf(existing?.let { BigDecimal.valueOf(it.discountRial).divide(BigDecimal.TEN).stripTrailingZeros().toPlainString() } ?: "0") }
+    var tax by remember(existing?.id) { mutableStateOf(existing?.let { BigDecimal.valueOf(it.taxRial).divide(BigDecimal.TEN).stripTrailingZeros().toPlainString() } ?: "0") }
+    var extraCosts by remember(existing?.id) { mutableStateOf(existing?.let { BigDecimal.valueOf(it.extraCostsRial).divide(BigDecimal.TEN).stripTrailingZeros().toPlainString() } ?: "0") }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (existing == null) "صدور فاکتور چندردیفی" else "ویرایش فاکتور ${existing.number}") },
         text = {
             Column(modifier = Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

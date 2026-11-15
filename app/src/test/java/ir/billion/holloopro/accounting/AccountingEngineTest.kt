@@ -7,6 +7,21 @@ import org.junit.Test
 import java.math.BigDecimal
 
 class AccountingEngineTest {
+    @Test fun duplicateInvoiceProductRowsAreAggregatedForStockValidation() {
+        val requested = AccountingEngine.aggregateQuantities(
+            listOf(1L to 4.25, 2L to 1.0, 1L to 3.75)
+        )
+        assertEquals(8.0, requested[1L]!!, 0.000001)
+        assertEquals(1.0, requested[2L]!!, 0.000001)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun aggregatedStockQuantityRejectsOverflowToInfinity() {
+        AccountingEngine.aggregateQuantities(
+            listOf(1L to Double.MAX_VALUE, 1L to Double.MAX_VALUE)
+        )
+    }
+
     @Test fun balancedVoucherIsAccepted() {
         val lines = listOf(
             VoucherLineDraft("1103", debitRial = 1_250_000),

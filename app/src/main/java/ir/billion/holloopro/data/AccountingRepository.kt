@@ -188,12 +188,19 @@ class AccountingRepository(private val db: AppDatabase) {
         db.withTransaction {
             val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
             if (kind == "SALE") require(party.kind != "SUPPLIER") { "برای فروش، مشتری انتخاب کنید" } else require(party.kind != "CUSTOMER") { "برای خرید، تأمین‌کننده انتخاب کنید" }
+            val requestedByProduct = AccountingEngine.aggregateQuantities(lines.map { it.productId to it.quantityKg })
+            if (kind == "SALE") {
+                requestedByProduct.forEach { (productId, requestedKg) ->
+                    val product = db.productDao().getById(productId) ?: error("یکی از کالاهای فاکتور پیدا نشد")
+                    val available = db.stockDao().stockForProduct(productId)
+                    require(available.isFinite() && available + 0.000001 >= requestedKg) {
+                        "موجودی " + product.name + " کافی نیست؛ موجودی: " + available +
+                            " کیلوگرم، مقدار درخواستی: " + requestedKg + " کیلوگرم"
+                    }
+                }
+            }
             val resolved = lines.mapIndexed { index, line ->
                 val product = db.productDao().getById(line.productId) ?: error("یکی از کالاهای فاکتور پیدا نشد")
-                if (kind == "SALE") {
-                    val available = db.stockDao().stockForProduct(line.productId)
-                    require(available + 0.000001 >= line.quantityKg) { "موجودی " + product.name + " کافی نیست؛ موجودی: " + available + " کیلوگرم" }
-                }
                 Triple(line, product, amounts[index])
             }
             val number = "HP-" + System.currentTimeMillis()

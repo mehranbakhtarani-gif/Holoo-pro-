@@ -10,6 +10,20 @@ data class VoucherLineDraft(
 )
 
 object AccountingEngine {
+    fun aggregateQuantities(lines: List<Pair<Long, Double>>): Map<Long, Double> {
+        require(lines.isNotEmpty()) { "فاکتور باید حداقل یک ردیف داشته باشد" }
+        require(lines.all { it.first > 0 && it.second > 0.0 && it.second.isFinite() }) {
+            "مقدار هر ردیف باید مثبت و معتبر باشد"
+        }
+        return lines.groupBy({ it.first }, { it.second }).mapValues { (_, quantities) ->
+            quantities.fold(0.0) { total, quantity ->
+                val next = total + quantity
+                require(next.isFinite()) { "مجموع مقدار کالا خارج از محدوده مجاز است" }
+                next
+            }
+        }
+    }
+
     fun isBalanced(lines: List<VoucherLineDraft>): Boolean {
         if (lines.size < 2) return false
         if (lines.any { it.debitRial < 0 || it.creditRial < 0 }) return false

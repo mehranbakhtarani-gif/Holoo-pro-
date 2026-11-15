@@ -252,7 +252,20 @@ if(page==="invoices"){
  const debit=journal.reduce((n,x)=>n+x.debitRial,0),credit=journal.reduce((n,x)=>n+x.creditRial,0);if(debit!==credit||journal.length<2)throw Error("سند حسابداری فاکتور تراز نیست");
  await postVoucherAtomic([...updatedProducts.map(product=>["products",product]),["parties",p],["invoices",invoice],["partyLedger",{partyId:p.id,date:Date.now(),debitRial:kind==="SALE"?total:0,creditRial:kind==="PURCHASE"?total:0,description:(kind==="SALE"?"فاکتور فروش ":"فاکتور خرید ")+number,referenceId:number}],],{number:voucherNumber,date:Date.now(),description:(kind==="SALE"?"فروش ":"خرید ")+number,reference:number},journal);
 }
-if(page==="imports"){const ps=await all("parties"),p=ps.find(x=>x.id===num("supplierId"));if(!p)throw Error("تأمین‌کننده انتخاب نشده");const fx=num("fx"),goods=num("goods"),weight=num("weight");if(fx<=0||goods<=0||weight<=0)throw Error("نرخ ارز، مبلغ کالا و وزن باید مثبت باشند");await put("imports",{supplierId:p.id,supplierName:p.name,currency:d.currency,fx,container:d.container,weight,goods,extra:Math.round(goods*fx)+num("freight")+num("customs")+num("other"),due:new Date(d.due+"T12:00:00").getTime(),status:"ثبت سفارش"})}
+if(page==="imports"){
+ const ps=await all("parties"),p=ps.find(x=>x.id===num("supplierId"));
+ if(!p||p.kind==="CUSTOMER")throw Error("تأمین‌کننده معتبر انتخاب کنید");
+ const fx=num("fx"),goods=num("goods"),weight=num("weight"),freight=num("freight"),customs=num("customs"),other=num("other");
+ if(!["USD","CNY","EUR"].includes(d.currency)||!Number.isSafeInteger(fx)||fx<=0||!Number.isSafeInteger(goods)||goods<=0||!Number.isFinite(weight)||weight<=0)throw Error("ارز، نرخ ارز، مبلغ کالا و وزن را بررسی کنید");
+ for(const cost of [freight,customs,other])if(!Number.isSafeInteger(cost)||cost<0)throw Error("هزینه‌های جانبی باید عدد صحیح و نامنفی باشند");
+ const goodsRial=goods*fx,landedCost=goodsRial+freight+customs+other;
+ if(!Number.isSafeInteger(goodsRial)||!Number.isSafeInteger(landedCost)||!Number.isFinite(landedCost/weight))throw Error("بهای تمام‌شده خارج از محدوده مجاز است");
+ const container=String(d.container||"").trim();
+ if(!container)throw Error("شناسه کانتینر یا محموله الزامی است");
+ const existing=await all("imports");
+ if(existing.some(x=>String(x.container||"").toLowerCase()===container.toLowerCase()))throw Error("این شناسه کانتینر قبلاً ثبت شده است");
+ await put("imports",{shipmentNo:"IMP-"+Date.now(),supplierId:p.id,supplierName:p.name,currency:d.currency,fx,container,weight,goods,goodsRial,freight,customs,other,extra:landedCost,landedCost,totalCostRial:landedCost,costPerKg:landedCost/weight,due:new Date(d.due+"T12:00:00").getTime(),status:"ثبت سفارش"})
+}
 if(page==="checks"){const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId"));if(!p)throw Error("طرف حساب انتخاب نشده");const amount=num("amount"),due=new Date(d.due+"T12:00:00").getTime(),issue=new Date(d.issue+"T12:00:00").getTime();if(amount<=0||due<issue)throw Error("مبلغ یا تاریخ چک نامعتبر است");await put("checks",{number:d.number,kind:d.kind==="دریافتی"?"RECEIVED":"PAYABLE",partyId:p.id,partyName:p.name,amount,issue,due,bank:d.bank,status:"OPEN",note:d.note})}
 if(page==="treasury"){
  const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),amount=num("amount");

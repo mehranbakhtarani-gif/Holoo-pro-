@@ -23,6 +23,7 @@ import ir.billion.holloopro.data.WarehouseStockRow
 import ir.billion.holloopro.data.WarehouseKardexRow
 import ir.billion.holloopro.data.ProductProfitRow
 import ir.billion.holloopro.data.InvoiceProfitRow
+import ir.billion.holloopro.data.InvoiceAgingRow
 import ir.billion.holloopro.data.TreasuryEntryEntity
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +45,7 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     val returnableInvoiceLines = repository.returnableInvoiceLines.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val invoiceReturnTotals = repository.invoiceReturnTotals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val invoiceSettlements = repository.invoiceSettlements.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val invoiceAging: StateFlow<List<InvoiceAgingRow>> = repository.invoiceAging.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val settlementDetails = repository.settlementDetails.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val treasuryAllocations = repository.treasuryAllocations.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val treasury: StateFlow<List<TreasuryEntryEntity>> =

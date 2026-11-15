@@ -232,6 +232,7 @@ class MainActivity : ComponentActivity() {
                         onEditImport = vm::updateImportOrder,
                         onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
+                        onEditTreasury = vm::editTreasury,
                         onAddManualVoucher = vm::addManualVoucher,
                         onUpdateOpeningBalances = vm::updateOpeningBalances,
                         onSaveAccount = vm::saveAccount,
@@ -347,6 +348,7 @@ private fun HolooApp(
     onEditImport: (Long, Long, String, Long, String, Double, Long, Long, Long, Long, Int, () -> Unit) -> Unit,
     onReceiveImport: (Long, List<ImportReceiptLineInput>, () -> Unit) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
+    onEditTreasury: (Long, String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
     onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
     onSaveAccount: (String, String, String, () -> Unit) -> Unit,
@@ -446,7 +448,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onEditInvoice, onShareInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onEditImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onEditTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onEditCheck, onUpdateCheckStatus)
             }
         }
@@ -1676,6 +1678,7 @@ private fun AccountingScreen(
     onExportReports: () -> Unit,
     onExportReportsPdf: () -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
+    onEditTreasury: (Long, String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
     onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
     onSaveAccount: (String, String, String, () -> Unit) -> Unit,
@@ -1689,6 +1692,7 @@ private fun AccountingScreen(
     onImportBankCsv: () -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
+    var editingTreasury by remember { mutableStateOf<ir.billion.holloopro.data.TreasuryEntryEntity?>(null) }
     var showManualDialog by remember { mutableStateOf(false) }
     var showOpeningDialog by remember { mutableStateOf(false) }
     var reversalTarget by remember { mutableStateOf<String?>(null) }
@@ -1715,7 +1719,7 @@ private fun AccountingScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedButton(onClick = { showOpeningDialog = true }) { Text("مانده افتتاحیه") }
                     OutlinedButton(onClick = { showManualDialog = true }) { Text("سند دستی") }
-                    Button(onClick = { showDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) {
+                    Button(onClick = { editingTreasury = null; showDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) {
                         Text("دریافت/پرداخت")
                     }
                 }
@@ -1725,6 +1729,24 @@ private fun AccountingScreen(
             OutlinedButton(onClick = onExportReports, modifier = Modifier.weight(1f)) { Text("خروجی CSV") }
             OutlinedButton(onClick = onExportReportsPdf, modifier = Modifier.weight(1f)) { Text("خروجی PDF / چاپ") }
         } }
+        item {
+            GlassCard {
+                Text("سوابق دریافت و پرداخت", color = Turquoise, fontWeight = FontWeight.Bold)
+                if (treasury.isEmpty()) Text("هنوز سندی ثبت نشده است.", color = Muted, fontSize = 11.sp)
+                treasury.take(80).forEach { entry ->
+                    val partyName = parties.firstOrNull { it.id == entry.partyId }?.name ?: "طرف حساب حذف‌شده"
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("${if (entry.kind == "RECEIPT") "دریافت" else "پرداخت"} • $partyName", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("${if (entry.method == "CASH") "صندوق" else "بانک"} • ${entry.referenceNumber.ifBlank { "بدون شماره پیگیری" }}", color = Muted, fontSize = 10.sp)
+                            Text("${formatMoney(entry.amountRial, showToman)} ${if (showToman) "تومان" else "ریال"} • ${entry.note}", color = Turquoise, fontSize = 11.sp)
+                        }
+                        TextButton(onClick = { editingTreasury = entry; showDialog = true }) { Text("ویرایش") }
+                    }
+                    Divider(color = CardBorder)
+                }
+            }
+        }
         item { StatCard("اسناد صادرشده", voucherCount.toString(), "≋", Modifier.fillMaxWidth()) }
         item { SummaryCard("درآمد فروش (بدون مالیات)", profitLoss.salesRial, showToman) }
         item { SummaryCard("بهای تمام‌شده کالای فروش‌رفته", profitLoss.costOfGoodsSoldRial, showToman) }
@@ -1925,9 +1947,13 @@ private fun AccountingScreen(
     }
     if (showDialog) {
         TreasuryDialog(
-            parties,
-            onDismiss = { showDialog = false },
-            onSave = { a, b, c, d, e, f -> onAddTreasury(a, b, c, d, e, f) { showDialog = false } }
+            parties = parties, existing = editingTreasury,
+            onDismiss = { showDialog = false; editingTreasury = null },
+            onSave = { a, b, c, d, e, f ->
+                val current = editingTreasury
+                if (current == null) onAddTreasury(a, b, c, d, e, f) { showDialog = false }
+                else onEditTreasury(current.id, a, b, c, d, e, f) { showDialog = false; editingTreasury = null }
+            }
         )
     }
     if (showManualDialog) {
@@ -2345,19 +2371,20 @@ private fun ImportDialog(
 @Composable
 private fun TreasuryDialog(
     parties: List<PartyEntity>,
+    existing: ir.billion.holloopro.data.TreasuryEntryEntity? = null,
     onDismiss: () -> Unit,
     onSave: (String, String, Long, Long, String, String) -> Unit
 ) {
-    var kind by remember { mutableStateOf("RECEIPT") }
-    var method by remember { mutableStateOf("CASH") }
+    var kind by remember(existing?.id) { mutableStateOf(existing?.kind ?: "RECEIPT") }
+    var method by remember(existing?.id) { mutableStateOf(existing?.method ?: "CASH") }
     val eligible = parties.filter { if (kind == "RECEIPT") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
-    var partyId by remember { mutableStateOf(eligible.firstOrNull()?.id ?: 0L) }
-    var amount by remember { mutableStateOf("") }
-    var reference by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
+    var partyId by remember(existing?.id) { mutableStateOf(existing?.partyId ?: eligible.firstOrNull()?.id ?: 0L) }
+    var amount by remember(existing?.id) { mutableStateOf(existing?.amountRial?.let { BigDecimal(it).divide(BigDecimal.TEN).stripTrailingZeros().toPlainString() } ?: "") }
+    var reference by remember(existing?.id) { mutableStateOf(existing?.referenceNumber ?: "") }
+    var note by remember(existing?.id) { mutableStateOf(existing?.note ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("ثبت دریافت یا پرداخت") },
+        title = { Text(if (existing == null) "ثبت دریافت یا پرداخت" else "ویرایش سند دریافت/پرداخت") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -2376,10 +2403,10 @@ private fun TreasuryDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val rial = (amount.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
+            TextButton(enabled = partyId > 0L && (amount.toBigDecimalOrNull()?.compareTo(BigDecimal.ZERO) ?: 0) > 0, onClick = {
+                val rial = (amount.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).longValueExact()
                 onSave(kind, method, partyId, rial, reference, note)
-            }) { Text("ثبت سند") }
+            }) { Text(if (existing == null) "ثبت سند" else "ذخیره تغییرات") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
         containerColor = Color(0xFF15324D),

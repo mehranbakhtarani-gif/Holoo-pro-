@@ -134,6 +134,9 @@ interface PartyLedgerDao {
     @Insert
     suspend fun insert(entry: PartyLedgerEntity)
 
+    @Query("SELECT COUNT(*) FROM party_ledger WHERE partyId = :partyId AND referenceId = :referenceId AND description LIKE '%چک شماره%'")
+    suspend fun countCheckEntries(partyId: Long, referenceId: Long): Int
+
     @Query("SELECT COALESCE(SUM(debitRial - creditRial), 0) + (SELECT openingBalanceRial FROM parties WHERE id = :partyId) FROM party_ledger WHERE partyId = :partyId")
     suspend fun balanceRial(partyId: Long): Long
 
@@ -229,6 +232,9 @@ interface ImportReceiptDao {
 interface CheckDao {
     @Query("SELECT * FROM checks ORDER BY dueDateEpoch ASC, id DESC")
     fun observeAll(): Flow<List<CheckEntity>>
+
+    @Query("SELECT * FROM checks WHERE checkNumber = :number LIMIT 1")
+    suspend fun byCheckNumber(number: String): CheckEntity?
 
     @Insert
     suspend fun insert(check: CheckEntity): Long

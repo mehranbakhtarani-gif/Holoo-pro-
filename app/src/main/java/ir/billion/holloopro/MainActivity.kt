@@ -2216,12 +2216,17 @@ private fun InvoiceDialog(warehouses: List<WarehouseEntity>, parties: List<Party
     var discount by remember(existing?.id) { mutableStateOf(existing?.let { BigDecimal.valueOf(it.discountRial).divide(BigDecimal.TEN).stripTrailingZeros().toPlainString() } ?: "0") }
     var tax by remember(existing?.id) { mutableStateOf(existing?.let { BigDecimal.valueOf(it.taxRial).divide(BigDecimal.TEN).stripTrailingZeros().toPlainString() } ?: "0") }
     var extraCosts by remember(existing?.id) { mutableStateOf(existing?.let { BigDecimal.valueOf(it.extraCostsRial).divide(BigDecimal.TEN).stripTrailingZeros().toPlainString() } ?: "0") }
+    val canSubmit = partyId > 0L && rows.isNotEmpty() && rows.all { row ->
+        val quantity = row.quantity.toDoubleOrNull()
+        val price = row.price.toBigDecimalOrNull()
+        row.productId > 0L && quantity != null && quantity.isFinite() && quantity > 0.0 && price != null && price.signum() > 0
+    } && (discount.toBigDecimalOrNull()?.signum() ?: -1) >= 0 && (tax.toBigDecimalOrNull()?.signum() ?: -1) >= 0 && (extraCosts.toBigDecimalOrNull()?.signum() ?: -1) >= 0
     AlertDialog(onDismissRequest = onDismiss, title = { Text(if (existing == null) "صدور فاکتور چندردیفی" else "ویرایش فاکتور ${existing.number}") },
         text = {
             Column(modifier = Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(selected = kind == "SALE", onClick = { kind = "SALE"; partyId = parties.firstOrNull { it.kind != "SUPPLIER" }?.id ?: 0L }, label = { Text("فروش") })
-                    FilterChip(selected = kind == "PURCHASE", onClick = { kind = "PURCHASE"; partyId = parties.firstOrNull { it.kind != "CUSTOMER" }?.id ?: 0L }, label = { Text("خرید") })
+                    FilterChip(selected = kind == "SALE", enabled = existing == null, onClick = { kind = "SALE"; partyId = parties.firstOrNull { it.kind != "SUPPLIER" }?.id ?: 0L }, label = { Text("فروش") })
+                    FilterChip(selected = kind == "PURCHASE", enabled = existing == null, onClick = { kind = "PURCHASE"; partyId = parties.firstOrNull { it.kind != "CUSTOMER" }?.id ?: 0L }, label = { Text("خرید") })
                 }
                 ChoiceField("طرف حساب", parties.firstOrNull { it.id == partyId }?.name ?: "انتخاب طرف حساب", eligibleParties.map { it.name }) { selected -> partyId = eligibleParties.firstOrNull { it.name == selected }?.id ?: 0L }
                 ChoiceField("انبار", warehouses.firstOrNull { it.id == warehouseId }?.name ?: "انبار اصلی", warehouses.map { it.name }) { selected -> warehouseId = warehouses.firstOrNull { it.name == selected }?.id ?: 1L }
@@ -2244,7 +2249,7 @@ private fun InvoiceDialog(warehouses: List<WarehouseEntity>, parties: List<Party
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = canSubmit, onClick = {
                 val lines = rows.mapNotNull { row ->
                     val quantity = row.quantity.toDoubleOrNull() ?: 0.0
                     val priceRial = (row.price.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()

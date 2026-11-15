@@ -735,7 +735,8 @@ private fun AccountingScreen(
     parties: List<PartyEntity>,
     showToman: Boolean,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
-    onAddManualVoucher: (String, String, String, Long, () -> Unit) -> Unit
+    onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
+    onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var showManualDialog by remember { mutableStateOf(false) }

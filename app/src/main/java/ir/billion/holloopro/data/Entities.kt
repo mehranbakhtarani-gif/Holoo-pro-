@@ -345,3 +345,15 @@ data class WarehouseStockRow(
     val valueRial: Long,
     val averageCostPerKgRial: Long
 )
+
+data class WarehouseKardexRow(
+    val id: Long,
+    val warehouseId: Long,
+    val warehouseName: String,
+    val productName: String,
+    val quantityKg: Double,
+    val kind: String,
+    val referenceId: Long,
+    val note: String,
+    val createdAt: Long
+)

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import ir.billion.holloopro.accounting.LandedCostCalculator
 import ir.billion.holloopro.accounting.Money
 import ir.billion.holloopro.data.ImportOrderEntity
+import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.AccountBalanceRow
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.InvoiceLineInput
@@ -81,6 +82,7 @@ class MainActivity : ComponentActivity() {
                         onCreateInvoice = vm::createMultiLineInvoice,
                         onReverseInvoice = vm::reverseInvoice,
                         onAddImport = vm::addImport,
+                        onReceiveImport = vm::receiveImport,
                         onAddTreasury = vm::addTreasury,
                         onClearMessage = vm::clearMessage
                     )
@@ -135,6 +137,7 @@ private fun HolooApp(
     onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long) -> Unit,
     onReverseInvoice: (Long) -> Unit,
     onAddImport: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit,
+    onReceiveImport: (Long, List<ImportReceiptLineInput>) -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String) -> Unit,
     onClearMessage: () -> Unit
 ) {
@@ -212,7 +215,7 @@ private fun HolooApp(
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty)
                 Screen.INVOICES -> InvoicesScreen(parties, products, invoices, showToman, onCreateInvoice, onReverseInvoice)
-                Screen.IMPORTS -> ImportsScreen(parties, imports, showToman, onAddImport)
+                Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, parties, showToman, onAddTreasury)
             }
         }
@@ -387,10 +390,12 @@ private fun InvoicesScreen(
 
 @Composable
 private fun ImportsScreen(
-    parties: List<PartyEntity>, imports: List<ImportOrderEntity>, showToman: Boolean,
-    onAdd: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit
+    products: List<ProductWithStock>, parties: List<PartyEntity>, imports: List<ImportOrderEntity>, showToman: Boolean,
+    onAdd: (Long, String, Long, String, Double, Long, Long, Long, Long, Int) -> Unit,
+    onReceive: (Long, List<ImportReceiptLineInput>) -> Unit
 ) {
     var dialog by remember { mutableStateOf(false) }
+    var receivingOrder by remember { mutableStateOf<ImportOrderEntity?>(null) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("واردات نخ از چین", "ارز، کانتینر، هزینه‌ها و سررسید تأمین‌کننده") { dialog = true }
         if (imports.isEmpty()) EmptyState("سفارشی ثبت نشده است", "اطلاعات خرید خارجی و هزینه‌های حمل را وارد کن")
@@ -405,16 +410,109 @@ private fun ImportsScreen(
                 }.getOrDefault(0L)
                 val perKg = runCatching { LandedCostCalculator.costPerKgRial(total, order.grossWeightKg) }.getOrDefault(0L)
                 GlassCard {
-                    Text("کانتینر ${order.containerCode}", color = Color.White, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("کانتینر ${order.containerCode}", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(if (order.status == "RECEIVED") "رسید شده" else "در انتظار رسید", fontSize = 10.sp) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = if (order.status == "RECEIVED") Color(0xFF174D4A) else Color(0xFF34485D),
+                                labelColor = if (order.status == "RECEIVED") Turquoise else Muted
+                            )
+                        )
+                    }
                     Text("$supplier  •  ${order.currency}", color = Muted, fontSize = 11.sp)
                     Text("وزن: ${formatQuantity(order.grossWeightKg)} کیلوگرم", color = Muted, fontSize = 12.sp)
                     Text("بهای تمام‌شده هر کیلو: ${formatMoney(perKg, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise)
                     Text("سررسید تسویه: ${java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(java.util.Date(order.supplierDueAt))}", color = Muted, fontSize = 11.sp)
+                    if (order.status != "RECEIVED") {
+                        Button(
+                            onClick = { receivingOrder = order },
+                            enabled = products.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)
+                        ) { Text("دریافت محموله و ورود به انبار") }
+                    } else {
+                        Text("موجودی وارد انبار شده و سند بهای تمام‌شده صادر شده است.", color = Muted, fontSize = 10.sp)
+                    }
                 }
             }
         }
     }
     if (dialog) ImportDialog(parties, onDismiss = { dialog = false }, onSave = { a,b,c,d,e,f,g,h,i,j -> onAdd(a,b,c,d,e,f,g,h,i,j); dialog = false })
+    receivingOrder?.let { order ->
+        ImportReceiptDialog(
+            order = order, products = products,
+            onDismiss = { receivingOrder = null },
+            onSave = { lines -> onReceive(order.id, lines); receivingOrder = null }
+        )
+    }
+}
+
+private class ImportReceiptDraftRow(initialProductId: Long) {
+    var productId by mutableStateOf(initialProductId)
+    var quantity by mutableStateOf("")
+}
+
+@Composable
+private fun ImportReceiptDialog(
+    order: ImportOrderEntity,
+    products: List<ProductWithStock>,
+    onDismiss: () -> Unit,
+    onSave: (List<ImportReceiptLineInput>) -> Unit
+) {
+    val rows = remember(order.id) { mutableStateListOf(ImportReceiptDraftRow(products.firstOrNull()?.product?.id ?: 0L)) }
+    val totalKg = rows.sumOf { it.quantity.toDoubleOrNull()?.takeIf { value -> value.isFinite() && value > 0 } ?: 0.0 }
+    val valid = products.isNotEmpty() && rows.isNotEmpty() &&
+        rows.all { it.productId > 0 && (it.quantity.toDoubleOrNull()?.let { q -> q > 0 && q.isFinite() } == true) } &&
+        kotlin.math.abs(totalKg - order.grossWeightKg) <= 0.001
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("رسید انبار کانتینر " + order.containerCode) },
+        text = {
+            Column(
+                modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("وزن سفارش: ${formatQuantity(order.grossWeightKg)} کیلوگرم", color = Muted, fontSize = 11.sp)
+                rows.forEachIndexed { index, row ->
+                    GlassCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("کالای ردیف ${index + 1}", color = Turquoise, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                            if (rows.size > 1) TextButton(onClick = { rows.remove(row) }) { Text("حذف", color = Color(0xFFFF9D9D)) }
+                        }
+                        ChoiceField(
+                            "کالا",
+                            products.firstOrNull { it.product.id == row.productId }?.product?.name ?: "انتخاب کالا",
+                            products.map { it.product.name }
+                        ) { name -> row.productId = products.firstOrNull { it.product.name == name }?.product?.id ?: 0L }
+                        FormField("مقدار دریافتی (کیلوگرم)", row.quantity, KeyboardType.Decimal) { row.quantity = it }
+                    }
+                }
+                TextButton(onClick = { rows.add(ImportReceiptDraftRow(products.firstOrNull()?.product?.id ?: 0L)) }) {
+                    Text("+ افزودن کالای دیگر", color = Turquoise)
+                }
+                Text(
+                    "جمع وزن ثبت‌شده: ${formatQuantity(totalKg)} از ${formatQuantity(order.grossWeightKg)} کیلوگرم",
+                    color = if (valid) Turquoise else Color(0xFFFFC078),
+                    fontSize = 11.sp
+                )
+                Text("هزینه خرید، حمل، گمرک و سایر هزینه‌ها به نسبت وزن بین کالاها سرشکن می‌شود.", color = Muted, fontSize = 10.sp)
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = valid,
+                onClick = {
+                    onSave(rows.map { ImportReceiptLineInput(it.productId, it.quantity.toDouble()) })
+                }
+            ) { Text("ثبت رسید و ورود به انبار") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
+    )
 }
 
 @Composable

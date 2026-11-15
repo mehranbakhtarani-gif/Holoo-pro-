@@ -587,7 +587,7 @@ private fun BankCsvImportPreviewDialog(
                     }
                     Divider(color = CardBorder)
                 }
-                Text("ردیف‌های تکراری بر اساس بانک، تاریخ، مبلغ و شماره مرجع دوباره ثبت نمی‌شوند.", color = Muted, fontSize = 10.sp)
+                Text("ردیف‌های تکراری بر اساس بانک، تاریخ، مبلغ، شماره مرجع و شرح شناسایی می‌شوند.", color = Muted, fontSize = 10.sp)
             }
         },
         confirmButton = {

@@ -254,7 +254,7 @@ class AccountingRepository(private val db: AppDatabase) {
         require(netGoods > 0) { "مبلغ خالص کالا پس از تخفیف باید بیشتر از صفر باشد" }
         val total = Math.addExact(Math.addExact(netGoods, taxRial), extraCostsRial)
         require(total > 0) { "مبلغ فاکتور باید بیشتر از صفر باشد" }
-        db.withTransaction {
+        return db.withTransaction {
             val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
             db.warehouseDao().getById(warehouseId) ?: error("انبار انتخاب‌شده پیدا نشد")
             if (kind == "SALE") require(party.kind != "SUPPLIER") { "برای فروش، مشتری انتخاب کنید" } else require(party.kind != "CUSTOMER") { "برای خرید، تأمین‌کننده انتخاب کنید" }

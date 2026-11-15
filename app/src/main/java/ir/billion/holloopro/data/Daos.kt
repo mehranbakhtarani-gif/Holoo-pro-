@@ -63,7 +63,7 @@ interface PartyDao {
     @Query("SELECT COUNT(*) FROM parties")
     fun observeCount(): Flow<Int>
 
-    @Query("SELECT (SELECT COUNT(*) FROM invoices WHERE partyId = :id) + (SELECT COUNT(*) FROM treasury_entries WHERE partyId = :id) + (SELECT COUNT(*) FROM party_ledger WHERE partyId = :id)")
+    @Query("SELECT (SELECT COUNT(*) FROM invoices WHERE partyId = :id) + (SELECT COUNT(*) FROM treasury_entries WHERE partyId = :id) + (SELECT COUNT(*) FROM party_ledger WHERE partyId = :id) + (SELECT COUNT(*) FROM checks WHERE partyId = :id) + (SELECT COUNT(*) FROM import_orders WHERE supplierId = :id)")
     suspend fun linkedRecordCount(id: Long): Int
 }
 

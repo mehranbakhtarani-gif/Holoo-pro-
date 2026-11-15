@@ -76,7 +76,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var exportBackupLauncher: androidx.activity.result.ActivityResultLauncher<String>
     private lateinit var importBackupLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
     private lateinit var exportReportsLauncher: androidx.activity.result.ActivityResultLauncher<String>
+    private lateinit var exportReportsPdfLauncher: androidx.activity.result.ActivityResultLauncher<String>
     private var pendingReportsCsv: String = ""
+    private var pendingReportsPdf: ByteArray? = null
 
     private val vm by viewModels<AppViewModel> {
         AppViewModel.Factory((application as HolooApplication).repository)
@@ -98,6 +100,16 @@ class MainActivity : ComponentActivity() {
                     output.bufferedWriter(Charsets.UTF_8).use { it.write(pendingReportsCsv) }
                 }.onSuccess { Toast.makeText(this@MainActivity, "گزارش‌ها ذخیره شدند", Toast.LENGTH_LONG).show() }
                     .onFailure { Toast.makeText(this@MainActivity, "خروجی گزارش ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
+            }
+        }
+        exportReportsPdfLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                runCatching {
+                    val bytes = pendingReportsPdf ?: error("گزارشی برای ذخیره آماده نیست")
+                    val output = contentResolver.openOutputStream(uri) ?: error("امکان ایجاد فایل PDF وجود ندارد")
+                    output.use { it.write(bytes) }
+                }.onSuccess { Toast.makeText(this@MainActivity, "گزارش PDF ذخیره شد", Toast.LENGTH_LONG).show() }
+                    .onFailure { Toast.makeText(this@MainActivity, "ذخیره PDF ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
             }
         }
         importBackupLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -156,6 +168,10 @@ class MainActivity : ComponentActivity() {
                         onExportReports = {
                             pendingReportsCsv = buildReportsCsv(productProfitability, invoiceProfitability, warehouseKardex)
                             exportReportsLauncher.launch("holoo-reports.csv")
+                        },
+                        onExportReportsPdf = {
+                            pendingReportsPdf = buildReportsPdf(productProfitability, invoiceProfitability, warehouseKardex)
+                            exportReportsPdfLauncher.launch("holoo-reports.pdf")
                         },
                         onSaveParty = vm::saveParty,
                         onPartyLedger = vm::partyLedger,
@@ -246,6 +262,7 @@ private fun HolooApp(
     onCreateWarehouse: (String, String, () -> Unit) -> Unit,
     onTransferStock: (Long, Long, Long, Double, () -> Unit) -> Unit,
     onExportReports: () -> Unit,
+    onExportReportsPdf: () -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
     onPartyLedger: (Long) -> Flow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
     onDeleteParty: (Long) -> Unit,
@@ -348,7 +365,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
             }
         }
@@ -1207,6 +1224,7 @@ private fun AccountingScreen(
     parties: List<PartyEntity>,
     showToman: Boolean,
     onExportReports: () -> Unit,
+    onExportReportsPdf: () -> Unit,
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
     onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
@@ -1246,7 +1264,10 @@ private fun AccountingScreen(
                 }
             }
         }
-        item { OutlinedButton(onClick = onExportReports, modifier = Modifier.fillMaxWidth()) { Text("خروجی CSV گزارش‌ها و کاردکس") } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onExportReports, modifier = Modifier.weight(1f)) { Text("خروجی CSV") }
+            OutlinedButton(onClick = onExportReportsPdf, modifier = Modifier.weight(1f)) { Text("خروجی PDF / چاپ") }
+        } }
         item { StatCard("اسناد صادرشده", voucherCount.toString(), "≋", Modifier.fillMaxWidth()) }
         item { SummaryCard("درآمد فروش (بدون مالیات)", profitLoss.salesRial, showToman) }
         item { SummaryCard("بهای تمام‌شده کالای فروش‌رفته", profitLoss.costOfGoodsSoldRial, showToman) }
@@ -1969,6 +1990,88 @@ private fun buildReportsCsv(
         out.appendLine(listOf(csv(date), csv(row.warehouseName), csv(row.productName), csv(row.kind), row.quantityKg.toString(), row.referenceId.toString(), csv(row.note)).joinToString(","))
     }
     return out.toString()
+}
+
+
+private fun buildReportsPdf(
+    products: List<ProductProfitRow>,
+    invoices: List<InvoiceProfitRow>,
+    kardex: List<WarehouseKardexRow>
+): ByteArray {
+    val document = android.graphics.pdf.PdfDocument()
+    val pageWidth = 595
+    val pageHeight = 842
+    val margin = 36
+    val bodyPaint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.BLACK
+        textSize = 10f
+    }
+    val headingPaint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.BLACK
+        textSize = 15f
+        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+    }
+    val titlePaint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.BLACK
+        textSize = 19f
+        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+    }
+    var pageNumber = 1
+    var page = document.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+    var y = margin
+    fun newPage() {
+        document.finishPage(page)
+        pageNumber += 1
+        page = document.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+        y = margin
+    }
+    fun drawTextLine(value: String, paint: android.text.TextPaint) {
+        val layout = android.text.StaticLayout.Builder.obtain(value, 0, value.length, paint, pageWidth - margin * 2)
+            .setAlignment(android.text.Layout.Alignment.ALIGN_OPPOSITE)
+            .setTextDirection(android.text.TextDirectionHeuristics.RTL)
+            .setLineSpacing(3f, 1f)
+            .build()
+        if (y + layout.height > pageHeight - margin) newPage()
+        page.canvas.save()
+        page.canvas.translate(margin.toFloat(), y.toFloat())
+        layout.draw(page.canvas)
+        page.canvas.restore()
+        y += layout.height + 7
+    }
+    drawTextLine("هلو پرو پلاس - گزارش‌های مدیریتی", titlePaint)
+    drawTextLine("گزارش سودآوری کالا", headingPaint)
+    products.filter { it.quantitySoldKg > 0.000001 }.forEach { row ->
+        drawTextLine(
+            "${row.productName} | فروش خالص: ${formatMoney(row.salesRial, false)} ریال | بهای تمام‌شده: ${formatMoney(row.costRial, false)} ریال | سود: ${formatMoney(row.profitRial, false)} ریال | مقدار: ${formatQuantity(row.quantitySoldKg)} کیلو",
+            bodyPaint
+        )
+    }
+    drawTextLine("گزارش سودآوری فاکتور", headingPaint)
+    invoices.forEach { row ->
+        drawTextLine(
+            "${row.invoiceNumber} | ${row.partyName} | فروش خالص: ${formatMoney(row.salesRial, false)} | بهای تمام‌شده: ${formatMoney(row.costRial, false)} | سود: ${formatMoney(row.profitRial, false)} ریال",
+            bodyPaint
+        )
+    }
+    drawTextLine("سودآوری طرف حساب", headingPaint)
+    invoices.groupBy { it.partyId }.map { (_, rows) -> rows.first().partyName to rows.sumOf { it.profitRial } }
+        .sortedByDescending { it.second }.forEach { (name, profit) ->
+            drawTextLine("${name} | سود: ${formatMoney(profit, false)} ریال", bodyPaint)
+        }
+    drawTextLine("کاردکس انبارها - ۲۵۰ گردش اخیر", headingPaint)
+    kardex.forEach { row ->
+        val date = java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(java.util.Date(row.createdAt))
+        drawTextLine(
+            "${date} | ${row.warehouseName} | ${row.productName} | ${row.kind} | ${formatQuantity(row.quantityKg)} کیلو | ${row.note}",
+            bodyPaint
+        )
+    }
+    document.finishPage(page)
+    return java.io.ByteArrayOutputStream().use { output ->
+        document.writeTo(output)
+        document.close()
+        output.toByteArray()
+    }
 }
 
 private fun formatMoney(rial: Long, showToman: Boolean): String {

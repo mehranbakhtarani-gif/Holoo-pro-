@@ -200,6 +200,7 @@ private fun HolooApp(
     onAddTreasury: (String, String, Long, Long, String, String, () -> Unit) -> Unit,
     onAddManualVoucher: (String, List<VoucherLineDraft>, () -> Unit) -> Unit,
     onUpdateOpeningBalances: (Map<String, Pair<Long, Long>>) -> Unit,
+    onReverseManualVoucher: (String) -> Unit,
     onLoadDemoData: () -> Unit,
     onAddCheck: (String, String, Long, Long, Long, Long, String, String, () -> Unit) -> Unit,
     onUpdateCheckStatus: (Long, String) -> Unit,
@@ -613,7 +614,6 @@ private fun PartiesScreen(
                                     Divider(color = CardBorder)
                                     Text(row.description, color = Color.White, fontSize = 10.sp)
                                     Text("بدهکار ${formatMoney(row.debitRial, showToman)}  |  بستانکار ${formatMoney(row.creditRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 10.sp)
-                    if (row.voucherNumber.startsWith("MAN-")) TextButton(onClick = { onReverseManualVoucher(row.voucherNumber) }) { Text("ثبت سند معکوس") }
                                     Text(java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(java.util.Date(row.createdAt)), color = Muted, fontSize = 9.sp)
                                 }
                             }
@@ -940,6 +940,7 @@ private fun AccountingScreen(
                     Text("${row.accountCode} • ${row.accountTitle}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Text("${row.voucherNumber} • ${row.voucherDescription}", color = Muted, fontSize = 10.sp)
                     Text("بدهکار ${formatMoney(row.debitRial, showToman)}  |  بستانکار ${formatMoney(row.creditRial, showToman)} ${if (showToman) "تومان" else "ریال"}", color = Turquoise, fontSize = 10.sp)
+                    if (row.reference.startsWith("MANUAL:")) TextButton(onClick = { onReverseManualVoucher(row.voucherNumber) }) { Text("ثبت سند معکوس", color = Color(0xFFFFC47A)) }
                 }
                 Text("اسناد فاکتور و دریافت/پرداخت به‌صورت دوبل ثبت می‌شوند.", color = Muted, fontSize = 11.sp)
             }

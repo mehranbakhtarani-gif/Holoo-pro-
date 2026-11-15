@@ -1005,6 +1005,13 @@ class AccountingRepository(private val db: AppDatabase) {
         require(transactionDateEpoch > 0L) { "تاریخ کارمزد معتبر نیست" }
         require(amountRial > 0L && amountRial != Long.MIN_VALUE) { "مبلغ کارمزد باید مثبت باشد" }
         db.withTransaction {
+            val normalizedBank = bankName.trim()
+            val normalizedReference = bankReference.trim()
+            val normalizedDescription = description.trim()
+            require(db.bankStatementDao().countDuplicate(
+                normalizedBank, transactionDateEpoch, Math.negateExact(amountRial),
+                normalizedReference, normalizedDescription
+            ) == 0) { "کارمزد بانکی مشابه قبلاً ثبت شده است" }
             ensureBaseAccounts()
             val bank = db.accountDao().byCode("1102") ?: error("حساب بانک تعریف نشده است")
             val fee = db.accountDao().byCode("5203") ?: error("حساب کارمزد بانکی تعریف نشده است")
@@ -1020,9 +1027,9 @@ class AccountingRepository(private val db: AppDatabase) {
                 VoucherLineEntity(voucherId = voucherId, accountId = bank.id, debitRial = 0L, creditRial = amountRial, description = "کسر از حساب بانکی")
             ))
             db.bankStatementDao().insert(BankStatementLineEntity(
-                bankName = bankName.trim(), transactionDateEpoch = transactionDateEpoch,
-                signedAmountRial = Math.negateExact(amountRial), bankReference = bankReference.trim(),
-                description = if (description.isBlank()) "کارمزد بانکی" else description.trim(),
+                bankName = normalizedBank, transactionDateEpoch = transactionDateEpoch,
+                signedAmountRial = Math.negateExact(amountRial), bankReference = normalizedReference,
+                description = if (normalizedDescription.isBlank()) "کارمزد بانکی" else normalizedDescription,
                 matchedVoucherId = voucherId
             ))
         }

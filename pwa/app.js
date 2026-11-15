@@ -4,7 +4,7 @@ async function reversePwaInvoice(number){
  if(!invoice||(invoice.status&&invoice.status!=="POSTED"))throw Error("فقط فاکتور ثبت‌شده قابل برگشت است");
  const lines=Array.isArray(invoice.lines)?invoice.lines:[];
  if(!lines.length)throw Error("ردیف‌های فاکتور برای برگشت پیدا نشد");
- const products=await all("products"),parties=await all("parties"),vouchers=await all("vouchers"),voucherLines=await all("voucherLines");
+ const [products,parties,vouchers,voucherLines,warehouseStockRows]=await Promise.all([all("products"),all("parties"),all("vouchers"),all("voucherLines"),all("warehouseStock")]);
  const party=parties.find(x=>Number(x.id)===Number(invoice.partyId));
  if(!party)throw Error("طرف حساب فاکتور پیدا نشد");
  const original=vouchers.find(v=>v.reference===invoice.number);
@@ -12,45 +12,46 @@ async function reversePwaInvoice(number){
  if(vouchers.some(v=>v.reference==="REVERSAL:INVOICE:"+invoice.number))throw Error("این فاکتور قبلاً برگشت داده شده است");
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(original.id));
  if(oldLines.length<2)throw Error("ردیف‌های سند اصلی ناقص است");
- const updated=[],warehouseUpdates=[],warehouseStockRows=await all("warehouseStock");
+ const updated=[],warehouseUpdates=[];
  for(const line of lines){
   const product=products.find(x=>Number(x.id)===Number(line.productId));
   if(!product)throw Error("کالای "+(line.productName||line.productId)+" پیدا نشد");
-  const qty=Number(line.qty||0);if(!(qty>0&&Number.isFinite(qty)))throw Error("مقدار ردیف فاکتور نامعتبر است");
+  const qty=Number(line.qty||0),totalQty=Number(line.totalQty??qty),warehouseId=Number(line.warehouseId||invoice.warehouseId||0);
+  if(!(qty>0&&Number.isFinite(qty)&&totalQty>=qty&&Number.isFinite(totalQty)))throw Error("مقدار ردیف فاکتور نامعتبر است");
+  if(!Number.isSafeInteger(warehouseId)||warehouseId<=0)throw Error("انبار اصلی ردیف برای برگشت مشخص نیست");
+  const stockRow=warehouseStockRows.find(x=>Number(x.productId)===Number(product.id)&&Number(x.warehouseId)===warehouseId);
+  if(!stockRow)throw Error("رکورد موجودی انبار برای برگشت فاکتور پیدا نشد؛ برگشت امن ممکن نیست");
+  const warehouseStock=Number(stockRow.stock||0),warehouseValue=Number(stockRow.value||0),productStock=Number(product.stock||0),productValue=Number(product.value||0);
+  if(!Number.isFinite(warehouseStock)||warehouseStock<0||!Number.isSafeInteger(warehouseValue)||warehouseValue<0||!Number.isFinite(productStock)||productStock<0||!Number.isSafeInteger(productValue)||productValue<0)throw Error("موجودی یا ارزش کالا برای برگشت معتبر نیست");
+  let valueChange=0;
   if(invoice.kind==="SALE"){
-   const cost=Number(line.cogs||0);if(!(cost>0))throw Error("بهای تمام‌شده این ردیف مشخص نیست؛ برگشت خودکار امن نیست");
-   product.stock=Number(product.stock||0)+qty;product.value=Number(product.value||0)+cost;product.avg=product.stock>0?product.value/product.stock:0;
+   const cost=Number(line.cogs||0);if(!Number.isSafeInteger(cost)||cost<0)throw Error("بهای تمام‌شده ردیف فروش برای برگشت نامعتبر است");
+   stockRow.stock=warehouseStock+totalQty;stockRow.value=warehouseValue+cost;product.stock=productStock+totalQty;product.value=productValue+cost;valueChange=cost;
   }else{
-   const stock=Number(product.stock||0);if(stock+1e-9<qty)throw Error("موجودی "+product.name+" برای برگشت خرید کافی نیست");
-   const cost=Math.round(qty*Number(product.avg||0));if(!(cost>=0))throw Error("ارزش موجودی نامعتبر است");
-   product.stock=Math.max(0,stock-qty);product.value=Math.max(0,Number(product.value||0)-cost);product.avg=product.stock>0?product.value/product.stock:0;
+   if(warehouseStock+1e-9<totalQty||productStock+1e-9<totalQty)throw Error("موجودی برای برگشت خرید در انبار یا کل کالا کافی نیست");
+   const cost=totalQty>=warehouseStock-1e-9?warehouseValue:Math.round(totalQty*(warehouseValue/warehouseStock));
+   const originalCost=Number(line.lineTotal||0);
+   if(!Number.isSafeInteger(cost)||cost<0||!Number.isSafeInteger(originalCost)||cost!==originalCost)throw Error("میانگین بهای موجودی با بهای فاکتور خرید متفاوت شده است؛ برگشت خودکار امن نیست");
+   if(productValue<cost)throw Error("ارزش کل موجودی برای برگشت خرید کافی نیست");
+   stockRow.stock=totalQty>=warehouseStock-1e-9?0:warehouseStock-totalQty;stockRow.value=warehouseValue-cost;
+   product.stock=productStock-totalQty;product.value=productValue-cost;valueChange=cost;
   }
-  updated.push(["products",product]);
-  const warehouseId=Number(line.warehouseId||invoice.warehouseId||0);
-  if(warehouseId){
-   const stockRow=warehouseStockRows.find(x=>Number(x.productId)===Number(product.id)&&Number(x.warehouseId)===warehouseId);
-   if(!stockRow)throw Error("رکورد موجودی انبار برای برگشت فاکتور پیدا نشد؛ برگشت امن ممکن نیست");
-   const warehouseStock=Number(stockRow.stock||0),warehouseValue=Number(stockRow.value||0);
-   if(invoice.kind==="SALE"){
-    const cost=Number(line.cogs||0);if(!Number.isSafeInteger(cost)||cost<0)throw Error("بهای ردیف فروش برای برگشت انبار نامعتبر است");
-    stockRow.stock=warehouseStock+qty;stockRow.value=warehouseValue+cost;
-   }else{
-    if(warehouseStock+1e-9<qty)throw Error("موجودی انبار انتخاب‌شده برای برگشت خرید کافی نیست");
-    const cost=qty>=warehouseStock-1e-9?warehouseValue:Math.round(qty*(warehouseValue/warehouseStock));
-    if(!Number.isSafeInteger(cost)||cost<0||cost>warehouseValue)throw Error("بهای خروج برای برگشت خرید نامعتبر است");
-    stockRow.stock=qty>=warehouseStock-1e-9?0:warehouseStock-qty;stockRow.value=qty>=warehouseStock-1e-9?0:warehouseValue-cost;
-   }
-   stockRow.average=stockRow.stock>0?stockRow.value/stockRow.stock:0;stockRow.updatedAt=Date.now();
-   warehouseUpdates.push(["warehouseStock",stockRow]);
-  }
+  stockRow.average=stockRow.stock>0?stockRow.value/stockRow.stock:0;stockRow.updatedAt=Date.now();
+  product.avg=product.stock>0?product.value/product.stock:0;
+  updated.push(["products",product]);warehouseUpdates.push(["warehouseStock",stockRow]);
  }
  party.balance=Number(party.balance||0)+(invoice.kind==="SALE"?-Number(invoice.total||0):Number(invoice.total||0));
- invoice.status="REVERSED";invoice.reversedAt=Date.now();
+ const entries=[...updated,...warehouseUpdates,["parties",party],["invoices",{...invoice,status:"REVERSED",reversedAt:Date.now()}],["partyLedger",{partyId:party.id,date:Date.now(),debitRial:invoice.kind==="PURCHASE"?invoice.total:0,creditRial:invoice.kind==="SALE"?invoice.total:0,description:"برگشت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]];
+ if(Number(invoice.commissionAmount||0)>0&&invoice.commissionPartyId){
+  const commissionParty=parties.find(x=>Number(x.id)===Number(invoice.commissionPartyId));
+  if(!commissionParty)throw Error("طرف حساب پورسانت برای برگشت پیدا نشد");
+  commissionParty.balance=Number(commissionParty.balance||0)+Number(invoice.commissionAmount);
+  entries.push(["parties",commissionParty],["partyLedger",{partyId:commissionParty.id,date:Date.now(),debitRial:invoice.commissionAmount,creditRial:0,description:"برگشت پورسانت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]);
+ }
  const now=Date.now(),reverseVoucherLines=oldLines.map(l=>({accountCode:l.accountCode,debitRial:Number(l.creditRial||0),creditRial:Number(l.debitRial||0),description:"برگشت فاکتور "+invoice.number}));
  const debit=reverseVoucherLines.reduce((n,l)=>n+l.debitRial,0),credit=reverseVoucherLines.reduce((n,l)=>n+l.creditRial,0);
- if(debit!==credit||debit<=0)throw Error("سند معکوس تراز نیست");
- const ledger={partyId:party.id,date:now,debitRial:invoice.kind==="PURCHASE"?invoice.total:0,creditRial:invoice.kind==="SALE"?invoice.total:0,description:"برگشت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number};
- await postVoucherAtomic([...updated,...warehouseUpdates,["parties",party],["invoices",invoice],["partyLedger",ledger]],{number:"RV-"+now,date:now,description:"برگشت فاکتور "+invoice.number,reference:"REVERSAL:INVOICE:"+invoice.number},reverseVoucherLines);
+ if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==credit||debit<=0)throw Error("سند معکوس تراز نیست");
+ await postVoucherAtomic(entries,{number:"RV-"+now,date:now,description:"برگشت فاکتور "+invoice.number,reference:"REVERSAL:INVOICE:"+invoice.number},reverseVoucherLines);
 }
 const DB_NAME="holloo-pro-pwa",DB_VERSION=8;
 const stores=["products","parties","invoices","imports","checks","treasury","accounts","vouchers","voucherLines","stockAdjustments","partyLedger","warehouses","warehouseStock","warehouseTransfers","importShipments","approvals","employees","payroll","fixedAssets","treasuryAllocations","auditLog","assetDepreciations","bankStatements","bankStatementLines"];

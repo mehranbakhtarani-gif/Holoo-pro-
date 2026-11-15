@@ -254,7 +254,8 @@ private fun ChecksScreen(
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
             items(checks, key = { it.id }) { item ->
                 val party = parties.firstOrNull { it.id == item.partyId }?.name ?: "طرف حساب"
-                val overdue = item.status == "OPEN" && item.dueDateEpoch < System.currentTimeMillis()
+                val dateKey = java.text.SimpleDateFormat("yyyyMMdd", Locale.US)
+                val overdue = item.status == "OPEN" && dateKey.format(java.util.Date(item.dueDateEpoch)) < dateKey.format(java.util.Date())
                 GlassCard {
                     Column {
                         Text((if (item.kind == "RECEIVED") "چک دریافتی • " else "چک پرداختی • ") + party, color = Color.White, fontWeight = FontWeight.Bold)

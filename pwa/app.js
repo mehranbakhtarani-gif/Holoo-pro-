@@ -159,6 +159,39 @@ async function receiveImportShipment(id){
  await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["parties",party],["partyLedger",ledger]],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal);
  toast("محموله رسید انبار شد؛ بهای تمام‌شده به موجودی کالا اضافه شد");await render();
 }
+async function importBankStatementCsv(file,bankName){
+ if(!file)throw Error("فایل CSV انتخاب نشده است");
+ const bank=String(bankName||"").trim();if(!bank)throw Error("نام بانک را وارد کنید");
+ const existing=await all("bankStatements");
+ if(existing.some(x=>x.bank===bank&&x.fileName===file.name&&Number(x.fileSize)===Number(file.size)&&Number(x.lastModified)===Number(file.lastModified)))throw Error("این فایل صورت‌حساب قبلاً وارد شده است");
+ const parsed=parseBankCsv(await file.text(),bank);
+ const statementId=await put("bankStatements",{bank,fileName:file.name,fileSize:file.size,lastModified:file.lastModified,importedAt:Date.now(),rowCount:parsed.length});
+ await putMany(parsed.map(line=>["bankStatementLines",{...line,statementId}]));
+ await autoReconcileBankStatementLines();
+ return parsed.length;
+}
+async function autoReconcileBankStatementLines(){
+ const [lines,treasury]=await Promise.all([all("bankStatementLines"),all("treasury")]);
+ const updated=autoMatchBankLines(lines,treasury,3);
+ await putMany(updated.map(line=>["bankStatementLines",line]));
+ return updated.filter(x=>x.status==="MATCHED").length;
+}
+async function matchBankStatementLine(lineId,treasuryId){
+ const [lines,treasury]=await Promise.all([all("bankStatementLines"),all("treasury")]);
+ const line=lines.find(x=>Number(x.id)===Number(lineId)),row=treasury.find(x=>Number(x.id)===Number(treasuryId));
+ if(!line)throw Error("ردیف صورت‌حساب پیدا نشد");
+ const matchedIds=lines.filter(x=>x.status==="MATCHED"&&Number(x.id)!==Number(line.id)).map(x=>x.matchedTreasuryId);
+ validateBankManualMatch(line,row,matchedIds);
+ line.status="MATCHED";line.matchedTreasuryId=row.id;line.candidateTreasuryIds=[];line.matchedAt=Date.now();
+ await put("bankStatementLines",line);
+}
+function bindBankReconciliation(){
+ const importButton=$("#importBankCsv"),fileInput=$("#bankCsvFile"),autoButton=$("#autoMatchBank");
+ if(importButton&&fileInput)importButton.onclick=()=>fileInput.click();
+ if(fileInput)fileInput.onchange=async event=>{const file=event.target.files&&event.target.files[0];if(!file)return;try{const count=await importBankStatementCsv(file,$("#bankCsvBank")?.value);toast(count+" ردیف صورت‌حساب وارد شد");await render()}catch(error){toast(error.message||"ورود صورت‌حساب ناموفق بود")}finally{fileInput.value=""}};
+ if(autoButton)autoButton.onclick=async()=>{try{const count=await autoReconcileBankStatementLines();toast(count+" گردش بانکی به‌صورت خودکار تطبیق داده شد");await render()}catch(error){toast(error.message||"تطبیق خودکار ناموفق بود")}};
+ document.querySelectorAll("[data-bank-match]").forEach(button=>button.onclick=async()=>{const select=$('[data-bank-match-select="'+button.dataset.bankMatch+'"]');try{if(!select||!select.value)throw Error("گردش بانکی را برای تطبیق انتخاب کنید");await matchBankStatementLine(button.dataset.bankMatch,select.value);toast("ردیف صورت‌حساب تطبیق داده شد");await render()}catch(error){toast(error.message||"تطبیق ناموفق بود")}});
+}
 function bindRows(){document.querySelectorAll("[data-stockadjust]").forEach(b=>b.onclick=()=>adjustStockPwa(b.dataset.stockadjust).catch(e=>toast(e.message)));document.querySelectorAll("[data-receive-shipment]").forEach(b=>b.onclick=()=>receiveImportShipment(b.dataset.receiveShipment).catch(e=>toast(e.message)));document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const [s,id]=b.dataset.edit.split(":");edit(s,+id)});document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeRow(...b.dataset.del.split(":")))}
 function partyStatementRows(party,ledger){
  const rows=ledger.filter(r=>Number(r.partyId)===Number(party.id)).sort((a,b)=>Number(a.date||0)-Number(b.date||0));

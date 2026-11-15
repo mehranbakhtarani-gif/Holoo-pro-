@@ -51,7 +51,8 @@ data class InvoiceEntity(
     val totalRial: Long,
     val status: String = "POSTED",
     val note: String = "",
-    @ColumnInfo(defaultValue = "0") val extraCostsRial: Long = 0
+    @ColumnInfo(defaultValue = "0") val extraCostsRial: Long = 0,
+    @ColumnInfo(defaultValue = "1") val warehouseId: Long = 1
 )
 
 data class InvoiceLineInput(val productId: Long, val quantityKg: Double, val unitPriceRial: Long)
@@ -303,4 +304,44 @@ data class InvoiceProfitRow(
     val salesRial: Long,
     val costRial: Long,
     val profitRial: Long
+)
+
+@Entity(tableName = "warehouses", indices = [Index(value = ["name"], unique = true)])
+data class WarehouseEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val address: String = "",
+    val isDefault: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "warehouse_stock_movements", indices = [Index(value = ["warehouseId", "productId", "createdAt"]), Index(value = ["productId"])])
+data class WarehouseStockMovementEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val warehouseId: Long,
+    val productId: Long,
+    val quantityKg: Double,
+    val kind: String,
+    val referenceId: Long = 0,
+    val note: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "warehouse_valuations", primaryKeys = ["warehouseId", "productId"], indices = [Index(value = ["productId"])])
+data class WarehouseValuationEntity(
+    val warehouseId: Long,
+    val productId: Long,
+    val quantityKg: Double,
+    val valueRial: Long,
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+data class WarehouseStockRow(
+    val warehouseId: Long,
+    val warehouseName: String,
+    val productId: Long,
+    val productName: String,
+    val quantityKg: Double,
+    val valueRial: Long,
+    val averageCostPerKgRial: Long
 )

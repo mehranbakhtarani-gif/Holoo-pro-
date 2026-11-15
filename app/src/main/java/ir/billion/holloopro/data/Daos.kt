@@ -15,6 +15,9 @@ interface ProductDao {
     @Query("SELECT * FROM products WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): ProductEntity?
 
+    @Query("SELECT COUNT(*) FROM products WHERE sku LIKE :pattern")
+    suspend fun countBySkuPattern(pattern: String): Int
+
     @Insert
     suspend fun insert(product: ProductEntity): Long
 

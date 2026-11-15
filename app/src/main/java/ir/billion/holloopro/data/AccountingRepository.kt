@@ -484,6 +484,26 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun loadDemoData() {
+        db.withTransaction {
+            require(db.productDao().countBySkuPattern("DEMO-%") == 0) { "داده‌های آزمایشی قبلاً اضافه شده‌اند" }
+            val supplierId = db.partyDao().insert(PartyEntity(name = "بازرگانی نخ شرق (آزمایشی)", kind = "SUPPLIER", phone = "021-55502020", address = "تهران - نمونه"))
+            val customerId = db.partyDao().insert(PartyEntity(name = "شرکت نساجی نمونه آریا", kind = "CUSTOMER", phone = "021-55501010", address = "تهران - نمونه"))
+            val p1 = db.productDao().insert(ProductEntity(sku = "DEMO-FDY-75-W", name = "نخ FDY سفید 75D (آزمایشی)", groupName = "پلی‌استر", yarnType = "FDY", color = "سفید", denier = 75, twisted = false, notes = "داده آزمایشی"))
+            val p2 = db.productDao().insert(ProductEntity(sku = "DEMO-FDY-75-B", name = "نخ FDY مشکی 75D (آزمایشی)", groupName = "پلی‌استر", yarnType = "FDY", color = "مشکی", denier = 75, twisted = false, notes = "داده آزمایشی"))
+            val p3 = db.productDao().insert(ProductEntity(sku = "DEMO-DTY-150-W", name = "نخ DTY سفید 150D (آزمایشی)", groupName = "پلی‌استر", yarnType = "DTY", color = "سفید", denier = 150, twisted = true, notes = "داده آزمایشی"))
+            createAndPostMultiLineInvoice("PURCHASE", supplierId, listOf(
+                InvoiceLineInput(p1, 500.0, 1_200_000),
+                InvoiceLineInput(p2, 300.0, 1_300_000),
+                InvoiceLineInput(p3, 200.0, 1_500_000)
+            ), 0, 0)
+            createAndPostMultiLineInvoice("SALE", customerId, listOf(
+                InvoiceLineInput(p1, 25.0, 1_650_000),
+                InvoiceLineInput(p2, 15.0, 1_750_000)
+            ), 1_000_000, 0)
+        }
+    }
+
     private suspend fun ensureBaseAccounts() {
         val accounts = listOf(
             AccountEntity(code = "1101", title = "صندوق", type = "ASSET"),

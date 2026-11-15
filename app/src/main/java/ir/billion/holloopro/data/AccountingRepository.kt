@@ -6,6 +6,7 @@ import ir.billion.holloopro.accounting.LandedCostCalculator
 import ir.billion.holloopro.accounting.VoucherLineDraft
 import java.math.BigDecimal
 import java.util.Locale
+import java.util.UUID
 
 class AccountingRepository(private val db: AppDatabase) {
     val products = db.productDao().observeWithStock()
@@ -106,7 +107,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 require(party.kind != "CUSTOMER") { "برای خرید، تأمین‌کننده انتخاب کنید" }
             }
 
-            val number = "HP-${System.currentTimeMillis()}"
+            val number = "HP-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}"
             val invoiceId = db.invoiceDao().insert(
                 InvoiceEntity(
                     number = number,
@@ -152,7 +153,7 @@ class AccountingRepository(private val db: AppDatabase) {
             val creditAccount = db.accountDao().byCode(creditCode) ?: error("حساب بستانکار تعریف نشده")
             val voucherId = db.voucherDao().insert(
                 VoucherEntity(
-                    number = "S-${System.currentTimeMillis()}",
+                    number = "S-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}",
                     description = if (kind == "SALE") "ثبت فروش ${product.name}" else "ثبت خرید ${product.name}",
                     reference = "INVOICE:$invoiceId"
                 )
@@ -203,7 +204,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 val product = db.productDao().getById(line.productId) ?: error("یکی از کالاهای فاکتور پیدا نشد")
                 Triple(line, product, amounts[index])
             }
-            val number = "HP-" + System.currentTimeMillis()
+            val number = "HP-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8)
             val invoiceId = db.invoiceDao().insert(InvoiceEntity(number = number, kind = kind, partyId = partyId, subtotalRial = subtotal, discountRial = discountRial, taxRial = taxRial, totalRial = total, status = "POSTED"))
             db.invoiceLineDao().insertAll(resolved.map { (line, _, amount) -> InvoiceLineEntity(invoiceId = invoiceId, productId = line.productId, quantityKg = line.quantityKg, unitPriceRial = line.unitPriceRial, lineTotalRial = amount) })
             resolved.forEach { (line, _, _) -> db.stockDao().insert(StockMovementEntity(productId = line.productId, quantityKg = if (kind == "SALE") -line.quantityKg else line.quantityKg, kind = if (kind == "SALE") "SALE" else "PURCHASE", referenceId = invoiceId, note = number)) }
@@ -214,7 +215,7 @@ class AccountingRepository(private val db: AppDatabase) {
             AccountingEngine.requireBalanced(drafts)
             val debitAccount = db.accountDao().byCode(debitCode) ?: error("حساب بدهکار تعریف نشده")
             val creditAccount = db.accountDao().byCode(creditCode) ?: error("حساب بستانکار تعریف نشده")
-            val voucherId = db.voucherDao().insert(VoucherEntity(number = "S-" + System.currentTimeMillis(), description = if (kind == "SALE") "ثبت فروش چندردیفی " + number else "ثبت خرید چندردیفی " + number, reference = "INVOICE:" + invoiceId))
+            val voucherId = db.voucherDao().insert(VoucherEntity(number = "S-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(8), description = if (kind == "SALE") "ثبت فروش چندردیفی " + number else "ثبت خرید چندردیفی " + number, reference = "INVOICE:" + invoiceId))
             db.voucherLineDao().insertAll(listOf(VoucherLineEntity(voucherId = voucherId, accountId = debitAccount.id, debitRial = total, creditRial = 0), VoucherLineEntity(voucherId = voucherId, accountId = creditAccount.id, debitRial = 0, creditRial = total)))
             db.partyLedgerDao().insert(PartyLedgerEntity(partyId = partyId, debitRial = if (kind == "SALE") total else 0, creditRial = if (kind == "PURCHASE") total else 0, description = if (kind == "SALE") "فاکتور فروش " + number else "فاکتور خرید " + number, referenceId = invoiceId))
         }
@@ -249,7 +250,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 val oldLines = db.voucherLineDao().byVoucher(originalVoucher.id)
                 val reverseId = db.voucherDao().insert(
                     VoucherEntity(
-                        number = "R-${System.currentTimeMillis()}",
+                        number = "R-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}",
                         description = "سند برگشت ${invoice.number}",
                         reference = "REVERSAL:$invoiceId"
                     )
@@ -295,7 +296,7 @@ class AccountingRepository(private val db: AppDatabase) {
             )
             val voucherId = db.voucherDao().insert(
                 VoucherEntity(
-                    number = "T-${System.currentTimeMillis()}",
+                    number = "T-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}",
                     description = if (kind == "RECEIPT") "دریافت از ${party.name}" else "پرداخت به ${party.name}",
                     reference = "TREASURY:$entryId"
                 )
@@ -326,33 +327,43 @@ class AccountingRepository(private val db: AppDatabase) {
         grossWeightKg: Double, goodsAmountMinor: Long, freightRial: Long,
         customsRial: Long, otherCostsRial: Long, creditDays: Int
     ) {
-        require(currency in setOf("USD", "CNY", "IRR"))
-        require(fxRateToRial > 0 && grossWeightKg > 0 && grossWeightKg.isFinite())
-        require(goodsAmountMinor >= 0 && creditDays >= 0)
-        require(containerCode.isNotBlank()) { "شماره کانتینر الزامی است" }
-        val supplier = db.partyDao().getById(supplierId) ?: error("تأمین‌کننده پیدا نشد")
-        require(supplier.kind != "CUSTOMER") { "طرف حساب انتخاب‌شده تأمین‌کننده نیست" }
+        val normalizedContainer = containerCode.trim().uppercase(Locale.ROOT)
+        require(currency in setOf("USD", "CNY", "IRR")) { "ارز انتخاب‌شده معتبر نیست" }
+        require(fxRateToRial > 0) { "نرخ ارز باید بیشتر از صفر باشد" }
+        require(grossWeightKg > 0.0 && grossWeightKg.isFinite()) { "وزن کانتینر باید مثبت و معتبر باشد" }
+        require(goodsAmountMinor > 0) { "مبلغ کالا باید بیشتر از صفر باشد" }
+        require(freightRial >= 0 && customsRial >= 0 && otherCostsRial >= 0) { "هزینه‌ها نمی‌توانند منفی باشند" }
+        require(creditDays in 0..3650) { "مهلت تسویه خارج از محدوده مجاز است" }
+        require(normalizedContainer.isNotBlank()) { "شماره کانتینر الزامی است" }
+        val effectiveRate = if (currency == "IRR") 1L else fxRateToRial
         val total = LandedCostCalculator.totalCostRial(
-            goodsAmountMinor, if (currency == "IRR") 1 else fxRateToRial,
-            freightRial, customsRial, otherCostsRial
+            goodsAmountMinor, effectiveRate, freightRial, customsRial, otherCostsRial
         )
-        require(total >= 0)
-        val now = System.currentTimeMillis()
-        db.importOrderDao().insert(
-            ImportOrderEntity(
-                supplierId = supplierId,
-                currency = currency,
-                fxRateToRial = if (currency == "IRR") 1 else fxRateToRial,
-                containerCode = containerCode.trim(),
-                orderedAt = now,
-                grossWeightKg = grossWeightKg,
-                goodsAmountMinor = goodsAmountMinor,
-                freightRial = freightRial,
-                customsRial = customsRial,
-                otherCostsRial = otherCostsRial,
-                supplierDueAt = now + creditDays.toLong() * 86_400_000L
+        require(total > 0) { "بهای تمام‌شده باید بیشتر از صفر باشد" }
+        db.withTransaction {
+            val supplier = db.partyDao().getById(supplierId) ?: error("تأمین‌کننده پیدا نشد")
+            require(supplier.kind != "CUSTOMER") { "طرف حساب انتخاب‌شده تأمین‌کننده نیست" }
+            require(db.importOrderDao().byContainerCode(normalizedContainer) == null) {
+                "این شماره کانتینر قبلاً ثبت شده است"
+            }
+            val now = System.currentTimeMillis()
+            val dueAt = Math.addExact(now, Math.multiplyExact(creditDays.toLong(), 86_400_000L))
+            db.importOrderDao().insert(
+                ImportOrderEntity(
+                    supplierId = supplierId,
+                    currency = currency,
+                    fxRateToRial = effectiveRate,
+                    containerCode = normalizedContainer,
+                    orderedAt = now,
+                    grossWeightKg = grossWeightKg,
+                    goodsAmountMinor = goodsAmountMinor,
+                    freightRial = freightRial,
+                    customsRial = customsRial,
+                    otherCostsRial = otherCostsRial,
+                    supplierDueAt = dueAt
+                )
             )
-        )
+        }
     }
 
     private suspend fun ensureBaseAccounts() {

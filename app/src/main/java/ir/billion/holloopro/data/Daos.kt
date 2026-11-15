@@ -144,6 +144,9 @@ interface ImportOrderDao {
     @Query("SELECT * FROM import_orders ORDER BY orderedAt DESC")
     fun observeAll(): Flow<List<ImportOrderEntity>>
 
+    @Query("SELECT * FROM import_orders WHERE containerCode = :containerCode LIMIT 1")
+    suspend fun byContainerCode(containerCode: String): ImportOrderEntity?
+
     @Insert
     suspend fun insert(order: ImportOrderEntity): Long
 

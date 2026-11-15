@@ -30,6 +30,16 @@ class AccountingEngineTest {
         assertTrue(AccountingEngine.isBalanced(lines))
     }
 
+    @Test fun voucherBalanceCheckDoesNotOverflowLongTotals() {
+        val lines = listOf(
+            VoucherLineDraft("A", debitRial = Long.MAX_VALUE),
+            VoucherLineDraft("B", debitRial = Long.MAX_VALUE),
+            VoucherLineDraft("C", creditRial = Long.MAX_VALUE),
+            VoucherLineDraft("D", creditRial = Long.MAX_VALUE)
+        )
+        assertTrue(AccountingEngine.isBalanced(lines))
+    }
+
     @Test fun unbalancedVoucherIsRejected() {
         val lines = listOf(
             VoucherLineDraft("1103", debitRial = 1_250_000),

@@ -1,6 +1,7 @@
 package ir.billion.holloopro.accounting
 
 import java.math.BigDecimal
+import java.math.BigInteger
 import java.math.RoundingMode
 
 data class VoucherLineDraft(
@@ -28,9 +29,9 @@ object AccountingEngine {
         if (lines.size < 2) return false
         if (lines.any { it.debitRial < 0 || it.creditRial < 0 }) return false
         if (lines.any { it.debitRial > 0 && it.creditRial > 0 }) return false
-        val debit = lines.sumOf { it.debitRial }
-        val credit = lines.sumOf { it.creditRial }
-        return debit > 0 && debit == credit
+        val debit = lines.fold(BigInteger.ZERO) { total, line -> total + BigInteger.valueOf(line.debitRial) }
+        val credit = lines.fold(BigInteger.ZERO) { total, line -> total + BigInteger.valueOf(line.creditRial) }
+        return debit.signum() > 0 && debit == credit
     }
 
     fun requireBalanced(lines: List<VoucherLineDraft>) {

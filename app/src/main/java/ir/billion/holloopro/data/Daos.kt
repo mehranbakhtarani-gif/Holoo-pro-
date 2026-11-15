@@ -383,6 +383,9 @@ interface InvoiceSettlementDao {
     @Insert
     suspend fun insert(settlement: InvoiceSettlementEntity): Long
 
+    @Insert
+    suspend fun insertAll(settlements: List<InvoiceSettlementEntity>)
+
     @Query("SELECT * FROM invoice_settlements WHERE invoiceId = :invoiceId ORDER BY createdAt, id")
     suspend fun byInvoice(invoiceId: Long): List<InvoiceSettlementEntity>
 

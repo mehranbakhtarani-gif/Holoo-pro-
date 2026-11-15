@@ -53,6 +53,7 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         repository.trialBalance.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val checks = repository.checks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val bankStatements = repository.bankStatements.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val bankStatementPeriods = repository.bankStatementPeriods.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val ledger: StateFlow<List<LedgerRow>> =
         repository.ledger.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     fun partyLedger(partyId: Long) = repository.partyLedger(partyId)
@@ -151,6 +152,9 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
 
     fun matchBankStatementLineToCheck(statementLineId: Long, checkId: Long) =
         execute { repository.matchBankStatementLineToCheck(statementLineId, checkId); "گردش بانکی با چک تسویه‌شده تطبیق داده شد" }
+
+    fun addBankStatementPeriod(bankName: String, start: Long, end: Long, opening: Long, closing: Long) =
+        execute { repository.addBankStatementPeriod(bankName, start, end, opening, closing); "دوره صورت‌حساب بانکی ثبت شد" }
 
     fun addBankFee(bankName: String, dateEpoch: Long, amountRial: Long, reference: String, description: String, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addBankFee(bankName, dateEpoch, amountRial, reference, description); "کارمزد بانکی و سند هزینه آن ثبت شد" }

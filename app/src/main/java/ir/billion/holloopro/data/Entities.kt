@@ -354,6 +354,20 @@ data class BankStatementLineEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Entity(
+    tableName = "bank_statement_periods",
+    indices = [Index(value = ["bankName", "startDateEpoch", "endDateEpoch"], unique = true)]
+)
+data class BankStatementPeriodEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bankName: String,
+    val startDateEpoch: Long,
+    val endDateEpoch: Long,
+    val openingBalanceRial: Long,
+    val closingBalanceRial: Long,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 data class WarehouseStockRow(
     val warehouseId: Long,
     val warehouseName: String,

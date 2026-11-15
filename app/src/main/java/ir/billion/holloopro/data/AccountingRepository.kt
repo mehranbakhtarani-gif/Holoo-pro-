@@ -14,6 +14,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val products = db.productDao().observeWithStock()
     val warehouses = db.warehouseDao().observeAll()
     val warehouseStocks = db.warehouseStockDao().observeStocks()
+    val warehouseKardex = db.warehouseStockDao().observeKardex()
     val parties = db.partyDao().observeAll()
     val partyBalances = db.partyDao().observeBalances()
     fun partyLedger(partyId: Long) = db.partyLedgerDao().observeForParty(partyId)

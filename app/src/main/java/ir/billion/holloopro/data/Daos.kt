@@ -26,6 +26,12 @@ interface ProductDao {
 
     @Query("SELECT COUNT(*) FROM products")
     fun observeCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM invoice_lines WHERE productId = :id")
+    suspend fun invoiceLineCount(id: Long): Int
+
+    @Query("SELECT COUNT(*) FROM stock_movements WHERE productId = :id")
+    suspend fun movementCount(id: Long): Int
 }
 
 @Dao
@@ -53,6 +59,9 @@ interface PartyDao {
 
     @Query("SELECT COUNT(*) FROM parties")
     fun observeCount(): Flow<Int>
+
+    @Query("SELECT (SELECT COUNT(*) FROM invoices WHERE partyId = :id) + (SELECT COUNT(*) FROM treasury_entries WHERE partyId = :id) + (SELECT COUNT(*) FROM party_ledger WHERE partyId = :id)")
+    suspend fun linkedRecordCount(id: Long): Int
 }
 
 @Dao

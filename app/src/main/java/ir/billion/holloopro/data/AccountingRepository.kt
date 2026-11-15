@@ -41,9 +41,18 @@ class AccountingRepository(private val db: AppDatabase) {
         )
     }
 
+    suspend fun updateProduct(id: Long, sku: String, name: String, groupName: String, yarnType: String, color: String, denier: Int, twisted: Boolean, notes: String) {
+        require(sku.isNotBlank()) { "کد کالا الزامی است" }
+        require(name.isNotBlank()) { "نام کالا الزامی است" }
+        require(denier > 0) { "دنیر باید عددی مثبت باشد" }
+        val old = db.productDao().getById(id) ?: error("کالا پیدا نشد")
+        db.productDao().update(old.copy(sku = sku.trim().uppercase(Locale.ROOT), name = name.trim(), groupName = groupName.trim(), yarnType = yarnType.trim().uppercase(Locale.ROOT), color = color.trim(), denier = denier, twisted = twisted, notes = notes.trim()))
+    }
+
     suspend fun deleteProduct(id: Long) {
         val stock = db.stockDao().stockForProduct(id)
         require(kotlin.math.abs(stock) < 0.000001) { "کالای دارای موجودی را نمی‌توان حذف کرد" }
+        require(db.productDao().invoiceLineCount(id) == 0 && db.productDao().movementCount(id) == 0) { "کالا سابقه فاکتور یا گردش انبار دارد؛ برای حفظ سوابق حذف نمی‌شود" }
         db.productDao().delete(id)
     }
 
@@ -59,6 +68,18 @@ class AccountingRepository(private val db: AppDatabase) {
                 openingBalanceRial = openingBalanceRial
             )
         )
+    }
+
+    suspend fun updateParty(id: Long, name: String, kind: String, phone: String, address: String, openingBalanceRial: Long) {
+        require(name.isNotBlank()) { "نام شخص الزامی است" }
+        require(kind in setOf("CUSTOMER", "SUPPLIER", "BOTH"))
+        val old = db.partyDao().getById(id) ?: error("شخص پیدا نشد")
+        db.partyDao().update(old.copy(name = name.trim(), kind = kind, phone = phone.trim(), address = address.trim(), openingBalanceRial = openingBalanceRial))
+    }
+
+    suspend fun deleteParty(id: Long) {
+        require(db.partyDao().linkedRecordCount(id) == 0) { "این شخص سابقه فاکتور، دریافت یا پرداخت دارد؛ برای حفظ سوابق حذف نمی‌شود" }
+        db.partyDao().delete(id)
     }
 
     suspend fun createAndPostInvoice(

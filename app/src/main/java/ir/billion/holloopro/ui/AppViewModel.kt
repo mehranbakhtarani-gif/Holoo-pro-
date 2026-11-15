@@ -37,13 +37,23 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
 
     fun clearMessage() { _message.value = null }
 
-    fun addProduct(sku: String, name: String, group: String, yarnType: String, color: String, denier: Int, twisted: Boolean, notes: String) =
-        execute { repository.addProduct(sku, name, group, yarnType, color, denier, twisted, notes); "کالا ثبت شد" }
+    fun saveProduct(id: Long?, sku: String, name: String, group: String, yarnType: String, color: String, denier: Int, twisted: Boolean, notes: String) =
+        execute {
+            if (id == null) repository.addProduct(sku, name, group, yarnType, color, denier, twisted, notes)
+            else repository.updateProduct(id, sku, name, group, yarnType, color, denier, twisted, notes)
+            if (id == null) "کالا ثبت شد" else "تغییرات کالا ذخیره شد"
+        }
 
     fun deleteProduct(id: Long) = execute { repository.deleteProduct(id); "کالا حذف شد" }
 
-    fun addParty(name: String, kind: String, phone: String, address: String, openingBalance: Long) =
-        execute { repository.addParty(name, kind, phone, address, openingBalance); "شخص ثبت شد" }
+    fun saveParty(id: Long?, name: String, kind: String, phone: String, address: String, openingBalance: Long) =
+        execute {
+            if (id == null) repository.addParty(name, kind, phone, address, openingBalance)
+            else repository.updateParty(id, name, kind, phone, address, openingBalance)
+            if (id == null) "شخص ثبت شد" else "اطلاعات شخص ویرایش شد"
+        }
+
+    fun deleteParty(id: Long) = execute { repository.deleteParty(id); "شخص حذف شد" }
 
     fun createInvoice(kind: String, partyId: Long, productId: Long, quantity: Double, price: Long, discount: Long, tax: Long) =
         execute { repository.createAndPostInvoice(kind, partyId, productId, quantity, price, discount, tax); "فاکتور ثبت و سند حسابداری صادر شد" }

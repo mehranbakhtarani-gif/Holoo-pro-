@@ -197,6 +197,21 @@ interface ImportReceiptDao {
 }
 
 @Dao
+interface CheckDao {
+    @Query("SELECT * FROM checks ORDER BY dueDateEpoch ASC, id DESC")
+    fun observeAll(): Flow<List<CheckEntity>>
+
+    @Insert
+    suspend fun insert(check: CheckEntity): Long
+
+    @Query("SELECT * FROM checks WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): CheckEntity?
+
+    @Update
+    suspend fun update(check: CheckEntity)
+}
+
+@Dao
 interface TreasuryDao {
     @Query("SELECT * FROM treasury_entries ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<TreasuryEntryEntity>>

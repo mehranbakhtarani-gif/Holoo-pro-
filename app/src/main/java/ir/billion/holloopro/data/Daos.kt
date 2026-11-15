@@ -153,8 +153,29 @@ interface ImportOrderDao {
     @Insert
     suspend fun insert(order: ImportOrderEntity): Long
 
+    @Query("SELECT * FROM import_orders WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): ImportOrderEntity?
+
+    @Update
+    suspend fun update(order: ImportOrderEntity)
+
     @Query("SELECT COUNT(*) FROM import_orders")
     fun observeCount(): Flow<Int>
+}
+
+@Dao
+interface ImportReceiptDao {
+    @Insert
+    suspend fun insert(receipt: ImportReceiptEntity): Long
+
+    @Insert
+    suspend fun insertLines(lines: List<ImportReceiptLineEntity>)
+
+    @Query("SELECT * FROM import_receipts WHERE importOrderId = :orderId LIMIT 1")
+    suspend fun byOrder(orderId: Long): ImportReceiptEntity?
+
+    @Query("SELECT * FROM import_receipt_lines WHERE receiptId = :receiptId ORDER BY id")
+    suspend fun linesByReceipt(receiptId: Long): List<ImportReceiptLineEntity>
 }
 
 @Dao

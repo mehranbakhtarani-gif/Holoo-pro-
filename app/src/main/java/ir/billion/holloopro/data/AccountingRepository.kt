@@ -12,6 +12,8 @@ import java.util.UUID
 
 class AccountingRepository(private val db: AppDatabase) {
     val products = db.productDao().observeWithStock()
+    val warehouses = db.warehouseDao().observeAll()
+    val warehouseStocks = db.warehouseStockDao().observeStocks()
     val parties = db.partyDao().observeAll()
     val partyBalances = db.partyDao().observeBalances()
     fun partyLedger(partyId: Long) = db.partyLedgerDao().observeForParty(partyId)
@@ -36,6 +38,54 @@ class AccountingRepository(private val db: AppDatabase) {
     val profitLoss = db.invoiceDao().observeProfitLoss()
     val productProfitability = db.productDao().observeProfitability()
     val invoiceProfitability = db.invoiceDao().observeInvoiceProfitability()
+
+
+    private suspend fun syncGlobalValuation(productId: Long) {
+        val aggregate = db.warehouseStockDao().aggregateValuation(productId)
+        db.productValuationDao().upsert(
+            ProductValuationEntity(productId, aggregate.quantityKg, aggregate.valueRial)
+        )
+    }
+
+    suspend fun createWarehouse(name: String, address: String = "") {
+        require(name.isNotBlank()) { "نام انبار الزامی است" }
+        db.warehouseDao().insert(WarehouseEntity(name = name.trim(), address = address.trim()))
+    }
+
+    suspend fun transferStock(productId: Long, sourceWarehouseId: Long, targetWarehouseId: Long, quantityKg: Double) {
+        require(sourceWarehouseId != targetWarehouseId) { "انبار مبدأ و مقصد باید متفاوت باشند" }
+        require(quantityKg.isFinite() && quantityKg > 0.000001) { "مقدار انتقال باید مثبت باشد" }
+        db.withTransaction {
+            val product = db.productDao().getById(productId) ?: error("کالا پیدا نشد")
+            db.warehouseDao().getById(sourceWarehouseId) ?: error("انبار مبدأ پیدا نشد")
+            db.warehouseDao().getById(targetWarehouseId) ?: error("انبار مقصد پیدا نشد")
+            val sourceStock = db.warehouseStockDao().stockForProduct(sourceWarehouseId, productId)
+            require(sourceStock + 0.000001 >= quantityKg) { "موجودی انبار مبدأ برای انتقال کافی نیست" }
+            val sourceStored = db.warehouseStockDao().valuation(sourceWarehouseId, productId)
+                ?: error("بهای موجودی کالا در انبار مبدأ مشخص نیست")
+            val issue = InventoryValuationEngine.issue(
+                InventoryValuation(sourceStored.quantityKg, sourceStored.valueRial), quantityKg
+            )
+            val targetStored = db.warehouseStockDao().valuation(targetWarehouseId, productId)
+            val targetCurrent = targetStored?.let { InventoryValuation(it.quantityKg, it.valueRial) }
+                ?: InventoryValuation(0.0, 0L)
+            val targetNext = InventoryValuationEngine.receive(targetCurrent, quantityKg, issue.cogsRial)
+            db.warehouseStockDao().upsertValuation(
+                sourceStored.copy(quantityKg = issue.remaining.quantityKg, valueRial = issue.remaining.valueRial, updatedAt = System.currentTimeMillis())
+            )
+            db.warehouseStockDao().upsertValuation(
+                WarehouseValuationEntity(targetWarehouseId, productId, targetNext.quantityKg, targetNext.valueRial)
+            )
+            val transferRef = System.currentTimeMillis()
+            db.warehouseStockDao().insertMovement(
+                WarehouseStockMovementEntity(warehouseId = sourceWarehouseId, productId = productId, quantityKg = -quantityKg, kind = "TRANSFER_OUT", referenceId = transferRef, note = "انتقال به انبار دیگر")
+            )
+            db.warehouseStockDao().insertMovement(
+                WarehouseStockMovementEntity(warehouseId = targetWarehouseId, productId = productId, quantityKg = quantityKg, kind = "TRANSFER_IN", referenceId = transferRef, note = "انتقال از انبار دیگر")
+            )
+            syncGlobalValuation(productId)
+        }
+    }
 
     suspend fun addProduct(
         sku: String, name: String, groupName: String, yarnType: String,

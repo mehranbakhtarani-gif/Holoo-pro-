@@ -53,17 +53,23 @@ jobs:
 
       - name: Prepare persistent release signing
         env:
-          HOLLOO_KEYSTORE_BASE64: ${{ secrets.HOLLOO_KEYSTORE_BASE64 }}
-          HOLLOO_STORE_PASSWORD: ${{ secrets.HOLLOO_STORE_PASSWORD }}
-          HOLLOO_KEY_ALIAS: ${{ secrets.HOLLOO_KEY_ALIAS }}
-          HOLLOO_KEY_PASSWORD: ${{ secrets.HOLLOO_KEY_PASSWORD }}
+          HOLLOO_SIGNING_BUNDLE_BASE64: ${{ secrets.HOLLOO_SIGNING_BUNDLE_BASE64 }}
         run: |
-          if [ -n "$HOLLOO_KEYSTORE_BASE64" ] && [ -n "$HOLLOO_STORE_PASSWORD" ] && [ -n "$HOLLOO_KEY_ALIAS" ] && [ -n "$HOLLOO_KEY_PASSWORD" ]; then
-            echo "$HOLLOO_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/holloo-release.jks"
-            echo "HOLLOO_KEYSTORE_PATH=$RUNNER_TEMP/holloo-release.jks" >> "$GITHUB_ENV"
+          if [ -n "$HOLLOO_SIGNING_BUNDLE_BASE64" ]; then
+            echo "$HOLLOO_SIGNING_BUNDLE_BASE64" | base64 --decode > "$RUNNER_TEMP/holloo-signing.zip"
+            mkdir -p "$RUNNER_TEMP/holloo-signing"
+            unzip -q "$RUNNER_TEMP/holloo-signing.zip" -d "$RUNNER_TEMP/holloo-signing"
+            test -s "$RUNNER_TEMP/holloo-signing/holloo-release.jks"
+            set -a
+            . "$RUNNER_TEMP/holloo-signing/signing.env"
+            set +a
+            echo "HOLLOO_KEYSTORE_PATH=$RUNNER_TEMP/holloo-signing/holloo-release.jks" >> "$GITHUB_ENV"
+            echo "HOLLOO_STORE_PASSWORD=$HOLLOO_STORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "HOLLOO_KEY_ALIAS=$HOLLOO_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "HOLLOO_KEY_PASSWORD=$HOLLOO_KEY_PASSWORD" >> "$GITHUB_ENV"
             echo "HOLLOO_SIGNING_READY=true" >> "$GITHUB_ENV"
           else
-            echo "Persistent signing secrets are not configured; signed release build is skipped."
+            echo "Persistent signing secret is not configured; signed release build is skipped."
             echo "HOLLOO_SIGNING_READY=false" >> "$GITHUB_ENV"
           fi
 

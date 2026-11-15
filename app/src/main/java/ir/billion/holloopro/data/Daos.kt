@@ -281,6 +281,18 @@ interface BankStatementDao {
 }
 
 @Dao
+interface BankStatementPeriodDao {
+    @Query("SELECT * FROM bank_statement_periods ORDER BY startDateEpoch DESC, id DESC")
+    fun observeAll(): Flow<List<BankStatementPeriodEntity>>
+
+    @Query("SELECT * FROM bank_statement_periods WHERE bankName = :bankName AND startDateEpoch = :start AND endDateEpoch = :end LIMIT 1")
+    suspend fun find(bankName: String, start: Long, end: Long): BankStatementPeriodEntity?
+
+    @Insert
+    suspend fun insert(period: BankStatementPeriodEntity): Long
+}
+
+@Dao
 interface WarehouseDao {
     @Query("SELECT * FROM warehouses ORDER BY isDefault DESC, name")
     fun observeAll(): Flow<List<WarehouseEntity>>

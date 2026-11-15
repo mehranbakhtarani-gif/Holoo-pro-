@@ -32,6 +32,7 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         repository.treasury.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val accountBalances: StateFlow<List<AccountBalanceRow>> =
         repository.accountBalances.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val checks = repository.checks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val ledger: StateFlow<List<LedgerRow>> =
         repository.ledger.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     fun partyLedger(partyId: Long) = repository.partyLedger(partyId)
@@ -81,6 +82,10 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
 
     fun addTreasury(kind: String, method: String, partyId: Long, amountRial: Long, reference: String, note: String, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.addTreasuryEntry(kind, method, partyId, amountRial, reference, note); "دریافت/پرداخت و سند حسابداری ثبت شد" }
+
+    fun addCheck(number: String, kind: String, partyId: Long, amount: Long, issueAt: Long, dueAt: Long, bank: String, note: String, onSuccess: () -> Unit) = execute(onSuccess) { repository.addCheck(number, kind, partyId, amount, issueAt, dueAt, bank, note); "چک ثبت شد" }
+
+    fun updateCheckStatus(id: Long, status: String) = execute { repository.updateCheckStatus(id, status); "وضعیت چک تغییر کرد" }
 
     fun addImport(
         supplierId: Long, currency: String, rate: Long, container: String, weight: Double,

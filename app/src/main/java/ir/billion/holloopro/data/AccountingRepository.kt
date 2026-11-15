@@ -26,6 +26,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val treasury = db.treasuryDao().observeAll()
     val accountBalances = db.accountDao().observeBalances()
     val ledger = db.accountDao().observeLedger()
+    val checks = db.checkDao().observeAll()
     val profitLoss = db.invoiceDao().observeProfitLoss()
 
     suspend fun addProduct(
@@ -305,6 +306,35 @@ class AccountingRepository(private val db: AppDatabase) {
                     referenceId = entryId
                 )
             )
+        }
+    }
+
+    suspend fun addCheck(
+        checkNumber: String, kind: String, partyId: Long, amountRial: Long,
+        issueDateEpoch: Long, dueDateEpoch: Long, bankName: String, note: String
+    ) {
+        val normalized = checkNumber.trim()
+        require(normalized.isNotBlank()) { "شماره چک الزامی است" }
+        require(kind == "RECEIVED" || kind == "PAYABLE") { "نوع چک نامعتبر است" }
+        require(amountRial > 0) { "مبلغ چک باید بیشتر از صفر باشد" }
+        require(dueDateEpoch >= issueDateEpoch) { "سررسید نمی‌تواند قبل از تاریخ صدور باشد" }
+        db.withTransaction {
+            val party = db.partyDao().getById(partyId) ?: error("طرف حساب پیدا نشد")
+            if (kind == "RECEIVED") require(party.kind != "SUPPLIER") { "برای چک دریافتی مشتری انتخاب کنید" }
+            else require(party.kind != "CUSTOMER") { "برای چک پرداختی تأمین‌کننده انتخاب کنید" }
+            db.checkDao().insert(CheckEntity(
+                checkNumber = normalized, kind = kind, partyId = partyId, amountRial = amountRial,
+                issueDateEpoch = issueDateEpoch, dueDateEpoch = dueDateEpoch, bankName = bankName.trim(), note = note.trim()
+            ))
+        }
+    }
+
+    suspend fun updateCheckStatus(id: Long, status: String) {
+        require(status in setOf("OPEN", "CLEARED", "BOUNCED", "CANCELLED")) { "وضعیت چک نامعتبر است" }
+        db.withTransaction {
+            val check = db.checkDao().getById(id) ?: error("چک پیدا نشد")
+            require(check.status == "OPEN") { "وضعیت این چک قبلاً نهایی شده است" }
+            db.checkDao().update(check.copy(status = status))
         }
     }
 

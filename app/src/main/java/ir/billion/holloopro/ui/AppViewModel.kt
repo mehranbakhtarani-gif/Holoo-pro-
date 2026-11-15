@@ -19,6 +19,7 @@ import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductWithStock
 import ir.billion.holloopro.data.WarehouseEntity
 import ir.billion.holloopro.data.WarehouseStockRow
+import ir.billion.holloopro.data.WarehouseKardexRow
 import ir.billion.holloopro.data.ProductProfitRow
 import ir.billion.holloopro.data.InvoiceProfitRow
 import ir.billion.holloopro.data.TreasuryEntryEntity
@@ -31,6 +32,7 @@ import kotlinx.coroutines.launch
 class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     val warehouses: StateFlow<List<WarehouseEntity>> = repository.warehouses.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val warehouseStocks: StateFlow<List<WarehouseStockRow>> = repository.warehouseStocks.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val warehouseKardex: StateFlow<List<WarehouseKardexRow>> = repository.warehouseKardex.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val products: StateFlow<List<ProductWithStock>> =
         repository.products.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val parties: StateFlow<List<PartyEntity>> =

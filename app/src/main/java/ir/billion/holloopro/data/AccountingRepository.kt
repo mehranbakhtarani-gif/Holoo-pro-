@@ -954,14 +954,19 @@ class AccountingRepository(private val db: AppDatabase) {
             }
             db.importReceiptDao().insertLines(receiptLines)
             receiptLines.forEach { line ->
-                val oldValuation = db.productValuationDao().get(line.productId)
+                val oldValuation = db.warehouseStockDao().valuation(1L, line.productId)
                 val currentValuation = oldValuation?.let { InventoryValuation(it.quantityKg, it.valueRial) } ?: InventoryValuation(0.0, 0L)
                 val nextValuation = InventoryValuationEngine.receive(currentValuation, line.quantityKg, line.allocatedCostRial)
-                db.productValuationDao().upsert(ProductValuationEntity(line.productId, nextValuation.quantityKg, nextValuation.valueRial))
+                db.warehouseStockDao().upsertValuation(WarehouseValuationEntity(1L, line.productId, nextValuation.quantityKg, nextValuation.valueRial))
+                syncGlobalValuation(line.productId)
                 db.stockDao().insert(StockMovementEntity(
                     productId = line.productId, quantityKg = line.quantityKg,
                     kind = "IMPORT_RECEIPT", referenceId = receiptId,
                     note = "رسید محموله " + order.containerCode
+                ))
+                db.warehouseStockDao().insertMovement(WarehouseStockMovementEntity(
+                    warehouseId = 1L, productId = line.productId, quantityKg = line.quantityKg,
+                    kind = "IMPORT_RECEIPT", referenceId = receiptId, note = "رسید محموله " + order.containerCode
                 ))
             }
             ensureBaseAccounts()

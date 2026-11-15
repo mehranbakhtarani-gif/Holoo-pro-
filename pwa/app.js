@@ -1,6 +1,6 @@
 
-const DB_NAME="holloo-pro-pwa",DB_VERSION=2;
-const stores=["products","parties","invoices","imports","checks","treasury","accounts","vouchers","voucherLines"];
+const DB_NAME="holloo-pro-pwa",DB_VERSION=3;
+const stores=["products","parties","invoices","imports","checks","treasury","accounts","vouchers","voucherLines","stockAdjustments"];
 let db,showToman=true,currentPage="home",searchText="";
 const $=s=>document.querySelector(s),h=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])),fmt=n=>new Intl.NumberFormat("fa-IR").format(Math.round(Number(n)||0)),money=n=>fmt(showToman?Number(n||0)/10:Number(n||0)),moneyUnit=()=>showToman?"تومان":"ریال",date=v=>v?new Intl.DateTimeFormat("fa-IR").format(new Date(v)):"—";
 const titles={home:["داشبورد کسب‌وکار","نمای کلی فروش، انبار و گردش مالی"],inventory:["کالا و انبار","مدیریت کالاهای نخ و ارزش موجودی"],parties:["اشخاص","مشتریان و تأمین‌کنندگان و مانده حساب"],invoices:["فاکتورها","ثبت خرید و فروش با کنترل موجودی"],imports:["واردات نخ","ثبت سفارش، ارز و هزینه‌های واردات"],checks:["مدیریت چک‌ها","چک‌های دریافتی و پرداختی و سررسیدها"],treasury:["دریافت و پرداخت","ثبت گردش صندوق و بانک"],accounting:["گزارش مالی","خلاصه عملکرد و گردش حساب‌ها"]};
@@ -27,7 +27,7 @@ async function loadDemoData(){
  await putMany([...products.map(p=>["products",{...p,date:now}]),...parties.map(p=>["parties",{...p,date:now}]),...accountRows.map(a=>["accounts",a])]);
  toast("داده‌های آزمایشی اضافه شد؛ سه کالا، سه شخص و مانده‌های افتتاحیه آماده‌اند");await render();
 }
-async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["3101","سرمایه","EQUITY"],["4101","فروش کالا","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title,type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
+async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["3101","سرمایه","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title,type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
 function postVoucherAtomic(entries,voucher,lines){return new Promise((res,rej)=>{const names=[...new Set([...entries.map(x=>x[0]),"vouchers","voucherLines"])],tx=db.transaction(names,"readwrite");for(const [store,value] of entries)tx.objectStore(store).put(value);const request=tx.objectStore("vouchers").add(voucher);request.onsuccess=()=>{const voucherId=request.result;for(const line of lines)tx.objectStore("voucherLines").add({...line,voucherId})};request.onerror=()=>{try{tx.abort()}catch(_){}};tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error||new Error("ثبت سند حسابداری ناموفق بود"));tx.onabort=()=>rej(tx.error||new Error("ثبت عملیات لغو شد"))})}
 function all(s){return new Promise((res,rej)=>{const q=db.transaction(s).objectStore(s).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 function put(s,v){return new Promise((res,rej)=>{const t=db.transaction(s,"readwrite"),q=t.objectStore(s).put(v);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
@@ -40,11 +40,50 @@ function head(p,action){return '<div class="page-head"><div><h1>'+titles[p][0]+'
 function stat(label,value,note){return '<div class="stat"><small>'+label+'</small><strong>'+value+'</strong><em>'+note+'</em></div>'}
 function table(headers,rows){return '<div class="table-wrap"><table><thead><tr>'+headers.map(x=>'<th>'+x+'</th>').join("")+'</tr></thead><tbody>'+(rows.length?rows.join(""):'<tr><td colspan="'+headers.length+'" class="empty">هنوز اطلاعاتی ثبت نشده است</td></tr>')+'</tbody></table></div>'}
 function actButtons(s,id){return '<button class="ghost" data-edit="'+s+':'+id+'">ویرایش</button> <button class="ghost danger" data-del="'+s+':'+id+'">حذف</button>'}
-function bindRows(){document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const [s,id]=b.dataset.edit.split(":");edit(s,+id)});document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeRow(...b.dataset.del.split(":")))}
+async function adjustStockPwa(id){
+ const products=await all("products"),product=products.find(x=>x.id===Number(id));
+ if(!product)throw Error("کالا پیدا نشد");
+ const raw=prompt("مقدار اصلاح به کیلوگرم را وارد کنید. عدد مثبت = افزایش، عدد منفی = کاهش", "10");
+ if(raw===null)return;
+ const delta=Number(String(raw).replace(",","."));
+ if(!Number.isFinite(delta)||Math.abs(delta)<0.000001)throw Error("مقدار اصلاح معتبر نیست");
+ let adjustmentValue=0,debitCode="",creditCode="";
+ if(delta>0){
+  const costRaw=prompt("بهای هر کیلو برای افزایش موجودی (ریال)",String(Math.round(Number(product.avg)||0)));
+  if(costRaw===null)return;
+  const cost=Number(costRaw);
+  if(!Number.isSafeInteger(cost)||cost<=0)throw Error("بهای هر کیلو باید عدد صحیح مثبت باشد");
+  adjustmentValue=Math.round(delta*cost);
+  if(!Number.isSafeInteger(adjustmentValue)||adjustmentValue<=0)throw Error("ارزش اصلاح خارج از محدوده مجاز است");
+  product.value=Number(product.value||0)+adjustmentValue;product.stock=Number(product.stock||0)+delta;product.avg=product.value/product.stock;
+  debitCode="1301";creditCode="4201";
+ }else{
+  const qty=-delta;
+  if(Number(product.stock||0)+1e-9<qty)throw Error("موجودی برای این کاهش کافی نیست");
+  if(!(Number(product.avg)>0))throw Error("ابتدا بهای موجودی کالا را مشخص کنید");
+  adjustmentValue=Math.round(qty*Number(product.avg));
+  if(!Number.isSafeInteger(adjustmentValue)||adjustmentValue<=0||adjustmentValue>Number(product.value||0)+1)throw Error("ارزش کسری موجودی معتبر نیست");
+  product.stock=Number(product.stock||0)-qty;product.value=Math.max(0,Number(product.value||0)-adjustmentValue);
+  product.avg=product.stock>0?product.value/product.stock:0;
+  debitCode="5201";creditCode="1301";
+ }
+ await ensureBaseAccounts();
+ const accounts=await all("accounts"),byCode=new Map(accounts.map(x=>[x.code,x]));
+ const debit=byCode.get(debitCode),credit=byCode.get(creditCode);
+ if(!debit||!credit)throw Error("حساب اصلاح موجودی تعریف نشده است");
+ const now=Date.now(),number="ADJ-"+now;
+ const adjustment={productId:product.id,productName:product.name,deltaKg:delta,valueRial:adjustmentValue,date:now,number};
+ await postVoucherAtomic([["products",product],["stockAdjustments",adjustment]],{number,date:now,description:"اصلاح موجودی "+product.name,reference:"STOCK_ADJUSTMENT:"+product.id+":"+now},[
+  {accountCode:debitCode,debitRial:adjustmentValue,creditRial:0,description:"اصلاح موجودی"},
+  {accountCode:creditCode,debitRial:0,creditRial:adjustmentValue,description:"اصلاح موجودی"}
+ ]);
+ toast("اصلاح موجودی و سند حسابداری ثبت شد");await render();
+}
+function bindRows(){document.querySelectorAll("[data-stockadjust]").forEach(b=>b.onclick=()=>adjustStockPwa(b.dataset.stockadjust).catch(e=>toast(e.message)));document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const [s,id]=b.dataset.edit.split(":");edit(s,+id)});document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeRow(...b.dataset.del.split(":")))}
 async function render(){const [products,parties,invoices,imports,checks,treasury,accounts,vouchers,voucherLines]=await Promise.all(stores.map(all));const totalSales=invoices.filter(x=>x.kind==="SALE").reduce((a,x)=>a+x.total,0),cogs=invoices.filter(x=>x.kind==="SALE").reduce((a,x)=>a+x.cogs,0),stockValue=products.reduce((a,x)=>a+(x.value||0),0),overdue=checks.filter(x=>x.status==="OPEN"&&x.due<Date.now()).length;
 let html="";
 if(currentPage==="home"){html=head("home")+'<div class="toolbar"><button class="btn secondary" id="loadDemoData">بارگذاری داده‌های آزمایشی</button><small class="hint">فقط یک‌بار اضافه می‌شود و داده‌های قبلی را پاک نمی‌کند.</small></div>'+'<div class="welcome"><h2>مدیریت کسب‌وکار در یک نگاه</h2><p>دفتر آفلاین فروش، خرید، موجودی و واردات نخ</p><div class="quick-grid">'+[['inventory','تعریف کالا'],['parties','ثبت طرف حساب'],['invoices','ثبت فاکتور'],['imports','سفارش واردات']].map(x=>'<button class="quick" data-page="'+x[0]+'">'+x[1]+'</button>').join("")+'</div></div><div class="grid">'+stat("ارزش موجودی",money(stockValue)+" "+moneyUnit(),"بهای ثبت‌شده انبار")+stat("فروش ثبت‌شده",money(totalSales)+" "+moneyUnit(),"مجموع فاکتورهای فروش")+stat("سود ناخالص",money(totalSales-cogs)+" "+moneyUnit(),"فروش منهای بهای کالای فروش‌رفته")+stat("سررسید چک گذشته",fmt(overdue),"چک‌های باز و سررسیدشده")+'</div><h3 class="section-title">وضعیت دفتر</h3><div class="grid">'+stat("کالاها",fmt(products.length),"قلم کالا")+stat("اشخاص",fmt(parties.length),"مشتری و تأمین‌کننده")+stat("فاکتورها",fmt(invoices.length),"خرید و فروش")+stat("سفارش واردات",fmt(imports.length),"سفارش ثبت‌شده")+'</div>'}
-if(currentPage==="inventory"){html=head("inventory","افزودن کالا")+'<div class="toolbar"><input class="search" id="search" placeholder="جست‌وجوی نام یا کد کالا"></div>'+table(["کد","نام کالا","نوع / دنیر","رنگ","موجودی (کیلو)","ارزش موجودی","عملیات"],products.filter(x=>(x.name+x.sku+x.color).includes(searchText)).map(x=>'<tr><td>'+x.sku+'</td><td>'+x.name+'</td><td>'+x.yarn+' / '+x.denier+'D</td><td>'+x.color+'</td><td>'+fmt(x.stock||0)+'</td><td>'+money(x.value||0)+' '+moneyUnit()+'</td><td>'+actButtons("products",x.id)+'</td></tr>'))}
+if(currentPage==="inventory"){html=head("inventory","افزودن کالا")+'<div class="toolbar"><input class="search" id="search" placeholder="جست‌وجوی نام یا کد کالا"></div>'+table(["کد","نام کالا","نوع / دنیر","رنگ","موجودی (کیلو)","ارزش موجودی","عملیات"],products.filter(x=>(x.name+x.sku+x.color).includes(searchText)).map(x=>'<tr><td>'+x.sku+'</td><td>'+x.name+'</td><td>'+x.yarn+' / '+x.denier+'D</td><td>'+x.color+'</td><td>'+fmt(x.stock||0)+'</td><td>'+money(x.value||0)+' '+moneyUnit()+'</td><td>'+actButtons("products",x.id)+' <button class="btn secondary" data-stockadjust="'+x.id+'">اصلاح موجودی</button>'+'</td></tr>'))}
 if(currentPage==="parties"){html=head("parties","افزودن شخص")+table(["نام","نوع","تلفن","مانده حساب","عملیات"],parties.map(x=>'<tr><td>'+x.name+'</td><td>'+(x.kind==="CUSTOMER"?"مشتری":x.kind==="SUPPLIER"?"تأمین‌کننده":"هر دو")+'</td><td>'+x.phone+'</td><td>'+money(x.balance||0)+' '+moneyUnit()+'</td><td>'+actButtons("parties",x.id)+'</td></tr>'))}
 if(currentPage==="invoices"){html=head("invoices","ثبت فاکتور")+table(["شماره","نوع","طرف حساب","تاریخ","مبلغ","وضعیت"],invoices.slice().reverse().map(x=>'<tr><td>'+x.number+'</td><td>'+(x.kind==="SALE"?"فروش":"خرید")+'</td><td>'+x.partyName+'</td><td>'+date(x.date)+'</td><td>'+money(x.total)+' '+moneyUnit()+'</td><td><span class="pill">'+(x.kind==="SALE"?"ثبت‌شده":"ثبت‌شده")+'</span></td></tr>'))}
 if(currentPage==="imports"){html=head("imports","ثبت سفارش واردات")+table(["تأمین‌کننده","ارز","کانتینر","وزن (kg)","مبلغ کالا","هزینه جانبی","سررسید","وضعیت"],imports.map(x=>'<tr><td>'+x.supplierName+'</td><td>'+x.currency+'</td><td>'+x.container+'</td><td>'+fmt(x.weight)+'</td><td>'+fmt(x.goods)+' '+x.currency+'</td><td>'+money(x.extra)+' '+moneyUnit()+'</td><td>'+date(x.due)+'</td><td><span class="pill warn">'+x.status+'</span></td></tr>'))}

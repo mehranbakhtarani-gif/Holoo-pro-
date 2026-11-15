@@ -425,6 +425,25 @@ private fun BankReconciliationSection(
         }
         val matchedCount = bankStatements.count { it.matchedTreasuryEntryId != null || it.matchedCheckId != null || it.matchedVoucherId != null }
         Text("تطبیق‌شده: $matchedCount • تطبیق‌نشده: ${bankStatements.size - matchedCount}", color = Muted, fontSize = 10.sp)
+        if (bankStatementPeriods.isNotEmpty()) {
+            Text("کنترل مانده پایان دوره", color = Turquoise, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            bankStatementPeriods.take(12).forEach { period ->
+                val movements = bankStatements.filter {
+                    it.bankName.equals(period.bankName, ignoreCase = true) &&
+                        it.transactionDateEpoch >= period.startDateEpoch && it.transactionDateEpoch <= period.endDateEpoch
+                }.sumOf { it.signedAmountRial }
+                val calculated = period.openingBalanceRial + movements
+                val difference = calculated - period.closingBalanceRial
+                val dateFormat = java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("${period.bankName} • ${dateFormat.format(java.util.Date(period.startDateEpoch))} تا ${dateFormat.format(java.util.Date(period.endDateEpoch))}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("افتتاحیه: ${formatMoney(period.openingBalanceRial, showToman)} • گردش خالص: ${formatMoney(movements, showToman)}", color = Muted, fontSize = 10.sp)
+                    Text("مانده محاسباتی: ${formatMoney(calculated, showToman)} • مانده بانک: ${formatMoney(period.closingBalanceRial, showToman)}", color = Muted, fontSize = 10.sp)
+                    Text(if (difference == 0L) "مانده‌ها برابرند؛ اختلاف صفر است." else "اختلاف مانده: ${formatMoney(difference, showToman)}", color = if (difference == 0L) Turquoise else Color(0xFFFF9D9D), fontSize = 10.sp)
+                }
+                Divider(color = CardBorder)
+            }
+        }
         if (bankStatements.isEmpty()) Text("هنوز گردش بانکی وارد نشده است.", color = Muted, fontSize = 11.sp)
         bankStatements.take(40).forEach { line ->
             var selectedEntryId by remember(line.id) { mutableStateOf<Long?>(null) }
@@ -475,6 +494,13 @@ private fun BankReconciliationSection(
         }
         Text("کارمزد بانکی به‌صورت هزینه بدهکار و بانک بستانکار در دفترکل ثبت می‌شود.", color = Muted, fontSize = 9.sp)
     }
+    if (showPeriodDialog) BankStatementPeriodDialog(
+        onDismiss = { showPeriodDialog = false },
+        onSave = { bank, start, end, opening, closing ->
+            onAddPeriod(bank, start, end, opening, closing)
+            showPeriodDialog = false
+        }
+    )
     if (showDialog) BankStatementDialog(
         onDismiss = { showDialog = false },
         onSave = { bank, date, amount, ref, description -> onAdd(bank, date, amount, ref, description) { showDialog = false } }
@@ -482,6 +508,44 @@ private fun BankReconciliationSection(
     if (showFeeDialog) BankFeeDialog(
         onDismiss = { showFeeDialog = false },
         onSave = { bank, date, amount, ref, description -> onAddFee(bank, date, amount, ref, description) { showFeeDialog = false } }
+    )
+}
+
+@Composable
+private fun BankStatementPeriodDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, Long, Long, Long, Long) -> Unit
+) {
+    var bank by remember { mutableStateOf("") }
+    var startText by remember { mutableStateOf("") }
+    var endText by remember { mutableStateOf("") }
+    var openingText by remember { mutableStateOf("") }
+    var closingText by remember { mutableStateOf("") }
+    fun parseDate(value: String): Long? = runCatching {
+        java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.parse(value)?.time
+    }.getOrNull()
+    val start = parseDate(startText)
+    val end = parseDate(endText)?.plus(86_399_999L)
+    val opening = openingText.toLongOrNull()
+    val closing = closingText.toLongOrNull()
+    val valid = bank.isNotBlank() && start != null && end != null && end >= start &&
+        opening != null && opening >= 0L && closing != null && closing >= 0L
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ثبت دوره صورت‌حساب بانکی") },
+        text = {
+            Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                FormField("نام بانک / حساب", bank) { bank = it }
+                FormField("از تاریخ (YYYY-MM-DD)", startText) { startText = it }
+                FormField("تا تاریخ (YYYY-MM-DD)", endText) { endText = it }
+                FormField("مانده افتتاحیه به ریال", openingText, KeyboardType.Number) { openingText = it }
+                FormField("مانده اختتامیه طبق بانک به ریال", closingText, KeyboardType.Number) { closingText = it }
+                Text("مانده محاسباتی از افتتاحیه به‌علاوه گردش‌های واردشده در بازه محاسبه و با مانده اعلامی بانک مقایسه می‌شود.", color = Muted, fontSize = 10.sp)
+            }
+        },
+        confirmButton = { TextButton(enabled = valid, onClick = { onSave(bank.trim(), start!!, end!!, opening!!, closing!!) }) { Text("ثبت دوره") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },
+        containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
     )
 }
 

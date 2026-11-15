@@ -10,7 +10,10 @@ import ir.billion.holloopro.data.LedgerRow
 import ir.billion.holloopro.data.PartyLedgerRow
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.InvoiceEntity
+import ir.billion.holloopro.data.ReturnableInvoiceLineRow
+import ir.billion.holloopro.data.InvoiceReturnSummaryRow
 import ir.billion.holloopro.data.InvoiceLineInput
+import ir.billion.holloopro.data.InvoiceReturnLineInput
 import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductWithStock
@@ -29,6 +32,8 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     val partyBalances = repository.partyBalances.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val invoices: StateFlow<List<InvoiceEntity>> =
         repository.invoices.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val returnableInvoiceLines = repository.returnableInvoiceLines.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val invoiceReturnTotals = repository.invoiceReturnTotals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val invoiceSettlements = repository.invoiceSettlements.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val settlementDetails = repository.settlementDetails.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val treasuryAllocations = repository.treasuryAllocations.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -92,6 +97,9 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
         execute(onSuccess) { repository.createAndPostMultiLineInvoice(kind, partyId, lines, discount, tax); "فاکتور چندردیفی ثبت و سند حسابداری صادر شد" }
 
     fun reverseInvoice(id: Long) = execute { repository.reverseInvoice(id); "فاکتور برگشت شد" }
+
+    fun createPartialInvoiceReturn(id: Long, lines: List<InvoiceReturnLineInput>, note: String, onSuccess: () -> Unit) =
+        execute(onSuccess) { repository.createPartialInvoiceReturn(id, lines, note); "برگشت جزئی ثبت شد؛ موجودی و سند حسابداری اصلاح شدند" }
 
     fun saveAccount(code: String, title: String, type: String, onSuccess: () -> Unit) =
         execute(onSuccess) { repository.saveAccount(code, title, type); "کد حساب ذخیره شد" }

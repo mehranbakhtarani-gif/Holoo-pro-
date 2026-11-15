@@ -5,6 +5,11 @@ on:
     paths:
       - 'pwa/**'
       - '.github/workflows/package-pwa.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pwa/**'
+      - '.github/workflows/package-pwa.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check JavaScript syntax
-        run: node --check pwa/app.js && node --check pwa/sw.js
+        run: node --check pwa/app.js && node --check pwa/sw.js && node --check pwa/import-cost.js && node --check pwa/settlement.js && node --test pwa/tests/*.test.cjs && node -e "JSON.parse(require('fs').readFileSync('pwa/manifest.webmanifest', 'utf8'))"
       - name: Package PWA
         run: zip -qr HOLLOO-PRO-PLUS-PWA.zip pwa
       - name: Upload PWA package

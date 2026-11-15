@@ -104,7 +104,7 @@ async function adjustStockPwa(id){
   debitCode="5201";creditCode="1301";
  }
  await ensureBaseAccounts();
- const accounts=await all("accounts"),byCode=new Map(accounts.map(x=>[x.code,x]));
+ const accounts=await all("accounts"),byCode=new Map(accounts.map(x=>[String(x.id??x.code),x]));
  const debit=byCode.get(debitCode),credit=byCode.get(creditCode);
  if(!debit||!credit)throw Error("حساب اصلاح موجودی تعریف نشده است");
  const now=Date.now(),number="ADJ-"+now;

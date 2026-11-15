@@ -295,28 +295,34 @@ class AccountingRepository(private val db: AppDatabase) {
                     referenceId = invoiceId
                 )
             )
-            val originalVoucher = db.voucherDao().byReference("INVOICE:$invoiceId")
-            if (originalVoucher != null) {
-                val oldLines = db.voucherLineDao().byVoucher(originalVoucher.id)
-                val reverseId = db.voucherDao().insert(
-                    VoucherEntity(
-                        number = "R-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}",
-                        description = "سند برگشت ${invoice.number}",
-                        reference = "REVERSAL:$invoiceId"
-                    )
-                )
-                db.voucherLineDao().insertAll(
-                    oldLines.map {
-                        VoucherLineEntity(
-                            voucherId = reverseId,
-                            accountId = it.accountId,
-                            debitRial = it.creditRial,
-                            creditRial = it.debitRial,
-                            description = "برگشت سند"
-                        )
-                    }
-                )
+            require(db.voucherDao().byReference("REVERSAL:$invoiceId") == null) {
+                "برای این فاکتور قبلاً سند برگشت ثبت شده است"
             }
+            val originalVoucher = db.voucherDao().byReference("INVOICE:$invoiceId")
+                ?: error("سند حسابداری اصلی فاکتور پیدا نشد؛ برگشت امن ممکن نیست")
+            val oldLines = db.voucherLineDao().byVoucher(originalVoucher.id)
+            require(oldLines.size >= 2) { "ردیف‌های سند اصلی ناقص است؛ برگشت امن ممکن نیست" }
+            AccountingEngine.requireBalanced(
+                oldLines.map { VoucherLineDraft("0", debitRial = it.debitRial, creditRial = it.creditRial) }
+            )
+            val reverseId = db.voucherDao().insert(
+                VoucherEntity(
+                    number = "R-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}",
+                    description = "سند برگشت ${invoice.number}",
+                    reference = "REVERSAL:$invoiceId"
+                )
+            )
+            db.voucherLineDao().insertAll(
+                oldLines.map {
+                    VoucherLineEntity(
+                        voucherId = reverseId,
+                        accountId = it.accountId,
+                        debitRial = it.creditRial,
+                        creditRial = it.debitRial,
+                        description = "برگشت سند"
+                    )
+                }
+            )
             db.invoiceDao().update(invoice.copy(status = "REVERSED"))
         }
     }

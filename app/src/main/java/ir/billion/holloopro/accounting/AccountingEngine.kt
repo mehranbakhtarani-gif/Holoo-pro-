@@ -25,6 +25,22 @@ object AccountingEngine {
         }
     }
 
+    fun allocateLandedCost(totalCostRial: Long, quantities: List<Pair<Long, Double>>): Map<Long, Long> {
+        require(totalCostRial > 0)
+        val aggregated = aggregateQuantities(quantities)
+        val totalKg = aggregated.values.sum()
+        require(totalKg.isFinite() && totalKg > 0.0)
+        var allocated = 0L
+        val entries = aggregated.entries.toList()
+        return entries.mapIndexed { index, entry ->
+            val amount = if (index == entries.lastIndex) Math.subtractExact(totalCostRial, allocated)
+            else BigDecimal.valueOf(totalCostRial).multiply(BigDecimal.valueOf(entry.value))
+                .divide(BigDecimal.valueOf(totalKg), 0, RoundingMode.HALF_UP)
+                .longValueExact().also { allocated = Math.addExact(allocated, it) }
+            entry.key to amount
+        }.toMap()
+    }
+
     fun isBalanced(lines: List<VoucherLineDraft>): Boolean {
         if (lines.size < 2) return false
         if (lines.any { it.debitRial < 0 || it.creditRial < 0 }) return false

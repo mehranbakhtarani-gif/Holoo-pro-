@@ -8,6 +8,7 @@ import ir.billion.holloopro.data.AccountBalanceRow
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.InvoiceEntity
 import ir.billion.holloopro.data.InvoiceLineInput
+import ir.billion.holloopro.data.ImportReceiptLineInput
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductWithStock
 import ir.billion.holloopro.data.TreasuryEntryEntity
@@ -76,6 +77,11 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     ) = execute {
         repository.addImportOrder(supplierId, currency, rate, container, weight, goods, freight, customs, other, creditDays)
         "سفارش واردات ثبت شد"
+    }
+
+    fun receiveImport(orderId: Long, lines: List<ImportReceiptLineInput>) = execute {
+        repository.receiveImport(orderId, lines)
+        "رسید انبار صادر شد؛ موجودی و سند بهای تمام‌شده ثبت شد"
     }
 
     private fun execute(block: suspend () -> String) {

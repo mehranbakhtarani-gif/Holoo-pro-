@@ -256,6 +256,7 @@ class AccountingRepository(private val db: AppDatabase) {
     }
     suspend fun reverseInvoice(invoiceId: Long) {
         db.withTransaction {
+            ensureBaseAccounts()
             val invoice = db.invoiceDao().getById(invoiceId) ?: error("فاکتور پیدا نشد")
             require(invoice.status == "POSTED") { "فقط فاکتور ثبت‌شده قابل برگشت است" }
             val lines = db.invoiceLineDao().byInvoice(invoiceId)

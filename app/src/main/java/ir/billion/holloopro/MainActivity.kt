@@ -1557,7 +1557,7 @@ private fun ImportsScreen(
                             Button(
                             onClick = { receivingOrder = order },
                             enabled = products.isNotEmpty(),
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)
                             ) { Text("دریافت محموله و ورود به انبار") }
                         }
@@ -2291,6 +2291,12 @@ private fun ImportDialog(
     var customs by remember(existing?.id) { mutableStateOf((existing?.customsRial ?: 0L).toString()) }
     var other by remember(existing?.id) { mutableStateOf((existing?.otherCostsRial ?: 0L).toString()) }
     var creditDays by remember(existing?.id) { mutableStateOf(existing?.let { ((it.supplierDueAt - it.orderedAt) / 86_400_000L).coerceAtLeast(0).toString() } ?: "90") }
+    val valid = supplierId > 0L && container.isNotBlank() &&
+        (rate.toLongOrNull() ?: 0L) > 0L &&
+        (weight.toDoubleOrNull()?.let { it.isFinite() && it > 0.0 } == true) &&
+        (goods.toLongOrNull() ?: 0L) > 0L &&
+        listOf(freight, customs, other).all { (it.toLongOrNull() ?: -1L) >= 0L } &&
+        (creditDays.toIntOrNull()?.let { it in 0..3650 } == true)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (existing == null) "سفارش واردات نخ" else "ویرایش سفارش " + existing.containerCode) },
@@ -2311,7 +2317,7 @@ private fun ImportDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = valid, onClick = {
                 onSave(
                     supplierId, currency, rate.toLongOrNull() ?: 0L, container,
                     weight.toDoubleOrNull() ?: 0.0, goods.toLongOrNull() ?: 0L,

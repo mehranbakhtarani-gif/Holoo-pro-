@@ -54,6 +54,8 @@ import ir.billion.holloopro.data.TreasuryAllocationRow
 import ir.billion.holloopro.data.PartyEntity
 import ir.billion.holloopro.data.ProductEntity
 import ir.billion.holloopro.data.ProductWithStock
+import ir.billion.holloopro.data.WarehouseEntity
+import ir.billion.holloopro.data.WarehouseStockRow
 import ir.billion.holloopro.data.ProductProfitRow
 import ir.billion.holloopro.data.InvoiceProfitRow
 import ir.billion.holloopro.ui.AppViewModel
@@ -103,6 +105,8 @@ class MainActivity : ComponentActivity() {
             HolooTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     val products by vm.products.collectAsState()
+                    val warehouses by vm.warehouses.collectAsState()
+                    val warehouseStocks by vm.warehouseStocks.collectAsState()
                     val parties by vm.parties.collectAsState()
                     val partyBalances by vm.partyBalances.collectAsState()
                     val invoices by vm.invoices.collectAsState()
@@ -127,13 +131,15 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss, productProfitability, invoiceProfitability,
+                        products, warehouses, warehouseStocks, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, profitLoss, productProfitability, invoiceProfitability,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
                         onDeleteProduct = vm::deleteProduct,
                         onSetOpeningValuation = vm::setOpeningInventoryValuation,
                         onAdjustStock = vm::adjustStock,
+                        onCreateWarehouse = vm::createWarehouse,
+                        onTransferStock = vm::transferStock,
                         onSaveParty = vm::saveParty,
                         onPartyLedger = vm::partyLedger,
                         onDeleteParty = vm::deleteParty,
@@ -178,6 +184,7 @@ private fun HolooTheme(content: @Composable () -> Unit) {
 
 private enum class Screen(val title: String, val symbol: String) {
     HOME("خانه", "⌂"),
+    WAREHOUSES("انبارها", "▤"),
     INVENTORY("کالا و انبار", "▦"),
     PARTIES("اشخاص", "♙"),
     INVOICES("فاکتورها", "▤"),
@@ -189,6 +196,8 @@ private enum class Screen(val title: String, val symbol: String) {
 @Composable
 private fun HolooApp(
     products: List<ProductWithStock>,
+    warehouses: List<WarehouseEntity>,
+    warehouseStocks: List<WarehouseStockRow>,
     parties: List<PartyEntity>,
     partyBalances: List<ir.billion.holloopro.data.PartyBalanceRow>,
     invoices: List<InvoiceEntity>,
@@ -214,12 +223,14 @@ private fun HolooApp(
     message: String?,
     onSaveProduct: (Long?, String, String, String, String, String, Int, Boolean, String) -> Unit,
     onDeleteProduct: (Long) -> Unit,
-    onSetOpeningValuation: (Long, Long) -> Unit,
-    onAdjustStock: (Long, Double, Long) -> Unit,
+    onSetOpeningValuation: (Long, Long, Long) -> Unit,
+    onAdjustStock: (Long, Double, Long, Long) -> Unit,
+    onCreateWarehouse: (String, String, () -> Unit) -> Unit,
+    onTransferStock: (Long, Long, Long, Double, () -> Unit) -> Unit,
     onSaveParty: (Long?, String, String, String, String, Long) -> Unit,
     onPartyLedger: (Long) -> Flow<List<ir.billion.holloopro.data.PartyLedgerRow>>,
     onDeleteParty: (Long) -> Unit,
-    onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, Long, () -> Unit) -> Unit,
+    onCreateInvoice: (String, Long, List<InvoiceLineInput>, Long, Long, Long, Long, () -> Unit) -> Unit,
     onReverseInvoice: (Long) -> Unit,
     onPartialInvoiceReturn: (Long, List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit,
     onAllocateTreasury: (Long, Long, Long, () -> Unit) -> Unit,
@@ -315,7 +326,7 @@ private fun HolooApp(
                 Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
                 Screen.INVENTORY -> InventoryScreen(products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
-                Screen.INVOICES -> InvoicesScreen(parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
+                Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onReceiveImport)
                 Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onAddTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onUpdateCheckStatus)
@@ -672,9 +683,9 @@ private fun PartiesScreen(
 
 @Composable
 private fun InvoicesScreen(
-    parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>,
+    warehouses: List<WarehouseEntity>, parties: List<PartyEntity>, products: List<ProductWithStock>, invoices: List<InvoiceEntity>,
     settlements: List<InvoiceSettlementRow>, returnTotals: List<InvoiceReturnSummaryRow>, returnableLines: List<ReturnableInvoiceLineRow>, settlementDetails: List<ir.billion.holloopro.data.InvoiceSettlementDetailRow>, treasury: List<TreasuryEntryEntity>, treasuryAllocations: List<TreasuryAllocationRow>, showToman: Boolean,
-    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, Long, () -> Unit) -> Unit,
+    onCreate: (String, Long, List<InvoiceLineInput>, Long, Long, Long, Long, () -> Unit) -> Unit,
     onReverse: (Long) -> Unit, onPartialReturn: (Long, List<InvoiceReturnLineInput>, String, () -> Unit) -> Unit, onAllocate: (Long, Long, Long, () -> Unit) -> Unit,
     onRemoveSettlement: (Long, () -> Unit) -> Unit
 ) {
@@ -744,7 +755,7 @@ private fun InvoicesScreen(
             }
         }
     }
-    if (dialog) InvoiceDialog(parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax, extraCosts -> onCreate(kind, partyId, lines, discount, tax, extraCosts) { dialog = false } })
+    if (dialog) InvoiceDialog(warehouses, parties, products, onDismiss = { dialog = false }, onSave = { kind, partyId, lines, discount, tax, extraCosts, warehouseId -> onCreate(kind, partyId, lines, discount, tax, extraCosts, warehouseId) { dialog = false } })
     allocationTarget?.let { invoice ->
         InvoiceAllocationDialog(
             invoice = invoice, party = parties.firstOrNull { it.id == invoice.partyId},
@@ -1550,10 +1561,11 @@ private class InvoiceDraftRow(initialProductId: Long) {
 }
 
 @Composable
-private fun InvoiceDialog(parties: List<PartyEntity>, products: List<ProductWithStock>, onDismiss: () -> Unit, onSave: (String, Long, List<InvoiceLineInput>, Long, Long, Long) -> Unit) {
+private fun InvoiceDialog(warehouses: List<WarehouseEntity>, parties: List<PartyEntity>, products: List<ProductWithStock>, onDismiss: () -> Unit, onSave: (String, Long, List<InvoiceLineInput>, Long, Long, Long, Long) -> Unit) {
     var kind by remember { mutableStateOf("SALE") }
     val eligibleParties = parties.filter { if (kind == "SALE") it.kind != "SUPPLIER" else it.kind != "CUSTOMER" }
     var partyId by remember { mutableStateOf(eligibleParties.firstOrNull()?.id ?: 0L) }
+    var warehouseId by remember { mutableStateOf(warehouses.firstOrNull()?.id ?: 1L) }
     val rows = remember { mutableStateListOf(InvoiceDraftRow(products.firstOrNull()?.product?.id ?: 0L)) }
     var discount by remember { mutableStateOf("0") }
     var tax by remember { mutableStateOf("0") }
@@ -1566,6 +1578,7 @@ private fun InvoiceDialog(parties: List<PartyEntity>, products: List<ProductWith
                     FilterChip(selected = kind == "PURCHASE", onClick = { kind = "PURCHASE"; partyId = parties.firstOrNull { it.kind != "CUSTOMER" }?.id ?: 0L }, label = { Text("خرید") })
                 }
                 ChoiceField("طرف حساب", parties.firstOrNull { it.id == partyId }?.name ?: "انتخاب طرف حساب", eligibleParties.map { it.name }) { selected -> partyId = eligibleParties.firstOrNull { it.name == selected }?.id ?: 0L }
+                ChoiceField("انبار", warehouses.firstOrNull { it.id == warehouseId }?.name ?: "انبار اصلی", warehouses.map { it.name }) { selected -> warehouseId = warehouses.firstOrNull { it.name == selected }?.id ?: 1L }
                 rows.forEachIndexed { index, row ->
                     GlassCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1594,7 +1607,7 @@ private fun InvoiceDialog(parties: List<PartyEntity>, products: List<ProductWith
                 val discountRial = (discount.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
                 val taxRial = (tax.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong()
                 val extraCostsRial = if (kind == "PURCHASE") (extraCosts.toBigDecimalOrNull() ?: BigDecimal.ZERO).multiply(BigDecimal.TEN).toLong() else 0L
-                onSave(kind, partyId, lines, discountRial, taxRial, extraCostsRial)
+                onSave(kind, partyId, lines, discountRial, taxRial, extraCostsRial, warehouseId)
             }) { Text("ثبت و صدور سند") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } },

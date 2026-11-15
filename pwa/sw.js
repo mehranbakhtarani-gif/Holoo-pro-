@@ -1,4 +1,4 @@
-const CACHE="holloo-pwa-v12";
+const CACHE="holloo-pwa-v13";
 const ASSETS=["./","./index.html","./style.css","./app.js","./manifest.webmanifest","./icon.svg"];
 const NETWORK_FIRST=/\/(?:index\.html|app\.js|style\.css|manifest\.webmanifest|sw\.js)(?:\?.*)?$/;
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));

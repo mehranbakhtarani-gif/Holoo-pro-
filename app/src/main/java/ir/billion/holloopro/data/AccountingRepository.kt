@@ -36,6 +36,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val trialBalance = db.accountDao().observeTrialBalance()
     val ledger = db.accountDao().observeLedger()
     val checks = db.checkDao().observeAll()
+    val bankStatements = db.bankStatementDao().observeAll()
     val profitLoss = db.invoiceDao().observeProfitLoss()
     val productProfitability = db.productDao().observeProfitability()
     val invoiceProfitability = db.invoiceDao().observeInvoiceProfitability()
@@ -792,6 +793,40 @@ class AccountingRepository(private val db: AppDatabase) {
                     referenceId = entryId
                 )
             )
+        }
+    }
+
+    suspend fun addBankStatementLine(
+        bankName: String, transactionDateEpoch: Long, signedAmountRial: Long,
+        bankReference: String, description: String
+    ) {
+        require(bankName.isNotBlank()) { "نام بانک الزامی است" }
+        require(transactionDateEpoch > 0L) { "تاریخ گردش بانکی معتبر نیست" }
+        require(signedAmountRial != 0L) { "مبلغ گردش بانکی نباید صفر باشد" }
+        db.bankStatementDao().insert(BankStatementLineEntity(
+            bankName = bankName.trim(), transactionDateEpoch = transactionDateEpoch,
+            signedAmountRial = signedAmountRial, bankReference = bankReference.trim(),
+            description = description.trim()
+        ))
+    }
+
+    suspend fun matchBankStatementLine(statementLineId: Long, treasuryEntryId: Long) {
+        db.withTransaction {
+            val line = db.bankStatementDao().getById(statementLineId) ?: error("ردیف صورت‌حساب بانکی پیدا نشد")
+            require(line.matchedTreasuryEntryId == null) { "این ردیف بانکی قبلاً تطبیق داده شده است" }
+            val entry = db.treasuryDao().byId(treasuryEntryId) ?: error("سند دریافت/پرداخت پیدا نشد")
+            require(entry.method == "BANK") { "فقط دریافت یا پرداخت بانکی قابل تطبیق است" }
+            val expected = if (entry.kind == "RECEIPT") entry.amountRial else Math.negateExact(entry.amountRial)
+            require(line.signedAmountRial == expected) { "مبلغ یا جهت گردش بانکی با سند انتخاب‌شده یکسان نیست" }
+            db.bankStatementDao().update(line.copy(matchedTreasuryEntryId = treasuryEntryId))
+        }
+    }
+
+    suspend fun unmatchBankStatementLine(statementLineId: Long) {
+        db.withTransaction {
+            val line = db.bankStatementDao().getById(statementLineId) ?: error("ردیف صورت‌حساب بانکی پیدا نشد")
+            require(line.matchedTreasuryEntryId != null) { "این ردیف هنوز تطبیق داده نشده است" }
+            db.bankStatementDao().update(line.copy(matchedTreasuryEntryId = null))
         }
     }
 

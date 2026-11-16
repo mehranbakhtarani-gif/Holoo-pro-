@@ -23,3 +23,11 @@ test("invoice notes are saved and included on the printed invoice",()=>{
  assert.match(app,/note:String\(d\.note\|\|""\)\.trim\(\)/);
  assert.match(app,/h\(invoice\.note\|\|""\)/);
 });
+
+ 
+test("invoice reversal is blocked until settlement allocations are safely removed",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const invoiceAllocations=allocations\.filter\(row=>row\.invoiceNumber===invoice\.number\)/);
+ assert.match(app,/ابتدا تخصیص‌های دریافت یا پرداخت این فاکتور را حذف کنید/);
+ assert.match(app,/برگشت امن تخصیص هنوز در دسترس نیست/);
+});

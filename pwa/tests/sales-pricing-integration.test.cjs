@@ -43,6 +43,6 @@ test("PWA purchase invoice reversal posts inventory valuation variance to accoun
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/purchaseReversalInventoryCost\+=cost/);
  assert.match(app,/originalInventoryDebit=oldLines\.filter\(line=>String\(line\.accountCode\)==="1301"\)/);
- assert.match(app,/buildPurchaseReversalAdjustment\(\{actualInventoryCostRial:purchaseReversalInventoryCost,originalInventoryDebitRial:originalInventoryDebit\}\)/);
+ assert.match(app,/adjustment\(\{actualInventoryCostRial:purchaseReversalInventoryCost,originalInventoryDebitRial:originalInventoryDebit\}\)/);
  assert.match(app,/\["5202","اختلاف بهای برگشت خرید","EXPENSE"\]/);
 });

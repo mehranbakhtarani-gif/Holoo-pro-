@@ -190,3 +190,11 @@ test("runtime: carton conversion multiplies carton count by product kg factor",(
  assert.throws(()=>api.convertCartonsToKg(0,20),/عدد مثبت/);
  assert.throws(()=>api.convertCartonsToKg(2,0),/عدد مثبت/);
 });
+
+test("custom report saves print template header footer paper and orientation",()=>{
+ assert.match(custom,/crPrintHeader/);
+ assert.match(custom,/crPrintFooter/);
+ assert.match(custom,/crPrintPaper/);
+ assert.match(custom,/crPrintOrientation/);
+ assert.match(custom,/@page\{size:/);
+});

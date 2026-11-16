@@ -5,7 +5,7 @@ const path=require("node:path");
 const root=path.resolve(__dirname,"..");
 test("sales quote and order store is included in database migration",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/DB_VERSION=9/);
+ assert.match(app,/DB_VERSION=10/);
  assert.match(app,/"salesOrders"/);
  assert.match(app,/salesOrders:\["پیش‌فاکتور و سفارش"/);
 });

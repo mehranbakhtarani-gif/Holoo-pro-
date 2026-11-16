@@ -40,6 +40,6 @@ test("warehouse page exports a Persian-compatible CSV stock valuation report",()
  assert.match(app,/holloo-warehouse-stock\.csv/);
  assert.match(app,/بهای میانگین ریال/);
  assert.match(app,/ارزش موجودی ریال/);
- assert.match(app,/\\\\uFEFF/);
+ assert.match(app,/\\uFEFF/);
 });
 

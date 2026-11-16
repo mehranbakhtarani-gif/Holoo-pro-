@@ -24,7 +24,7 @@ async function reverseClearedCheckPwa(id){
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(voucher.id)),amount=Number(check.amount);
  const debit=oldLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=oldLines.reduce((n,x)=>n+Number(x.creditRial||0),0);
  if(oldLines.length<2||debit!==credit||debit!==amount)throw Error("سند وصول چک با مبلغ چک مطابقت ندارد");
- const checkSnapshot={status:check.status,clearedAt:check.clearedAt,reversalVoucherNumber:check.reversalVoucherNumber},partySnapshot={...party},treasurySnapshot={status:original.status,amount:original.amount,kind:original.kind,allocationVersion:original.allocationVersion},now=Date.now(),reversalReference="CHECK:REV:"+check.id;
+ const checkSnapshot={...check},partySnapshot={...party},treasurySnapshot={...original},now=Date.now(),reversalReference="CHECK:REV:"+check.id;
  original.status="REVERSED";original.reversedAt=now;
  applyPartyBalanceDelta(party,original.kind==="RECEIPT"?amount:-amount);
  check.status="BOUNCED";check.bouncedAfterClearing=true;check.bouncedAt=now;check.statusChangedAt=now;check.reversalVoucherNumber="CHREV-"+now;
@@ -46,7 +46,7 @@ async function reverseTreasuryPwa(id){
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(voucher.id));
  const debit=oldLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=oldLines.reduce((n,x)=>n+Number(x.creditRial||0),0);
  if(oldLines.length<2||debit!==credit||debit!==Number(original.amount))throw Error("سند خزانه با مبلغ تراکنش مطابقت ندارد");
- const originalSnapshot={status:original.status,amount:original.amount,kind:original.kind,allocationVersion:original.allocationVersion},partySnapshot={...party},now=Date.now(),reference="TREASURY-REV:"+original.id;
+ const originalSnapshot={...original},partySnapshot={...party},now=Date.now(),reference="TREASURY-REV:"+original.id;
  original.status="REVERSED";original.reversedAt=now;
  applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));
  const reversal={kind:original.kind==="RECEIPT"?"PAYMENT":"RECEIPT",method:original.method,partyId:party.id,partyName:party.name,currency:original.currency||"IRR",amount:original.amount,foreignAmountMinor:original.foreignAmountMinor||null,fxRateRialPerUnit:original.fxRateRialPerUnit||1,date:now,note:"برگشت "+(original.kind==="RECEIPT"?"دریافت":"پرداخت")+" "+(original.note||""),reference,reversalOfId:original.id};

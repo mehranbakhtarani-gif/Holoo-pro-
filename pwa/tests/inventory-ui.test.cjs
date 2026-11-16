@@ -113,3 +113,18 @@ test("party type changes are blocked while linked import shipments exist",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/all\("importShipments"\).*shipments\.some\(x=>Number\(x\.supplierId\)===Number\(item\.id\)\)/);
 });
+
+ 
+test("dashboard sales and gross profit exclude drafts and reversed invoices while retaining legacy posted rows",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const postedSales=invoices\.filter\(x=>x\.kind==="SALE"&&\(!x\.status\|\|x\.status==="POSTED"\)\)/);
+ assert.match(app,/totalSales=postedSales\.reduce/);
+ assert.match(app,/cogs=postedSales\.reduce/);
+});
+ 
+test("dashboard demo data action is bound and refuses to overwrite a non-empty ledger",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const demoButton=\$\("#loadDemoData"\);if\(demoButton\)demoButton\.onclick/);
+ assert.match(app,/vouchersNow\.length\|\|ledgerNow\.length\|\|treasuryNow\.length/);
+ assert.match(app,/داده آزمایشی فقط در دفتر کاملاً خالی قابل بارگذاری است/);
+});

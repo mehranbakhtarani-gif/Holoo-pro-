@@ -11,6 +11,7 @@ import ir.billion.holloopro.data.LedgerRow
 import ir.billion.holloopro.data.PartyLedgerRow
 import ir.billion.holloopro.data.ImportOrderEntity
 import ir.billion.holloopro.data.InvoiceEntity
+import ir.billion.holloopro.data.InvoiceAgingRow
 import ir.billion.holloopro.data.ReturnableInvoiceLineRow
 import ir.billion.holloopro.data.InvoiceReturnSummaryRow
 import ir.billion.holloopro.data.InvoiceLineInput
@@ -44,6 +45,7 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     val returnableInvoiceLines = repository.returnableInvoiceLines.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val invoiceReturnTotals = repository.invoiceReturnTotals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val invoiceSettlements = repository.invoiceSettlements.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val invoiceAging: StateFlow<List<InvoiceAgingRow>> = repository.invoiceAging.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val settlementDetails = repository.settlementDetails.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val treasuryAllocations = repository.treasuryAllocations.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val treasury: StateFlow<List<TreasuryEntryEntity>> =

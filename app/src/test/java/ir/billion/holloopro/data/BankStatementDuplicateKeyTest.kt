@@ -12,14 +12,24 @@ class BankStatementDuplicateKeyTest {
         assertEquals(first, second)
     }
 
-    @Test fun duplicateRowsWithinOneFileAreDetectedEvenWhenReferenceAndDescriptionAreBlank() {
+    @Test fun indistinguishableBlankRowsAreNotDiscardedAsDuplicates() {
         val seen = mutableSetOf<BankStatementDuplicateKey>()
         val first = BankStatementDuplicateKey.from("Bank A", BankStatementCsvRow(100L, 500L))
         val repeated = BankStatementDuplicateKey.from("Bank A", BankStatementCsvRow(100L, 500L))
-        val differentAmount = BankStatementDuplicateKey.from("Bank A", BankStatementCsvRow(100L, 501L))
+        assertFalse(first.hasReliableIdentity)
+        assertFalse(repeated.hasReliableIdentity)
+        // Equal date/amount with no reference or description can be two real transactions.
+        assertTrue(seen.add(first))
+        assertTrue(seen.add(repeated))
+    }
+
+    @Test fun rowsWithAReferenceOrDescriptionCanBeDeduplicated() {
+        val seen = mutableSetOf<BankStatementDuplicateKey>()
+        val first = BankStatementDuplicateKey.from("Bank A", BankStatementCsvRow(100L, 500L, "R-1", ""))
+        val repeated = BankStatementDuplicateKey.from("Bank A", BankStatementCsvRow(100L, 500L, "R-1", ""))
+        assertTrue(first.hasReliableIdentity)
         assertTrue(seen.add(first))
         assertFalse(seen.add(repeated))
-        assertTrue(seen.add(differentAmount))
     }
 
     @Test fun referenceDescriptionDateAmountAndBankRemainPartOfTheKey() {

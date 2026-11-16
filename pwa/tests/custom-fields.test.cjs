@@ -97,3 +97,13 @@ test("invoice and order line definitions are separated by document context",()=>
 test("date validation uses a real YYYY-MM-DD calendar date",()=>{
  assert.match(custom,/\^\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)\$/);
 });
+
+test("invoice table columns ignore entity-only custom definitions",()=>{
+ assert.match(custom,/definitions\.filter\(x=>x\.enabled&&\(x\.scope\|\|"invoice_line"\)==="invoice_line"\)/);
+});
+test("disabled entity field values survive editing",()=>{
+ assert.match(app,/\.\.\.\(item\?\.customFields\|\|\{\}\),\.\.\.JSON\.parse\(d\.__entityCustomFields/);
+});
+test("entity table enhancement prevents duplicate async column injection",()=>{
+ assert.match(custom,/customEntityLoading/);
+});

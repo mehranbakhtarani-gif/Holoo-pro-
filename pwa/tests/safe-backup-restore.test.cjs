@@ -36,3 +36,9 @@ test("backup download URL is revoked after a delay rather than immediately",()=>
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/setTimeout\(\(\)=>URL\.revokeObjectURL\(url\),30000\)/);
 });
+
+test("restore rejects v2 backups missing a records store or requiring a newer schema",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/stores\.some\(name=>!data\.storeNames\.includes\(name\)\|\|!Object\.prototype\.hasOwnProperty\.call\(data\.records,name\)\)/);
+ assert.match(app,/Number\(data\.schemaVersion\)>DB_VERSION/);
+});

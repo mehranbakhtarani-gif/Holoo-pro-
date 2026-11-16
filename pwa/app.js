@@ -855,7 +855,7 @@ async function restoreBackup(file){
   }
   counts[store]=rows.length;total+=rows.length;
  }
- if(data.version===2&&(!Array.isArray(data.storeNames)||stores.some(name=>!data.storeNames.includes(name))))throw Error("فایل پشتیبان نسخه جدید ناقص است");
+ if(data.version===2&&(!Array.isArray(data.storeNames)||stores.some(name=>!data.storeNames.includes(name)||!Object.prototype.hasOwnProperty.call(data.records,name))))throw Error("فایل پشتیبان نسخه جدید ناقص است");if(data.version===2&&(!Number.isSafeInteger(Number(data.schemaVersion))||Number(data.schemaVersion)<1||Number(data.schemaVersion)>DB_VERSION))throw Error("نسخه ساختار فایل پشتیبان با این برنامه سازگار نیست");
  if(!confirm("بازیابی "+total+" رکورد از فایل پشتیبان انجام شود؟ تمام اطلاعات فعلی جایگزین می‌شود. پیش از جایگزینی، یک نسخه پشتیبان خودکار از اطلاعات فعلی دانلود خواهد شد."))return;
  await exportBackup("holloo-before-restore");
  const tx=db.transaction(stores,"readwrite");

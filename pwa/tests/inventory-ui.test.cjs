@@ -73,6 +73,14 @@ test("master-data edits preserve live stock valuation and party balance inside t
  assert.match(app,/putPreservingFields\("parties",partyRecord,\["balance"\]\)/);
 });
  
+test("product, party and warehouse deletion rechecks references atomically before deleting",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function deleteMasterRecordGuarded\(store,id\)/);
+ assert.match(app,/db\.transaction\(\[\.\.\.new Set\(\[\.\.\.stores,"auditLog"\]\)\],"readwrite"\)/);
+ assert.match(app,/if\(\["products","parties","warehouses"\]\.includes\(s\)\)\{await deleteMasterRecordGuarded\(s,id\)/);
+ assert.match(app,/data\.invoices\.some\(x=>Number\(x\.commissionPartyId\)===key\)/);
+});
+ 
 test("party edits preserve opening balance and cannot reclassify parties with history",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/const balance=item\?Number\(item\.balance\|\|0\):num\("balance"\)/);

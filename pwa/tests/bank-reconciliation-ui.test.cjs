@@ -6,7 +6,7 @@ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
 
 test("bank reconciliation supports search and unmatching an incorrect match",()=>{
  assert.match(app,/جست‌وجوی بانک، شرح، مرجع، مبلغ، تاریخ یا شناسه گردش/);
- assert.match(app,/line\.matchedTreasuryId\],some\(value=>String\(value\?\?" "\)\)/);
+ assert.ok(app.includes('line.matchedTreasuryId].some(value=>String(value??"").toLocaleLowerCase("fa")'));
  assert.match(app,/data-bank-unmatch/);
  assert.match(app,/async function unmatchBankStatementLine/);
  assert.match(app,/line\.status="UNMATCHED";line\.matchedTreasuryId=null;line\.matchedAt=null/);

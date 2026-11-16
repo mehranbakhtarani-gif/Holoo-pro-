@@ -74,7 +74,7 @@ test("PWA integrates FIFO lots with database, shipment receipt, invoice sales, t
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
  assert.match(app,/DB_VERSION=11/);assert.match(app,/"inventoryLots"/);
  assert.match(html,/inventory-lots\.js\?v=inventory-lots-1/);
- assert.ok(html.indexOf("inventory-lots.js")<html.indexOf("app.js?v=audit-search-2"));
+ assert.ok(html.indexOf("inventory-lots.js")<html.indexOf("app.js?v="));
  assert.match(sw,/\.\/inventory-lots\.js/);assert.match(sw,/inventory-lots\\.js/);
  assert.match(app,/sourceType:"IMPORT_SHIPMENT"/);assert.match(app,/sourceType:"PURCHASE_INVOICE"/);
  assert.match(app,/planLotSale\(/);assert.match(app,/lotAllocations/);assert.match(app,/restoreLotSale\(/);

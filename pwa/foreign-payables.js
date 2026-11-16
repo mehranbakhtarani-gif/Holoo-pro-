@@ -29,7 +29,7 @@ function planForeignPayablePayment(input){
  const totalBookedRial=toSafeMinor(payable.bookedRial,"ارزش دفتری تعهد"),bookedPaidRial=toSafeMinor(payable.bookedRialPaid||0,"ارزش دفتری تسویه‌شده");
  const settlementPaidRial=toSafeMinor(payable.settlementRialPaid||0,"جمع پرداخت ریالی");
  const bookedRate=Number(payable.bookedFxRateRialPerUnit);
- if(paidMinor>=totalMinor||bookedPaidRial>totalBookedRial)throw new Error("مانده تعهد ارزی برای پرداخت معتبر نیست");
+ if(!Number.isSafeInteger(bookedRate)||bookedRate<=0||paidMinor>=totalMinor||bookedPaidRial>totalBookedRial)throw new Error("مانده یا نرخ تعهد ارزی برای پرداخت معتبر نیست");
  const outstanding=totalMinor-paidMinor;
  if(amountMinor>outstanding)throw new Error("مبلغ پرداخت از مانده تعهد ارزی بیشتر است");
  const nextPaid=addSafe(paidMinor,amountMinor,"جمع پرداخت ارزی");

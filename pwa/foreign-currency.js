@@ -5,8 +5,9 @@ function convertForeignAmountToRial(input){
  if(!scale)throw new Error("ارز خارجی پشتیبانی نمی‌شود");
  if(!Number.isSafeInteger(amountMinor)||amountMinor<0)throw new Error("مبلغ ارزی باید به کوچک‌ترین واحد صحیح و غیرمنفی وارد شود");
  if(!Number.isSafeInteger(fxRate)||fxRate<=0)throw new Error("نرخ تبدیل ارز به ریال معتبر نیست");
- const rial=Math.round(amountMinor*fxRate/scale);
- if(!Number.isSafeInteger(rial)||rial<0)throw new Error("معادل ریالی خارج از محدوده مجاز است");
+ const product=BigInt(amountMinor)*BigInt(fxRate),divisor=BigInt(scale),rialBig=(product+divisor/2n)/divisor;
+ if(rialBig>BigInt(Number.MAX_SAFE_INTEGER))throw new Error("معادل ریالی خارج از محدوده مجاز است");
+ const rial=Number(rialBig);
  return {currency,amountMinor,fxRateRialPerUnit:fxRate,rial};
 }
 function calculateRealizedForeignExchange(input){

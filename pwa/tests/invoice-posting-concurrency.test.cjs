@@ -32,3 +32,10 @@ test("invoice posting rejects unsafe party and commission balance arithmetic bef
  assert.match(app,/const nextPartyBalance=Number\(p\.balance\|\|0\)\+\(kind==="SALE"\?total:-total\);if\(!Number\.isSafeInteger\(nextPartyBalance\)\)/);
  assert.match(app,/if\(!Number\.isSafeInteger\(commissionAmount\)\|\|commissionAmount<0\)/);
 });
+
+ 
+test("invoice posting validates cumulative COGS and foreign minor-unit totals",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/cogs\+=lineCogs;if\(!Number\.isSafeInteger\(cogs\)\)/);
+ assert.match(app,/foreignSubtotalMinor\+=lineForeignMinor;if\(!Number\.isSafeInteger\(foreignSubtotalMinor\)\)/);
+});

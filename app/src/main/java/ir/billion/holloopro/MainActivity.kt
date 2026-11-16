@@ -1765,13 +1765,14 @@ private fun AccountingScreen(
         item { StatCard("اسناد صادرشده", voucherCount.toString(), "≋", Modifier.fillMaxWidth()) }
         item {
             val now = System.currentTimeMillis()
-            val dayMs = 86_400_000L
-            val buckets = listOf(
-                "۰ تا ۳۰ روز" to invoiceAging.filter { (now - it.dateEpoch).coerceAtLeast(0L) < 30L * dayMs },
-                "۳۱ تا ۶۰ روز" to invoiceAging.filter { val age = (now - it.dateEpoch).coerceAtLeast(0L) / dayMs; age in 30L..59L },
-                "۶۱ تا ۹۰ روز" to invoiceAging.filter { val age = (now - it.dateEpoch).coerceAtLeast(0L) / dayMs; age in 60L..89L },
-                "بیش از ۹۰ روز" to invoiceAging.filter { (now - it.dateEpoch).coerceAtLeast(0L) / dayMs >= 90L }
-            )
+            val bucketLabels = listOf("۰ تا ۳۰ روز", "۳۱ تا ۶۰ روز", "۶۱ تا ۹۰ روز", "بیش از ۹۰ روز")
+            val buckets = bucketLabels.mapIndexed { index, label ->
+                label to invoiceAging.filter { row ->
+                    ir.billion.holloopro.data.InvoiceAging.bucket(
+                        ir.billion.holloopro.data.InvoiceAging.ageDays(now, row.dateEpoch)
+                    ) == index
+                }
+            }
             GlassCard {
                 Text("گزارش سنی مطالبات و بدهی فاکتورها", color = Turquoise, fontWeight = FontWeight.Bold)
                 Text("مانده باز پس از کسر تسویه‌ها و برگشت‌ها؛ فروش = مطالبات، خرید = بدهی.", color = Muted, fontSize = 10.sp)
@@ -1786,7 +1787,7 @@ private fun AccountingScreen(
                 }
                 if (invoiceAging.isEmpty()) Text("فاکتور تسویه‌نشده‌ای وجود ندارد.", color = Muted, fontSize = 11.sp)
                 invoiceAging.take(30).forEach { row ->
-                    val ageDays = ((now - row.dateEpoch).coerceAtLeast(0L) / dayMs)
+                    val ageDays = ir.billion.holloopro.data.InvoiceAging.ageDays(now, row.dateEpoch)
                     Text("${row.invoiceNumber} • ${row.partyName}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     Text("${if (row.kind == "SALE") "مطالبه" else "بدهی"} • ${ageDays} روز • مانده: ${formatMoney(row.outstandingRial, showToman)}", color = if (row.kind == "SALE") Turquoise else Color(0xFFFFC47A), fontSize = 10.sp)
                 }

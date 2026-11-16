@@ -38,6 +38,15 @@ test("products referenced by pending shipments, sales orders, lots or transfers 
 });
 
  
+test("inventory list can filter low, sufficient and unconfigured minimum stock while retaining text search",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/id="inventoryStockFilter"/);
+ assert.match(app,/inventoryStockFilter==="LOW"&&Number\(x\.minStock\|\|0\)>0&&Number\(x\.stock\|\|0\)<=Number\(x\.minStock\)/);
+ assert.match(app,/inventoryStockFilter==="OK"&&Number\(x\.minStock\|\|0\)>0&&Number\(x\.stock\|\|0\)>Number\(x\.minStock\)/);
+ assert.match(app,/inventoryStockFilter==="UNSET"&&Number\(x\.minStock\|\|0\)<=0/);
+ assert.match(app,/stockFilter\.onchange=e=>\{inventoryStockFilter=e\.target\.value;render\(\)\}/);
+});
+
 test("product creation rejects non-finite and non-positive denier values",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/!Number\.isFinite\(v\.denier\)\|\|v\.denier<=0/);

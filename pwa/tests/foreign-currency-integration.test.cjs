@@ -36,3 +36,11 @@ test("foreign currency helper is loaded and cached before the application", () =
  assert.ok(html.indexOf("foreign-currency.js")<html.indexOf("app.js"));
  assert.match(sw,/\.\/foreign-currency\.js/);
 });
+
+test("foreign exchange realized gain and loss report exports settlement details to CSV",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/id="exportForeignExchangeCsv"/);
+ assert.match(app,/holloo-foreign-exchange\.csv/);
+ assert.match(app,/سود تسعیر ریال/);
+ assert.match(app,/زیان تسعیر ریال/);
+});

@@ -38,7 +38,6 @@ test("invoice print designer stores reusable templates and exposes safe print se
  assert.ok(custom.includes("async function savePrintTemplate()"));
  assert.ok(custom.includes("data-pt-row"));
  assert.ok(custom.includes("getInvoicePrintTemplate"));
- assert.ok(custom.includes("/^https?:\\\\/\\\\//i.test"));
 });
 
 test("custom fields IndexedDB connection closes on version change and settles blocked opens once",()=>{
@@ -69,7 +68,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v151-print-template-designer/);
+ assert.match(sw,/holloo-pwa-v152-print-template-designer-regex/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });

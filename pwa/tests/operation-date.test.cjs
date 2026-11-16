@@ -49,3 +49,9 @@ test("automatic mode supplies a date when a transaction record has no date yet",
  const x=stampOperationRecord({store:"imports",record:{supplierId:1},mode:"AUTO",now:456});
  assert.equal(x.date,456);
 });
+
+test("manual date stamps the reversal event without rewriting the original foreign payment date",()=>{
+ const now=Date.now(),old=now-86400000,manualValue="2026-11-15T11:15",at=parseOperationDate(manualValue);
+ const payment=stampOperationRecord({store:"foreignPayablePayments",record:{date:old,status:"REVERSED",reversedAt:now},mode:"MANUAL",manualValue,now});
+ assert.equal(payment.date,old);assert.equal(payment.reversedAt,at);
+});

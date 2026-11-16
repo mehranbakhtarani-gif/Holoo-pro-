@@ -23,3 +23,10 @@ test("import receipt revalidates complete mutable snapshots in the atomic postin
   'store:"foreignPayables",match:{sourceShipmentId:Number(shipment.id)},expected:expectedPayableState'
  ])assert.ok(body.includes(expected),"Missing import receipt guard: "+expected);
 });
+
+ 
+test("import receipt rejects supplier balance overflow before posting stock and journal entries",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const nextPartyBalance=Number\(party\.balance\|\|0\)-costs\.goodsRial;if\(!Number\.isSafeInteger\(nextPartyBalance\)\)/);
+ assert.match(app,/store:"parties",key:Number\(party\.id\),expected:expectedPartyState/);
+});

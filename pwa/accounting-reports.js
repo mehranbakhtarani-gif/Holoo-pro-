@@ -87,6 +87,21 @@ function buildPeriodClosingJournal(input){
  if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==credit)throw new Error("سند اختتامیه متوازن نیست");
  return {lines,revenue,expense,netProfit,debit,credit};
 }
+function buildPurchaseReversalAdjustment(input){
+ const actual=Number(input.actualInventoryCostRial),original=Number(input.originalInventoryDebitRial);
+ if(!Number.isSafeInteger(actual)||actual<0||!Number.isSafeInteger(original)||original<0)throw new Error("بهای واقعی یا بهای ثبت‌شده برگشت خرید معتبر نیست");
+ const difference=actual-original;
+ if(!Number.isSafeInteger(difference))throw new Error("اختلاف بهای برگشت خرید از محدوده عددی مجاز خارج است");
+ if(difference>0)return [
+  {accountCode:"1301",debitRial:0,creditRial:difference,description:"تعدیل بهای خروج موجودی در برگشت خرید"},
+  {accountCode:"5202",debitRial:difference,creditRial:0,description:"اختلاف بهای برگشت خرید"}
+ ];
+ if(difference<0){const adjustment=-difference;if(!Number.isSafeInteger(adjustment))throw new Error("اختلاف بهای برگشت خرید معتبر نیست");return [
+  {accountCode:"1301",debitRial:adjustment,creditRial:0,description:"تعدیل بهای خروج موجودی در برگشت خرید"},
+  {accountCode:"5202",debitRial:0,creditRial:adjustment,description:"اختلاف بهای برگشت خرید"}
+ ]}
+ return [];
+}
 function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
  if(!Number.isSafeInteger(fromDate)||!Number.isSafeInteger(toDate)||fromDate>toDate)throw new Error("بازه بستن دوره معتبر نیست");
  return (vouchers||[]).some(v=>{
@@ -96,6 +111,6 @@ function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
   return Number.isSafeInteger(oldFrom)&&Number.isSafeInteger(oldTo)&&oldFrom<=oldTo&&fromDate<=oldTo&&toDate>=oldFrom;
  });
 }
-const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,hasOverlappingPeriodClose};
+const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
 if(typeof module!=="undefined"&&module.exports)module.exports=accountingReportsApi;
 if(typeof globalThis!=="undefined")globalThis.HolooAccountingReports=accountingReportsApi;

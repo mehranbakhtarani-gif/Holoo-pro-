@@ -37,3 +37,12 @@ test("invoice reversal restores paid plus bonus quantity in the selected warehou
  assert.match(app,/stockRow\.stock=warehouseStock\+totalQty/);
  assert.match(app,/warehouseUpdates\.push\(\["warehouseStock",stockRow\]\)/);
 });
+
+
+test("PWA purchase invoice reversal posts inventory valuation variance to account 5202",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/purchaseReversalInventoryCost\+=cost/);
+ assert.match(app,/originalInventoryDebit=oldLines\.filter\(line=>String\(line\.accountCode\)==="1301"\)/);
+ assert.match(app,/adjustment\(\{actualInventoryCostRial:purchaseReversalInventoryCost,originalInventoryDebitRial:originalInventoryDebit\}\)/);
+ assert.match(app,/\["5202","اختلاف بهای برگشت خرید","EXPENSE"\]/);
+});

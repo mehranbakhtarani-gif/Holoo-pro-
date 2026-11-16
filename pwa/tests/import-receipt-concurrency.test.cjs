@@ -12,7 +12,8 @@ test("import receipt revalidates all mutable snapshots in the atomic posting tra
  assert.match(body,/expectedShipmentState=\\{\\.\\.\\.shipment\\}/);
  assert.match(body,/expectedProductState=\\{\\.\\.\\.product\\}/);
  assert.match(body,/expectedPartyState=\\{\\.\\.\\.party\\}/);
- assert.match(body,/expectedWarehouseRow=stockRows\.find/);\n assert.match(body,/expectedWarehouseRow\?\{\.\.\.expectedWarehouseRow\}:null/);
+ assert.match(body,/expectedWarehouseRow=stockRows\.find/);
+ assert.match(body,/expectedWarehouseRow\?\{\.\.\.expectedWarehouseRow\}:null/);
  assert.match(body,/expectedPayableState=linkedPayable\?\{\.\.\.linkedPayable\}:null/);
  assert.match(body,/store:"importShipments",key:Number\(shipment\.id\),expected:expectedShipmentState/);
  assert.match(body,/store:"products",key:Number\(product\.id\),expected:expectedProductState/);

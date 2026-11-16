@@ -21,8 +21,6 @@ jobs:
           node-version: 20
       - name: JavaScript syntax checks
         run: |
-          node --check pwa/app.js
-          node --check pwa/custom-fields.js
-          node --check pwa/sw.js
+          for file in pwa/*.js; do node --check "$file"; done
       - name: Full PWA regression suite
         run: node --test pwa/tests/*.test.cjs

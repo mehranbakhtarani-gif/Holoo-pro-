@@ -385,6 +385,35 @@ function putProductUnique(record){
   tx.onabort=()=>reject(conflict?new Error(conflict):missing?new Error("کالا برای ویرایش پیدا نشد؛ فهرست را تازه‌سازی کنید"):tx.error||new Error("ذخیره کالا لغو شد"));
  });
 }
+function putPartyGuarded(record){
+ return new Promise((resolve,reject)=>{
+  const relatedStores=["invoices","treasury","checks","partyLedger","imports","salesOrders","importShipments","foreignPayables","foreignPayablePayments","fixedAssets"];
+  const tx=db.transaction(["parties",...relatedStores,"auditLog"],"readwrite"),partyStore=tx.objectStore("parties");
+  const partyRead=partyStore.get(record.id),data={};let completed=0,missing=false,historyConflict=false,savedId;
+  const validateAndWrite=()=>{
+   const current=partyRead.result;
+   if(!current){missing=true;try{tx.abort()}catch(_){};return}
+   if(current.kind!==record.kind){
+    historyConflict=relatedStores.some(name=>(data[name]||[]).some(row=>Number(row.partyId)===Number(current.id)||Number(row.supplierId)===Number(current.id)||Number(row.commissionPartyId)===Number(current.id)||Number(row.purchasePartyId)===Number(current.id)));
+    if(historyConflict){try{tx.abort()}catch(_){};return}
+   }
+   const merged={...record,balance:current.balance};
+   const write=partyStore.put(merged);
+   write.onsuccess=()=>{savedId=write.result;tx.objectStore("auditLog").add({action:"ثبت/ویرایش",store:"parties",recordId:savedId,at:Date.now(),summary:"ذخیره کنترل‌شده طرف حساب"})};
+   write.onerror=()=>{try{tx.abort()}catch(_){}};
+  };
+  partyRead.onsuccess=()=>{if(completed===relatedStores.length)validateAndWrite()};
+  partyRead.onerror=()=>{try{tx.abort()}catch(_){}};
+  for(const name of relatedStores){
+   const request=tx.objectStore(name).getAll();
+   request.onsuccess=()=>{data[name]=request.result||[];completed++;if(completed===relatedStores.length&&partyRead.readyState==="done")validateAndWrite()};
+   request.onerror=()=>{try{tx.abort()}catch(_){}};
+  }
+  tx.oncomplete=()=>resolve(savedId);
+  tx.onerror=()=>reject(tx.error||new Error("ذخیره طرف حساب ناموفق بود"));
+  tx.onabort=()=>reject(missing?new Error("طرف حساب برای ویرایش پیدا نشد"):historyConflict?new Error("نوع طرف حساب دارای سابقه مالی قابل تغییر نیست"):tx.error||new Error("ذخیره طرف حساب لغو شد"));
+ });
+}
 function putPreservingFields(store,record,fields){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction([store,"auditLog"],"readwrite"),objectStore=tx.objectStore(store);
@@ -1052,7 +1081,7 @@ async function removeRow(s,id){
  await del(s,id);toast("حذف شد");render()
 }
 async function saveForm(page,d,item){const num=k=>Number(d[k]||0);if(page==="accounts"){const code=String(d.code||item?.id||"").trim(),title=String(d.title||"").trim(),type={"دارایی":"ASSET","بدهی":"LIABILITY","حقوق مالکانه":"EQUITY","درآمد":"REVENUE","هزینه":"EXPENSE"}[d.type];if(!/^\d{3,12}$/.test(code)||!title||!type)throw Error("کد، عنوان و گروه حساب معتبر الزامی است");const old=await all("accounts");if(!item&&old.some(a=>String(a.id)===code))throw Error("این کد حساب قبلاً ثبت شده است");await put("accounts",{...(item||{}),id:code,title,type,openingDebitRial:Number(item?.openingDebitRial||0),openingCreditRial:Number(item?.openingCreditRial||0)});return}if(page==="products"){const prices=Array.from({length:10},(_,i)=>num("price"+(i+1)));if(prices.some(x=>!Number.isSafeInteger(x)||x<0))throw Error("قیمت‌های فروش باید عدد صحیح و غیرمنفی باشند");const minStock=num("minStock"),barcode=String(d.barcode||"").trim();if(!Number.isFinite(minStock)||minStock<0)throw Error("حداقل موجودی باید صفر یا بیشتر باشد");const v={id:item?.id,sku:d.sku.trim(),barcode,name:d.name.trim(),group:d.group,yarn:d.yarn,color:d.color,denier:num("denier"),twisted:d.twisted==="تاب‌دار",minStock,notes:d.notes,prices,customFields:(()=>{try{return {...(item?.customFields||{}),...JSON.parse(d.__entityCustomFields||"{}")}}catch(_){return item?.customFields||{}}})(),stock:item?.stock||0,value:item?.value||0,avg:item?.avg||0};prices.forEach((price,i)=>v["price"+(i+1)]=price);if(!v.sku||!v.name||!Number.isFinite(v.denier)||v.denier<=0)throw Error("کد، نام و دنیر معتبر الزامی است");await putProductUnique(v)}
-if(page==="parties"){const kind={"مشتری":"CUSTOMER","تأمین‌کننده":"SUPPLIER","هر دو":"BOTH"}[d.kind];if(!kind)throw Error("نوع طرف حساب معتبر نیست");if(item){const [invoices,treasury,checks,ledger,imports,orders,shipments,payables,payments]=await Promise.all([all("invoices"),all("treasury"),all("checks"),all("partyLedger"),all("imports"),all("salesOrders"),all("importShipments"),all("foreignPayables"),all("foreignPayablePayments")]);const hasHistory=invoices.some(x=>Number(x.partyId)===Number(item.id))||treasury.some(x=>Number(x.partyId)===Number(item.id))||checks.some(x=>Number(x.partyId)===Number(item.id))||ledger.some(x=>Number(x.partyId)===Number(item.id))||imports.some(x=>Number(x.supplierId)===Number(item.id))||orders.some(x=>Number(x.partyId)===Number(item.id))||shipments.some(x=>Number(x.supplierId)===Number(item.id))||payables.some(x=>Number(x.supplierId)===Number(item.id))||payments.some(x=>Number(x.supplierId)===Number(item.id));if(hasHistory&&kind!==item.kind)throw Error("نوع طرف حساب دارای سابقه مالی قابل تغییر نیست");}const balance=item?Number(item.balance||0):num("balance");if(!Number.isSafeInteger(balance))throw Error("مانده افتتاحیه باید عدد صحیح ریالی باشد");const partyRecord={id:item?.id,name:d.name.trim(),kind,phone:d.phone,address:d.address,balance,customFields:(()=>{try{return {...(item?.customFields||{}),...JSON.parse(d.__entityCustomFields||"{}")}}catch(_){return item?.customFields||{}}})()};if(item)await putPreservingFields("parties",partyRecord,["balance"]);else if(balance===0)await put("parties",partyRecord);else{await ensureBaseAccounts();const plan=HolooPartyOpeningBalance.planPartyOpeningBalance({partyKind:kind,balance});await createPartyWithOpeningBalance(partyRecord,plan)}}
+if(page==="parties"){const kind={"مشتری":"CUSTOMER","تأمین‌کننده":"SUPPLIER","هر دو":"BOTH"}[d.kind];if(!kind)throw Error("نوع طرف حساب معتبر نیست");if(item){const [invoices,treasury,checks,ledger,imports,orders,shipments,payables,payments]=await Promise.all([all("invoices"),all("treasury"),all("checks"),all("partyLedger"),all("imports"),all("salesOrders"),all("importShipments"),all("foreignPayables"),all("foreignPayablePayments")]);const hasHistory=invoices.some(x=>Number(x.partyId)===Number(item.id))||treasury.some(x=>Number(x.partyId)===Number(item.id))||checks.some(x=>Number(x.partyId)===Number(item.id))||ledger.some(x=>Number(x.partyId)===Number(item.id))||imports.some(x=>Number(x.supplierId)===Number(item.id))||orders.some(x=>Number(x.partyId)===Number(item.id))||shipments.some(x=>Number(x.supplierId)===Number(item.id))||payables.some(x=>Number(x.supplierId)===Number(item.id))||payments.some(x=>Number(x.supplierId)===Number(item.id));if(hasHistory&&kind!==item.kind)throw Error("نوع طرف حساب دارای سابقه مالی قابل تغییر نیست");}const balance=item?Number(item.balance||0):num("balance");if(!Number.isSafeInteger(balance))throw Error("مانده افتتاحیه باید عدد صحیح ریالی باشد");const partyRecord={id:item?.id,name:d.name.trim(),kind,phone:d.phone,address:d.address,balance,customFields:(()=>{try{return {...(item?.customFields||{}),...JSON.parse(d.__entityCustomFields||"{}")}}catch(_){return item?.customFields||{}}})()};if(item)await putPartyGuarded(partyRecord);else if(balance===0)await put("parties",partyRecord);else{await ensureBaseAccounts();const plan=HolooPartyOpeningBalance.planPartyOpeningBalance({partyKind:kind,balance});await createPartyWithOpeningBalance(partyRecord,plan)}}
 if(page==="salesOrders"){
  if(item&&item.status!=="DRAFT")throw Error("فقط پیش‌نویس قابل ویرایش است");
  const [ps,warehouses,products]=await Promise.all([all("parties"),all("warehouses"),all("products")]);

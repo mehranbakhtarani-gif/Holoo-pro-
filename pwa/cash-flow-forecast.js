@@ -29,4 +29,11 @@ function buildCashFlowForecast(input){
  result.closingCashRial=balance;
  return result;
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={buildCashFlowForecast};
+function getDailyCashFlowProjection(input){
+ const asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?90:input.horizonDays),opening=Number(input.openingCashRial||0),events=Array.isArray(input.events)?input.events:[];
+ if(!Number.isFinite(asOf)||!Number.isSafeInteger(days)||![30,60,90].includes(days)||!Number.isSafeInteger(opening))throw new Error("پارامترهای پیش‌بینی روزانه معتبر نیست");
+ const start=new Date(asOf);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days);const daily=new Map();
+ for(const event of events){if(!event||!["INFLOW","OUTFLOW"].includes(event.direction))continue;const amount=Number(event.amountRial),due=Number(event.dueDate||0);if(!Number.isSafeInteger(amount)||amount<=0||!Number.isFinite(due)||due<start.getTime()||due>=end.getTime())continue;const date=new Date(due);date.setHours(0,0,0,0);const key=date.getTime(),row=daily.get(key)||{inflowsRial:0,outflowsRial:0};if(event.direction==="INFLOW")row.inflowsRial+=amount;else row.outflowsRial+=amount;daily.set(key,row)}
+ const rows=[];let balance=opening;for(let cursor=new Date(start);cursor<end;cursor.setDate(cursor.getDate()+1)){const date=cursor.getTime(),totals=daily.get(date)||{inflowsRial:0,outflowsRial:0};balance+=totals.inflowsRial-totals.outflowsRial;rows.push({date,inflowsRial:totals.inflowsRial,outflowsRial:totals.outflowsRial,closingCashRial:balance,shortfall:balance<0})}return rows;
+}
+if(typeof module!=="undefined"&&module.exports)module.exports={buildCashFlowForecast,getDailyCashFlowProjection};

@@ -28,7 +28,7 @@ test("rejects unsafe settlement conversions and inconsistent payable balances",(
 });
 test("rejects overflow in realized FX totals rather than wrapping",()=>{
  const p={...payable(),realizedFxGainRial:Number.MAX_SAFE_INTEGER};
- assert.throws(()=>planForeignPayablePayment({payable:p,amountMinor:1,fxRateRialPerUnit:600_000}),/محدوده/);
+ assert.throws(()=>planForeignPayablePayment({payable:p,amountMinor:1,fxRateRialPerUnit:550_000}),/محدوده/);
 });
 
 test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX accounting",()=>{

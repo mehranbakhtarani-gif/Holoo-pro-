@@ -16,6 +16,9 @@ test("calculates aggregate landed cost, ancillary cost and weighted cost per kg"
  assert.equal(report.weightedUnitCost,2140);
  assert.equal(report.receivedWeight,25000);
  assert.equal(report.inTransitWeight,35000);
+ assert.equal(report.statusCounts["رسید انبار شده"],1);
+ assert.equal(report.statusCounts["در حال حمل"],1);
+ assert.equal(report.statusCounts["سفارش"],1);
 });
 test("groups landed cost by product and supplier without mixing currencies",()=>{
  const report=summarizeImportShipments({shipments});

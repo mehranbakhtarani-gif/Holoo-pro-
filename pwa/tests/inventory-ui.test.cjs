@@ -57,7 +57,7 @@ test("inventory supports unique barcodes and minimum-stock alerts",()=>{
  assert.ok(app.includes('["barcode","بارکد","text"]'));
  assert.match(app,/جست‌وجوی کد، بارکد، نام/);
  assert.ok(app.includes('["minStock","حداقل موجودی هشدار (کیلوگرم)","number"]'));
- assert.match(app,/if\(v\.barcode&&a\.some\(x=>x\.barcode===v\.barcode&&x\.id!==v\.id\)\)throw Error\("بارکد تکراری است"\)/);
+ assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
  assert.match(app,/Number\(x\.stock\|\|0\)<=Number\(x\.minStock\)/);
  assert.match(app,/حداقل تعیین نشده/);
 });

@@ -1777,11 +1777,15 @@ private fun AccountingScreen(
                 Text("گزارش سنی مطالبات و بدهی فاکتورها", color = Turquoise, fontWeight = FontWeight.Bold)
                 Text("مانده باز پس از کسر تسویه‌ها و برگشت‌ها؛ فروش = مطالبات، خرید = بدهی.", color = Muted, fontSize = 10.sp)
                 buckets.forEach { (label, rows) ->
-                    val receivable = rows.filter { it.kind == "SALE" }.sumOf { it.outstandingRial }
-                    val payable = rows.filter { it.kind == "PURCHASE" }.sumOf { it.outstandingRial }
+                    val receivable = ir.billion.holloopro.data.InvoiceAging.sumOutstanding(rows, "SALE")
+                    val payable = ir.billion.holloopro.data.InvoiceAging.sumOutstanding(rows, "PURCHASE")
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Text("مطالبات: ${formatMoney(receivable, showToman)} • بدهی: ${formatMoney(payable, showToman)}", color = Muted, fontSize = 10.sp)
+                        if (receivable == null || payable == null) {
+                            Text("خطای محاسباتی: جمع مانده این بازه از محدوده عددی مجاز خارج شده است.", color = Color(0xFFFF9D9D), fontSize = 10.sp)
+                        } else {
+                            Text("مطالبات: ${formatMoney(receivable, showToman)} • بدهی: ${formatMoney(payable, showToman)}", color = Muted, fontSize = 10.sp)
+                        }
                     }
                     Divider(color = CardBorder)
                 }

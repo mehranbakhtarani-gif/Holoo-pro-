@@ -16,3 +16,10 @@ test("manual vouchers cannot bypass cash, bank and party control ledgers",()=>{
 test("system control account types cannot be changed from the chart editor",()=>{
  assert.match(app,/typeField\.disabled=true/);
 });
+
+ 
+test("manual voucher and opening balance writes verify account snapshots atomically",()=>{
+ assert.match(app,/const accountGuards=rows\.map/);
+ assert.match(app,/postVoucherAtomic\(\[\],\{number:voucherNumber/);
+ assert.match(app,/await putManyGuarded\(updates\.map\(a=>\["accounts",a\]\),guards\)/);
+});

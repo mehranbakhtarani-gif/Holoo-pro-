@@ -1,4 +1,4 @@
-const CACHE="holloo-pwa-v155-multiline-custom-fields";
+const CACHE="holloo-pwa-v156-offline-query-fallback";
 const ASSETS=["./","./index.html","./style.css","./app.js","./import-cost.js","./party-opening-balance.js","./settlement.js","./warehouse-stock.js","./warehouse-transfer.js","./foreign-currency.js","./accounting-reports.js","./receivables-aging.js","./import-shipment-analytics.js","./inventory-lots.js","./foreign-payables.js","./cash-flow-forecast.js","./import-capital-planner.js","./operation-date.js","./invoice-costing.js","./bank-reconciliation.js","./custom-fields.js","./manifest.webmanifest","./icon.svg"];
 const NETWORK_FIRST=/\/(?:index\.html|app\.js|import-cost\.js|party-opening-balance\.js|settlement\.js|warehouse-stock\.js|warehouse-transfer\.js|foreign-currency\.js|accounting-reports\.js|receivables-aging\.js|import-shipment-analytics\.js|inventory-lots\.js|foreign-payables\.js|cash-flow-forecast\.js|import-capital-planner\.js|operation-date\.js|invoice-costing\.js|bank-reconciliation\.js|custom-fields\.js|style\.css|manifest\.webmanifest|sw\.js)(?:\?.*)?$/;
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
@@ -15,10 +15,10 @@ self.addEventListener("fetch",event=>{
     if(response&&response.ok)await cache.put(event.request,response.clone());
     return response;
    }catch(error){
-    return (await cache.match(event.request))||(await cache.match("./index.html"));
+    return (await cache.match(event.request,{ignoreSearch:true}))||(await cache.match("./index.html"));
    }
   }
-  const cached=await cache.match(event.request);
+  const cached=await cache.match(event.request,{ignoreSearch:true});
   if(cached)return cached;
   try{
    const response=await fetch(event.request);

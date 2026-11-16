@@ -34,3 +34,11 @@ test("paid payroll posts a matching treasury payment while calculated payroll re
  assert.match(app,/status==="پرداخت‌شده"&&net>0\)entries\.push\(\["treasury",\{kind:"PAYMENT"/);
  assert.match(app,/paymentMethod==="صندوق"\?"1101":"1102"/);
 });
+
+ 
+test("calculated payroll can be paid later through a guarded treasury transaction",()=>{
+ assert.match(app,/async function payPayrollPwa/);
+ assert.match(app,/PAYROLL-PAYMENT:/);
+ assert.match(app,/data-payroll-pay/);
+ assert.match(app,/payroll:\["createdAt","paidAt"\]/);
+});

@@ -37,7 +37,7 @@ test("PWA exposes the shared date selector and applies it in all persistence pat
  assert.match(app,/staleState=true/);
  assert.match(app,/function put\(s,v\)\{if\(globalThis.HolooOperationDate/);
  assert.match(app,/function putMany\(entries\)\{const stamp=globalThis.HolooOperationDate/);
- assert.ok(html.indexOf("operation-date.js")<html.indexOf("app.js?v=operation-date-1"));
+ assert.ok(html.indexOf("operation-date.js")<html.indexOf("app.js?v=audit-search-2"));
  assert.match(sw,/operation-date\.js/);assert.match(sw,/holloo-pwa-v\d+-[a-z0-9-]+/);
 });
 

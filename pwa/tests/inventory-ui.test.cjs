@@ -36,3 +36,12 @@ test("products referenced by pending shipments, sales orders, lots or transfers 
  assert.match(app,/all\("importShipments"\).*all\("salesOrders"\).*all\("inventoryLots"\).*all\("warehouseTransfers"\)/);
  assert.match(app,/hasShipment\|\|hasOrder\|\|hasLot\|\|hasTransfer\|\|hasWarehouseStock/);
 });
+
+ 
+test("inventory supports unique barcodes and minimum-stock alerts",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.ok(app.includes('["barcode","بارکد","text"]'));
+ assert.ok(app.includes('["minStock","حداقل موجودی هشدار (کیلوگرم)","number"]'));
+ assert.match(app,/if\(v\.barcode&&a\.some\(x=>x\.barcode===v\.barcode&&x\.id!==v\.id\)\)throw Error\("بارکد تکراری است"\)/);
+ assert.match(app,/Number\(x\.stock\|\|0\)<=Number\(x\.minStock\)/);
+});

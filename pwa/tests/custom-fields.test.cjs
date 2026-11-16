@@ -32,7 +32,13 @@ test("sales-order list and print paths include custom line fields",()=>{
  assert.match(app,/customFields:globalThis\.HolooCustomFields\?\.normalizeLineValues/);
  assert.match(app,/customDefs\.map\(d=>'<th>'\+h\(d\.label\)/);
 });
-test("invoice and order row restoration explicitly rehydrates custom line controls",()=>{\n assert.match(app,/hydrateRow\\\(row,line\\.customFields\\|\\|\\{\\}\\)/);\n assert.match(custom,/function hydrateRow\\(row,values\\)/);\n assert.match(custom,/delete row\\.dataset\\.customFieldsReady/);\n});\n\ntest("approved order conversion carries custom line values into the invoice form",()=>{
+test("invoice and order row restoration explicitly rehydrates custom line controls",()=>{
+ assert.ok(app.includes("hydrateRow(row,line.customFields||{})"));
+ assert.ok(custom.includes("function hydrateRow(row,values)"));
+ assert.ok(custom.includes("delete row.dataset.customFieldsReady"));
+});
+
+test("approved order conversion carries custom line values into the invoice form",()=>{
  assert.match(app,/row\.dataset\.customValues=JSON\.stringify\(line\.customFields\|\|\{\}\)/);
  assert.match(app,/async function convertSalesOrderToInvoice/);
 });

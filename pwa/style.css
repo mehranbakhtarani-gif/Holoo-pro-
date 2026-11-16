@@ -52,3 +52,31 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
  .page-head>.btn{width:100%}
  .toolbar{flex-wrap:wrap}
 }
+
+
+/* Responsive shell corrections for narrow phones and compact browser windows. */
+@media(max-width:600px){
+ .topbar{
+  height:auto;
+  min-height:68px;
+  flex-wrap:wrap;
+  gap:8px 12px;
+  padding:10px 12px;
+ }
+ .brand{flex:1 1 145px;min-width:0}
+ .brand-mark{flex:0 0 40px;width:40px;height:40px}
+ .head-actions{flex:0 1 auto;min-width:0;flex-wrap:wrap;justify-content:flex-end}
+ .head-actions button{white-space:nowrap}
+ .main{min-width:0;overflow-x:hidden}
+ .form-grid,.field{min-width:0}
+ .table-wrap{max-width:100%;overscroll-behavior-x:contain}
+}
+@media(max-width:360px){
+ .topbar{align-items:flex-start}
+ .head-actions{flex:1 1 100%;justify-content:flex-start}
+ .head-actions button{flex:1 1 auto}
+ .brand strong{font-size:12px}
+ .brand small{font-size:9px}
+ .main{padding-inline:10px}
+ .stat strong{font-size:18px}
+}

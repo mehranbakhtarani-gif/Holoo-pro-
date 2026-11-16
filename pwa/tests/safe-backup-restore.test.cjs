@@ -7,7 +7,8 @@ test("backup exports every IndexedDB store with schema and record counts",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/version:2,schemaVersion:DB_VERSION/);
  assert.match(app,/storeNames:\[\.\.\.stores\]/);
- assert.match(app,/const tx=db\.transaction\(stores,"readonly"\),snapshot=\{\}/);\n assert.match(app,/tx\.oncomplete=\(\)=>resolve\(snapshot\)/);
+ assert.match(app,/const tx=db\.transaction\(stores,"readonly"\),snapshot=\{\}/);
+ assert.match(app,/tx\.oncomplete=\(\)=>resolve\(snapshot\)/);
  assert.match(app,/blob\.size>50\*1024\*1024/);
 });
 test("restore validates app version, file size, store names and complete v2 schema",()=>{
@@ -15,7 +16,9 @@ test("restore validates app version, file size, store names and complete v2 sche
  assert.match(app,/file\.size>50\*1024\*1024/);
  assert.match(app,/\[1,2\]\.includes\(Number\(data\.version\)\)/);
  assert.match(app,/unknown=Object\.keys\(data\.records\)\.filter\(name=>!stores\.includes\(name\)\)/);
- assert.match(app,/Number\(data\.schemaVersion\)!==DB_VERSION/);\n assert.match(app,/data\.counts\[store\]!==rows\.length/);\n assert.match(app,/data\.storeNames\.length!==stores\.length/);
+ assert.match(app,/Number\(data\.schemaVersion\)!==DB_VERSION/);
+ assert.match(app,/data\.counts\[store\]!==rows\.length/);
+ assert.match(app,/data\.storeNames\.length!==stores\.length/);
 });
 test("restore rejects invalid and duplicate record IDs before touching IndexedDB",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");

@@ -98,7 +98,7 @@ test("detects duplicate and mismatched foreign payment accounting records",()=>{
  const payment={id:10,payableId:12,supplierId:2,sourceNumber:"IMP-008",reference:"FXPAY:12:901",status:"POSTED",amountMinor:10000,bookedRial:60000000,settlementRial:65000000,fxGainRial:0,fxLossRial:5000000};
  const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:1,foreignAmountMinor:payment.amountMinor,foreignPayableId:payment.payableId},{reference:payment.reference,kind:"PAYMENT",amount:1,foreignAmountMinor:payment.amountMinor,foreignPayableId:payment.payableId}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:payment.bookedRial,creditRial:0}],vouchers:[{id:32,reference:payment.reference}],voucherLines:[{voucherId:32,accountCode:"2101",debitRial:60000000,creditRial:0},{voucherId:32,accountCode:"1102",debitRial:0,creditRial:65000000},{voucherId:32,accountCode:"5501",debitRial:5000000,creditRial:0}]};
  const result=reconcileForeignPayablePayments(data);
- assert.equal(result.withIssues,1);assert.match(result.rows[0].issues.join(" "),/تکراری/);assert.match(result.rows[0].issues.join(" "),/مغایر/);
+ assert.equal(result.withIssues,1);assert.match(result.rows[0].issues.join(" "),/تکراری/);\n const mismatch=reconcileForeignPayablePayments({...data,treasury:[data.treasury[0]]});assert.match(mismatch.rows[0].issues.join(" "),/مغایر/);
 });
 test("reconciles reversed foreign payable payments including reversal voucher and cash receipt",()=>{
  const {reconcileForeignPayablePayments}=require("../foreign-payables.js");

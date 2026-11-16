@@ -6,7 +6,7 @@ const path=require("node:path");
 test("cheque clearing guards the original check, party balance and duplicate treasury reference",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  const start=app.indexOf('const next=b.dataset.checkStatus');
- const end=app.indexOf('\nif(currentPage===',start);
+ const end=app.indexOf("\nconst fields={",start);
  assert.ok(start>=0&&end>start,"cheque status handler must exist");
  const body=app.slice(start,end);
  for(const expected of [

@@ -48,3 +48,12 @@ test("PWA wires the cash flow dashboard and helper into the offline build",()=>{
  assert.match(html,/cash-flow-forecast\.js/);assert.ok(html.indexOf("cash-flow-forecast.js")<html.indexOf("app.js"));
  assert.match(sw,/cash-flow-forecast\.js/);assert.match(sw,/holloo-pwa-v53-cash-flow-forecast/);
 });
+
+test("detects an intrawweek cash shortfall even when the weekly closing balance recovers",()=>{
+ const report=buildCashFlowForecast({asOf,horizonDays:30,openingCashRial:100,events:[
+  {direction:"OUTFLOW",amountRial:300,dueDate:asOf+2*day},
+  {direction:"INFLOW",amountRial:500,dueDate:asOf+5*day}
+ ]});
+ assert.equal(report.weekly[0].closingCashRial,300);
+ assert.equal(report.minimumProjectedCashRial,-200);
+});

@@ -4,7 +4,9 @@ object InvoiceAging {
     private const val DAY_MILLIS = 86_400_000L
 
     fun ageDays(nowEpoch: Long, invoiceDateEpoch: Long): Long =
-        if (invoiceDateEpoch >= nowEpoch) 0L else (nowEpoch - invoiceDateEpoch) / DAY_MILLIS
+        if (invoiceDateEpoch >= nowEpoch) 0L else runCatching {
+            Math.subtractExact(nowEpoch, invoiceDateEpoch) / DAY_MILLIS
+        }.getOrDefault(Long.MAX_VALUE)
 
     fun bucket(ageDays: Long): Int = when (ageDays) {
         in 0L..30L -> 0

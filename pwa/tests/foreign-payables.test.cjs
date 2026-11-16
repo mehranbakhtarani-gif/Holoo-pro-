@@ -43,6 +43,21 @@ test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX ac
  assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);
 });
 
+test("does not count reversed installments in realized FX summaries",()=>{
+ const p=payable(),posted=planForeignPayablePayment({payable:p,amountMinor:25000,fxRateRialPerUnit:550000});
+ const reversed={...posted.payment,status:"REVERSED"};
+ const summary=summarizeForeignPayable({payable:posted.updated,payments:[posted.payment,reversed]});
+ assert.equal(summary.realizedFxGainRial,12_500_000);
+});
+test("rejects overflow in currency-specific supplier forecast totals",()=>{
+ const asOf=new Date(2026,10,16,10).getTime();
+ const rows=[
+  {...payable(),id:1,amountMinor:Number.MAX_SAFE_INTEGER,dueDate:null},
+  {...payable(),id:2,amountMinor:1,dueDate:null}
+ ];
+ assert.throws(()=>require("../foreign-payables.js").summarizeForeignPayablesForecast({payables:rows,asOf,horizonDays:30}),/محدوده/);
+});
+
 test("forecasts open supplier obligations by currency and due-date window without mixing currencies",()=>{
  const asOf=new Date(2026,10,16,10).getTime(),day=n=>new Date(2026,10,n,12).getTime();
  const rows=[

@@ -1328,11 +1328,15 @@ private fun PartiesScreen(
 ) {
     var dialog by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<PartyEntity?>(null) }
+    var searchText by remember { mutableStateOf("") }
+    val visibleParties = parties.filter { it.name.contains(searchText, true) || it.phone.contains(searchText, true) || it.address.contains(searchText, true) || partyKind(it.kind).contains(searchText, true) || it.id.toString().contains(searchText) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("اشخاص و طرف حساب", "ثبت، ویرایش و مشاهده مانده مشتری و تأمین‌کننده") { editing = null; dialog = true }
+        FormField("جست‌وجوی نام، کد، تلفن، نشانی یا نوع طرف حساب", searchText) { searchText = it }
         if (parties.isEmpty()) EmptyState("فهرست اشخاص خالی است", "مشتری‌ها و تأمین‌کنندگان را ثبت کن")
+        else if (visibleParties.isEmpty()) EmptyState("طرف حسابی پیدا نشد", "عبارت جست‌وجو را تغییر بده یا پاک کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
-            items(parties, key = { it.id }) { party ->
+            items(visibleParties, key = { it.id }) { party ->
                 GlassCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -1393,11 +1397,20 @@ private fun InvoicesScreen(
     var returnTarget by remember { mutableStateOf<InvoiceEntity?>(null) }
     var expandedSettlementInvoice by remember { mutableStateOf<Long?>(null) }
     var settlementToRemove by remember { mutableStateOf<ir.billion.holloopro.data.InvoiceSettlementDetailRow?>(null) }
+    var searchText by remember { mutableStateOf("") }
+    val visibleInvoices = invoices.filter { invoice ->
+        val partyName = parties.firstOrNull { it.id == invoice.partyId }?.name.orEmpty()
+        invoice.number.contains(searchText, true) || partyName.contains(searchText, true) ||
+            invoice.note.contains(searchText, true) || invoice.kind.contains(searchText, true) ||
+            invoice.status.contains(searchText, true) || invoice.totalRial.toString().contains(searchText)
+    }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("فاکتور خرید و فروش", "صدور، ویرایش، PDF و تسویه مرحله‌ای") { editingInvoice = null; dialog = true }
+        FormField("جست‌وجوی شماره، مشتری، مبلغ، نوع یا وضعیت فاکتور", searchText) { searchText = it }
         if (invoices.isEmpty()) EmptyState("فاکتوری ثبت نشده است", "برای ثبت خرید یا فروش، فاکتور جدید بساز")
+        else if (visibleInvoices.isEmpty()) EmptyState("فاکتوری پیدا نشد", "عبارت جست‌وجو را تغییر بده یا پاک کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
-            items(invoices, key = { it.id }) { invoice ->
+            items(visibleInvoices, key = { it.id }) { invoice ->
                 val partyName = parties.firstOrNull { it.id == invoice.partyId }?.name ?: "طرف حساب"
                 val paid = settlements.firstOrNull { it.invoiceId == invoice.id }?.paidRial ?: 0L
                 val returned = returnTotals.firstOrNull { it.invoiceId == invoice.id }?.returnedRial ?: 0L

@@ -19,7 +19,7 @@ test("invoice reversal revalidates all affected ledger and inventory snapshots a
   'guards.push({store:"parties",key:id,expected:snapshot})',
   'guards.push({store:"products",key:id,expected:snapshot})',
   'guards.push({store:"warehouseStock",match:{productId,warehouseId},expected:snapshot})',
-  'guards.push({store:"inventoryLots",key:id,expected:snapshot})',
+  'guards.push({store:"inventoryLots",key:snapshot.id,expected:snapshot})',
   "reverseVoucherLines,guards)"
  ])assert.ok(body.includes(expected),"Missing reversal guard: "+expected);
 });

@@ -40,7 +40,8 @@ test("calculated payroll can be paid later through a guarded treasury transactio
  assert.match(app,/async function payPayrollPwa/);
  assert.match(app,/PAYROLL-PAYMENT:/);
  assert.match(app,/data-payroll-pay/);
- assert.match(app,/payroll:\["createdAt","paidAt"\]/);
+ const operationDate=fs.readFileSync(path.resolve(__dirname,"../operation-date.js"),"utf8");
+ assert.match(operationDate,/payroll:\["createdAt","paidAt"\]/);
 });
 
  

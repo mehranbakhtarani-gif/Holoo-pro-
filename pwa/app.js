@@ -76,7 +76,7 @@ async function reversePwaInvoice(number){
  for(const id of partyIds){const snapshot=partySnapshots.get(id);if(!snapshot)throw Error("اطلاعات طرف حساب برای کنترل برگشت ناقص است");guards.push({store:"parties",key:id,expected:snapshot})}
  for(const id of productIds){const snapshot=productSnapshots.get(id);if(!snapshot)throw Error("اطلاعات کالا برای کنترل برگشت ناقص است");guards.push({store:"products",key:id,expected:snapshot})}
  for(const key of warehouseKeys){const snapshot=warehouseStockSnapshots.get(key);if(!snapshot)throw Error("اطلاعات موجودی انبار برای کنترل برگشت ناقص است");const [productId,warehouseId]=key.split(":").map(Number);guards.push({store:"warehouseStock",match:{productId,warehouseId},expected:snapshot})}
- for(const id of lotIds){const snapshot=lotSnapshots.get(id);if(!snapshot)throw Error("اطلاعات بچ برای کنترل برگشت ناقص است");guards.push({store:"inventoryLots",key:id,expected:snapshot})}
+ for(const id of lotIds){const snapshot=lotSnapshots.get(id);if(!snapshot)throw Error("اطلاعات بچ برای کنترل برگشت ناقص است");guards.push({store:"inventoryLots",key:snapshot.id,expected:snapshot})}
  await postVoucherAtomic(entries,{number:"RV-"+now,date:now,description:"برگشت فاکتور "+invoice.number,reference:"REVERSAL:INVOICE:"+invoice.number},reverseVoucherLines,guards);
 }
 async function printInvoiceDocument(number){

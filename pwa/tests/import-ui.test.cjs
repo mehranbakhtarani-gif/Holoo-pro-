@@ -54,7 +54,7 @@ test("import shipment CSV exports container, supplier, itemized direct costs and
 
 
 test("import shipment itemized cost headers align one-to-one with displayed values",()=>{
- const match=app.match(/importShipments:\\[(.*?)\\],approvals:/s);
+ const match=app.match(/importShipments:\[(.*?)\],approvals:/s);
  assert.ok(match);
  assert.equal((match[1].match(/"/g)||[]).length/2,23);
 });

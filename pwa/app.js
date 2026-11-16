@@ -49,7 +49,7 @@ async function reverseTreasuryPwa(id){
  const originalSnapshot={...original},partySnapshot={...party},now=Date.now(),reference="TREASURY-REV:"+original.id;
  original.status="REVERSED";original.reversedAt=now;
  applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));
- const reversal={kind:original.kind==="RECEIPT"?"PAYMENT":"RECEIPT",method:original.method,partyId:party.id,partyName:party.name,currency:original.currency||"IRR",amount:original.amount,foreignAmountMinor:original.foreignAmountMinor||null,fxRateRialPerUnit:original.fxRateRialPerUnit||1,date:now,note:"برگشت "+(original.kind==="RECEIPT"?"دریافت":"پرداخت")+" "+(original.note||""),reference,reversalOfId:original.id};
+ const reversal={kind:original.kind==="RECEIPT"?"PAYMENT":"RECEIPT",method:original.method,accountCode:original.accountCode||oldLines.find(line=>String(line.accountCode||"").startsWith("110"))?.accountCode||"",accountName:original.accountName||"",partyId:party.id,partyName:party.name,currency:original.currency||"IRR",amount:original.amount,foreignAmountMinor:original.foreignAmountMinor||null,fxRateRialPerUnit:original.fxRateRialPerUnit||1,date:now,note:"برگشت "+(original.kind==="RECEIPT"?"دریافت":"پرداخت")+" "+(original.note||""),reference,reversalOfId:original.id};
  const movement={partyId:party.id,date:now,debitRial:original.kind==="RECEIPT"?Number(original.amount):0,creditRial:original.kind==="PAYMENT"?Number(original.amount):0,description:"برگشت گردش خزانه",referenceId:reference};
  const reversalLines=oldLines.map(line=>({accountCode:line.accountCode,debitRial:Number(line.creditRial||0),creditRial:Number(line.debitRial||0),description:"برگشت گردش خزانه"}));
  await postVoucherAtomic([["treasury",original],["treasury",reversal],["parties",party],["partyLedger",movement]],{number:"TVR-"+now,date:now,description:"برگشت گردش خزانه "+original.id,reference},reversalLines,[{store:"treasury",key:Number(original.id),expected:originalSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"treasuryAllocations",match:{treasuryId:Number(original.id)},expected:null}]);
@@ -1443,11 +1443,11 @@ if(page==="treasury"){
  const cashAccount=accountCode;
  const partyAccount=kind==="RECEIPT"?(p.kind==="SUPPLIER"?"2101":"1103"):(p.kind==="CUSTOMER"?"1103":"2101");
  const journal=kind==="RECEIPT"?[
-  {accountCode:cashAccount,debitRial:amount,creditRial:0,description:"ورود وجه به "+d.method},
+  {accountCode:cashAccount,debitRial:amount,creditRial:0,description:"ورود وجه به "+method},
   {accountCode:partyAccount,debitRial:0,creditRial:amount,description:"تسویه طرف حساب"}
  ]:[
   {accountCode:partyAccount,debitRial:amount,creditRial:0,description:"تسویه طرف حساب"},
-  {accountCode:cashAccount,debitRial:0,creditRial:amount,description:"خروج وجه از "+d.method}
+  {accountCode:cashAccount,debitRial:0,creditRial:amount,description:"خروج وجه از "+method}
  ];
  if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند دریافت/پرداخت تراز نیست");
  applyPartyBalanceDelta(p,kind==="RECEIPT"?-amount:amount);

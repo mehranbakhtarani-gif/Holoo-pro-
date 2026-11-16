@@ -12,11 +12,11 @@ test("import receipt revalidates all mutable snapshots in the atomic posting tra
  assert.match(body,/expectedShipmentState=\\{\\.\\.\\.shipment\\}/);
  assert.match(body,/expectedProductState=\\{\\.\\.\\.product\\}/);
  assert.match(body,/expectedPartyState=\\{\\.\\.\\.party\\}/);
- assert.match(body,/expectedWarehouseRow=stockRows\.find/);
- assert.match(body,/expectedPayableState=linkedPayable\?/);
+ assert.match(body,/expectedWarehouseRow=stockRows\.find/);\n assert.match(body,/expectedWarehouseRow\?\{\.\.\.expectedWarehouseRow\}:null/);
+ assert.match(body,/expectedPayableState=linkedPayable\?\{\.\.\.linkedPayable\}:null/);
  assert.match(body,/store:"importShipments",key:Number\(shipment\.id\),expected:expectedShipmentState/);
  assert.match(body,/store:"products",key:Number\(product\.id\),expected:expectedProductState/);
- assert.match(body,/store:"parties",key:Number\(party\.id\),expected:\{balance:expectedPartyBalance\}/);
+ assert.match(body,/store:"parties",key:Number\(party\.id\),expected:expectedPartyState/);
  assert.match(body,/store:"warehouseStock",match:\{productId:Number\(product\.id\),warehouseId:Number\(warehouse\.id\)\}/);
  assert.match(body,/store:"inventoryLots",match:\{sourceType:"IMPORT_SHIPMENT",sourceId:Number\(shipment\.id\)\},expected:null/);
  assert.match(body,/store:"foreignPayables",match:\{sourceShipmentId:Number\(shipment\.id\)\},expected:expectedPayableState/);

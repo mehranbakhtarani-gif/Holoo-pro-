@@ -26,7 +26,7 @@ test("PWA applies allocated purchase cost to product, warehouse, lot and reversa
  assert.match(app,/row\.warehouseRecord\.value=Number\(row\.warehouseRecord\.value\|\|0\)\+delta/);
  assert.match(app,/row\.lot\.originalCost=cost/);
  assert.match(app,/line\.inventoryCostRial\?\?line\.lineTotal/);
- assert.ok(html.indexOf("invoice-costing.js")<html.indexOf("app.js?v=operation-date-1"));
+ assert.ok(html.indexOf("invoice-costing.js")<html.indexOf("app.js?v=audit-search-2"));
  assert.match(sw,/\.\/invoice-costing\.js/);
  assert.match(sw,/invoice-costing\\.js/);
 });

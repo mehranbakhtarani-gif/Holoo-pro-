@@ -333,7 +333,8 @@ function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("show");se
 function nav(){
  const icons={home:"⌂",inventory:"▦",parties:"♙",invoices:"▤",salesOrders:"▤",imports:"▣",checks:"▧",treasury:"◈",accounting:"≋",bankReconciliation:"⇄",foreignExchange:"$",warehouses:"▥",warehouseTransfers:"⇄",importShipments:"▣",approvals:"✓",employees:"♙",payroll:"＄",fixedAssets:"▤",auditLog:"≡",allocations:"⇄",depreciations:"⌁",foreignPayables:"＄",foreignPayablePayments:"⇄",cashFlow:"◷",importPlanner:"▥"};
  const items=Object.keys(titles).filter(k=>k!=="foreignPayablePayments").map(k=>{
-  const title=Array.isArray(titles[k])&&titles[k][0]?titles[k][0]:"بخش";
+  const rawTitle=Array.isArray(titles[k])?titles[k][0]:titles[k];
+  const title=rawTitle==null||String(rawTitle).trim()===""||String(rawTitle).trim().toLowerCase()==="undefined"?"بخش":String(rawTitle);
   const icon=icons[k]||"•";
   return '<button class="nav '+(currentPage===k?"active":"")+'" data-page="'+k+'"><span>'+icon+'</span>'+title+'</button>';
  }).join("");

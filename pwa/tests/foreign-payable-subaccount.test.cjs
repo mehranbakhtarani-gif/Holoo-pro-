@@ -31,5 +31,5 @@ test("allocation form enforces same party, matching currency and available settl
  assert.match(app,/tr\.partyId!==invoice\.partyId/);
  assert.match(app,/invoiceCurrency!==transactionCurrency/);
  assert.match(app,/validateTreasuryAllocation\(\{transaction:tr,invoice,amount,allocations:allocs/);
- assert.match(app,/store:"treasuryAllocations",match:\{reference\},expected:null/);
+ assert.match(app,/await postVoucherAtomic\(\[\["treasury",tr\],\["invoices",invoice\],\["treasuryAllocations",allocation\]/);\n assert.match(app,/incrementAllocationVersion\(tr,"خزانه"\);incrementAllocationVersion\(invoice,"فاکتور"\)/);
 });

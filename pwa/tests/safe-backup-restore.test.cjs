@@ -42,3 +42,9 @@ test("restore rejects v2 backups missing a records store or requiring a newer sc
  assert.match(app,/stores\.some\(name=>!data\.storeNames\.includes\(name\)\|\|!Object\.prototype\.hasOwnProperty\.call\(data\.records,name\)\)/);
  assert.match(app,/Number\(data\.schemaVersion\)>DB_VERSION/);
 });
+
+test("backup and restore controls surface errors and allow retrying the same file",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/exportBackup\(\)\.catch\(e=>toast\(e\.message\|\|"تهیه پشتیبان ناموفق بود"\)\)/);
+ assert.match(app,/finally\(\(\)=>\{e\.target\.value=""\}\)/);
+});

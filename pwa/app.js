@@ -12,7 +12,7 @@ async function reversePwaInvoice(number){
  if(vouchers.some(v=>v.reference==="REVERSAL:INVOICE:"+invoice.number))throw Error("این فاکتور قبلاً برگشت داده شده است");
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(original.id));
  if(oldLines.length<2)throw Error("ردیف‌های سند اصلی ناقص است");
- const updated=[],warehouseUpdates=[],lotUpdates=[];
+ const updated=[],warehouseUpdates=[],lotUpdates=[],lotAllocationsToRestore=[];
  for(const line of lines){
   const product=products.find(x=>Number(x.id)===Number(line.productId));
   if(!product)throw Error("کالای "+(line.productName||line.productId)+" پیدا نشد");
@@ -26,7 +26,7 @@ async function reversePwaInvoice(number){
   let valueChange=0;
   if(invoice.kind==="SALE"){
    const cost=Number(line.cogs||0);if(!Number.isSafeInteger(cost)||cost<0)throw Error("بهای تمام‌شده ردیف فروش برای برگشت نامعتبر است");
-   if(Array.isArray(line.lotAllocations)&&line.lotAllocations.length){lotUpdates.push(...restoreLotSale({lots:inventoryLots,allocations:line.lotAllocations,date:Date.now()}));}
+   if(Array.isArray(line.lotAllocations)&&line.lotAllocations.length){lotAllocationsToRestore.push(...line.lotAllocations);}
    stockRow.stock=warehouseStock+totalQty;stockRow.value=warehouseValue+cost;product.stock=productStock+totalQty;product.value=productValue+cost;valueChange=cost;
   }else{
    if(warehouseStock+1e-9<totalQty||productStock+1e-9<totalQty)throw Error("موجودی برای برگشت خرید در انبار یا کل کالا کافی نیست");
@@ -51,6 +51,7 @@ async function reversePwaInvoice(number){
   product.avg=product.stock>0?product.value/product.stock:0;
   updated.push(["products",product]);warehouseUpdates.push(["warehouseStock",stockRow]);
  }
+ if(lotAllocationsToRestore.length)lotUpdates.push(...restoreLotSale({lots:inventoryLots,allocations:lotAllocationsToRestore,date:Date.now()}));
  party.balance=Number(party.balance||0)+(invoice.kind==="SALE"?-Number(invoice.total||0):Number(invoice.total||0));
  const entries=[...updated,...warehouseUpdates,...lotUpdates.map(lot=>["inventoryLots",lot]),["parties",party],["invoices",{...invoice,status:"REVERSED",reversedAt:Date.now()}],["partyLedger",{partyId:party.id,date:Date.now(),debitRial:invoice.kind==="PURCHASE"?invoice.total:0,creditRial:invoice.kind==="SALE"?invoice.total:0,description:"برگشت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]];
  if(Number(invoice.commissionAmount||0)>0&&invoice.commissionPartyId){

@@ -45,15 +45,22 @@ function planLotSale(input){
 function restoreLotSale(input){
  const lots=Array.isArray(input.lots)?input.lots:[],allocations=Array.isArray(input.allocations)?input.allocations:[];
  if(!allocations.length)throw new Error("جزئیات بچ‌های فاکتور برای برگشت موجود نیست");
- const updates=[];
+ const grouped=new Map();
  for(const allocation of allocations){
-  const lot=lots.find(x=>String(x.id)===String(allocation.lotId));
-  const qty=Number(allocation.quantity),cost=Number(allocation.cogs);
-  if(!lot||!Number.isFinite(qty)||qty<=0||!Number.isSafeInteger(cost)||cost<0)throw new Error("بچ مرجع برای برگشت فروش پیدا نشد");
-  const remainingQty=Number(lot.remainingQty||0)+qty,remainingValue=Number(lot.remainingValue||0)+cost;
+  const lotId=String(allocation.lotId||""),qty=Number(allocation.quantity),cost=Number(allocation.cogs);
+  if(!lotId||!Number.isFinite(qty)||qty<=0||!Number.isSafeInteger(cost)||cost<0)throw new Error("بچ مرجع برای برگشت فروش پیدا نشد");
+  const row=grouped.get(lotId)||{quantity:0,cogs:0};
+  row.quantity+=qty;row.cogs+=cost;
+  if(!Number.isFinite(row.quantity)||!Number.isSafeInteger(row.cogs))throw new Error("جمع مقدار یا بهای برگشت بچ معتبر نیست");
+  grouped.set(lotId,row);
+ }
+ const updates=[];
+ for(const [lotId,allocation] of grouped){
+  const lot=lots.find(x=>String(x.id)===lotId);
+  if(!lot)throw new Error("بچ مرجع برای برگشت فروش پیدا نشد");
+  const remainingQty=Number(lot.remainingQty||0)+allocation.quantity,remainingValue=Number(lot.remainingValue||0)+allocation.cogs;
   if(remainingQty>Number(lot.originalQty)+1e-6||remainingValue>Number(lot.originalCost)+1)throw new Error("برگشت بچ از مقدار/ارزش اولیه بیشتر می‌شود");
-  const next={...lot,remainingQty,remainingValue,status:"OPEN",updatedAt:Number(input.date||Date.now())};
-  const index=updates.findIndex(x=>x.id===next.id);if(index>=0)updates[index]=next;else updates.push(next);
+  updates.push({...lot,remainingQty,remainingValue,status:"OPEN",updatedAt:Number(input.date||Date.now())});
  }
  return updates;
 }

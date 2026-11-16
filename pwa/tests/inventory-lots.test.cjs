@@ -80,3 +80,14 @@ test("PWA integrates FIFO lots with database, shipment receipt, invoice sales, t
  assert.match(app,/planLotSale\(/);assert.match(app,/lotAllocations/);assert.match(app,/restoreLotSale\(/);
  assert.match(app,/summarizeLotProfit\(/);assert.match(app,/سود ناخالص کانتینرها/);
 });
+
+test("aggregates repeated allocations to the same lot before restoring a multi-line invoice",()=>{
+ const lot={...receipt("CN-MULTI",100,125000,100),remainingQty:85,remainingValue:106250,status:"OPEN"};
+ const restored=restoreLotSale({lots:[lot],allocations:[
+  {lotId:lot.id,quantity:10,cogs:12500},
+  {lotId:lot.id,quantity:5,cogs:6250}
+ ],date:500});
+ assert.equal(restored.length,1);
+ assert.equal(restored[0].remainingQty,100);
+ assert.equal(restored[0].remainingValue,125000);
+});

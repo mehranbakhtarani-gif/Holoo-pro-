@@ -1,5 +1,5 @@
 "use strict";
-const OPERATION_DATE_STORES=new Set(["invoices","treasury","vouchers","partyLedger","warehouseTransfers","stockAdjustments","inventoryLots","foreignPayablePayments","foreignPayables","importShipments","checks","salesOrders","payroll","assetDepreciations"]);
+const OPERATION_DATE_STORES=new Set(["accounts","parties","invoices","imports","checks","treasury","vouchers","partyLedger","warehouseTransfers","stockAdjustments","inventoryLots","foreignPayables","foreignPayablePayments","importShipments","approvals","payroll","fixedAssets","assetDepreciations","treasuryAllocations"]);
 function parseOperationDate(value){
  const raw=String(value||"").trim(),m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(raw);
  if(!m)throw new Error("تاریخ و ساعت دستی را کامل و معتبر وارد کنید");
@@ -16,15 +16,15 @@ function resolveOperationDate({mode="AUTO",manualValue="",now=Date.now()}={}){
  return now;
 }
 function stampOperationRecord({store,record,mode="AUTO",manualValue="",now=Date.now()}={}){
- if(!record||typeof record!=="object"||!OPERATION_DATE_STORES.has(store)||mode!=="MANUAL")return record;
- const at=resolveOperationDate({mode,manualValue,now}),copy={...record};
- if(Object.prototype.hasOwnProperty.call(copy,"date"))copy.date=at;
+ if(!record||typeof record!=="object"||!OPERATION_DATE_STORES.has(store))return record;
+ const copy={...record},at=resolveOperationDate({mode,manualValue,now});
+ if(mode==="MANUAL"||!Object.prototype.hasOwnProperty.call(copy,"date"))copy.date=at;
  const fields={
   importShipments:["updatedAt","receivedAt"],inventoryLots:["receivedAt","transferredAt"],
   checks:["createdAt","statusChangedAt","clearedAt","endorsedAt","bouncedAt","cancelledAt"],
   salesOrders:["createdAt","updatedAt"],foreignPayables:["createdAt","updatedAt"]
  }[store]||[];
- for(const key of fields)if(Object.prototype.hasOwnProperty.call(copy,key)&&copy[key]!==null)copy[key]=at;
+ if(mode==="MANUAL")for(const key of fields)if(Object.prototype.hasOwnProperty.call(copy,key)&&copy[key]!==null)copy[key]=at;
  return copy;
 }
 if(typeof module!=="undefined"&&module.exports)module.exports={parseOperationDate,resolveOperationDate,stampOperationRecord,OPERATION_DATE_STORES};

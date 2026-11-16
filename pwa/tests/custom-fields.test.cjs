@@ -173,3 +173,7 @@ test("custom reports read custom line values from invoice and order line arrays"
  assert.match(custom,/report\.dataset==="invoices"\|\|report\.dataset==="salesOrders"/);
  assert.match(custom,/row\.lines\|\|\[\]/);
 });
+
+test("custom reports render empty date fields as blank, not the Unix epoch",()=>{
+ assert.match(custom,/value\?new Date\(Number\(value\)\)\.toLocaleDateString\("fa-IR"\):""/);
+});

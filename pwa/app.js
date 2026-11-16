@@ -372,6 +372,50 @@ function putWarehouseUnique(record){
   tx.onabort=()=>reject(missing?new Error("انبار برای ویرایش پیدا نشد"):new Error(conflict||tx.error?.message||"ذخیره انبار لغو شد"));
  });
 }
+function putSalesOrderGuarded(record,expected=null){
+ const stamp=globalThis.HolooOperationDate?.stampOperationRecord;if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");
+ const value=stamp({store:"salesOrders",record,mode:operationDateMode,manualValue:operationManualDate});
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["salesOrders","auditLog"],"readwrite"),store=tx.objectStore("salesOrders"),read=store.getAll();
+  let savedId,conflict="",missing=false,stale=false;
+  read.onsuccess=()=>{
+   const rows=read.result||[],current=record.id===undefined?null:rows.find(row=>Number(row.id)===Number(record.id));
+   if(record.id!==undefined&&!current){missing=true;try{tx.abort()}catch(_){};return}
+   if(rows.some(row=>Number(row.id)!==Number(record.id)&&String(row.number||"").trim().toLowerCase()===String(record.number||"").trim().toLowerCase()))conflict="شماره سفارش تکراری است";
+   if(current&&(current.status!=="DRAFT"||!expected||!Object.entries(expected).every(([key,field])=>sameGuardValue(current[key],field))))stale=true;
+   if(conflict||stale){try{tx.abort()}catch(_){};return}
+   const write=store.put(value);
+   write.onsuccess=()=>{savedId=write.result;tx.objectStore("auditLog").add({action:"ثبت/ویرایش",store:"salesOrders",recordId:savedId,at:Date.now(),summary:"ذخیره کنترل‌شده پیش‌فاکتور / سفارش"})};
+   write.onerror=()=>{try{tx.abort()}catch(_){}};
+  };
+  read.onerror=()=>{try{tx.abort()}catch(_){}};
+  tx.oncomplete=()=>resolve(savedId);
+  tx.onerror=()=>reject(tx.error||new Error("ذخیره سفارش فروش ناموفق بود"));
+  tx.onabort=()=>reject(missing?new Error("سفارش برای ویرایش پیدا نشد"):conflict?new Error(conflict):stale?new Error("سفارش هم‌زمان تغییر کرده یا دیگر پیش‌نویس نیست؛ فهرست را تازه‌سازی کنید"):tx.error||new Error("ذخیره سفارش لغو شد"));
+ });
+}
+function putCheckUnique(record,expected=null){
+ const stamp=globalThis.HolooOperationDate?.stampOperationRecord;if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");
+ const value=stamp({store:"checks",record,mode:operationDateMode,manualValue:operationManualDate});
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["checks","auditLog"],"readwrite"),store=tx.objectStore("checks"),read=store.getAll();
+  let savedId,conflict="",missing=false,stale=false;
+  read.onsuccess=()=>{
+   const rows=read.result||[],current=record.id===undefined?null:rows.find(row=>Number(row.id)===Number(record.id)),normalized=String(record.number||"").trim().normalize("NFKC").toLocaleUpperCase("fa");
+   if(record.id!==undefined&&!current){missing=true;try{tx.abort()}catch(_){};return}
+   if(rows.some(row=>Number(row.id)!==Number(record.id)&&String(row.number||"").trim().normalize("NFKC").toLocaleUpperCase("fa")===normalized))conflict="شماره چک تکراری است";
+   if(current&&(current.status!=="OPEN"||!expected||!Object.entries(expected).every(([key,field])=>sameGuardValue(current[key],field))))stale=true;
+   if(conflict||stale){try{tx.abort()}catch(_){};return}
+   const write=store.put(value);
+   write.onsuccess=()=>{savedId=write.result;tx.objectStore("auditLog").add({action:"ثبت/ویرایش",store:"checks",recordId:savedId,at:Date.now(),summary:"ذخیره یکتای چک"})};
+   write.onerror=()=>{try{tx.abort()}catch(_){}};
+  };
+  read.onerror=()=>{try{tx.abort()}catch(_){}};
+  tx.oncomplete=()=>resolve(savedId);
+  tx.onerror=()=>reject(tx.error||new Error("ذخیره چک ناموفق بود"));
+  tx.onabort=()=>reject(missing?new Error("چک برای ویرایش پیدا نشد"):conflict?new Error(conflict):stale?new Error("چک هم‌زمان تغییر کرده یا دیگر باز نیست؛ فهرست را تازه‌سازی کنید"):tx.error||new Error("ذخیره چک لغو شد"));
+ });
+}
 function putImportOrderUnique(record){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(["imports","auditLog"],"readwrite"),store=tx.objectStore("imports"),read=store.getAll();
@@ -508,6 +552,14 @@ function putManyGuarded(entries,guards=[]){
  });
 }
 function del(s,id){return new Promise((res,rej)=>{const t=db.transaction([s,"auditLog"],"readwrite"),q=t.objectStore(s).delete(Number(id));q.onsuccess=()=>t.objectStore("auditLog").add({action:"حذف",store:s,recordId:Number(id),at:Date.now(),summary:"حذف رکورد از "+s});q.onerror=()=>{try{t.abort()}catch(_){}};t.oncomplete=()=>res();t.onerror=()=>rej(t.error||new Error("حذف ناموفق بود"));t.onabort=()=>rej(t.error||new Error("حذف لغو شد"))})}
+function parseDateOnlyLocal(value,label="تاریخ",endOfDay=false){
+ const raw=String(value||"").trim(),match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+ if(!match)throw Error(label+" را به شکل معتبر انتخاب کنید");
+ const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]),hour=endOfDay?23:12,minute=endOfDay?59:0,second=endOfDay?59:0,millisecond=endOfDay?999:0;
+ const parsed=new Date(year,month-1,day,hour,minute,second,millisecond);
+ if(parsed.getFullYear()!==year||parsed.getMonth()!==month-1||parsed.getDate()!==day)throw Error(label+" معتبر نیست");
+ return parsed.getTime();
+}
 function safeRialTotal(values,label="جمع ریالی"){let total=0;for(const raw of values){const value=Number(raw||0);if(!Number.isSafeInteger(value))throw Error(label+" شامل مبلغ نامعتبر است");total+=value;if(!Number.isSafeInteger(total))throw Error(label+" از محدوده عددی مجاز خارج است")}return total}
 function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),2600)}
 function nav(){
@@ -1196,10 +1248,9 @@ if(page==="salesOrders"){
  }
  const discount=num("discount"),tax=num("tax");if(!Number.isSafeInteger(discount)||discount<0||discount>subtotal||!Number.isSafeInteger(tax)||tax<0)throw Error("تخفیف یا مالیات سفارش معتبر نیست");
  const total=subtotal-discount+tax;if(!Number.isSafeInteger(total)||total<=0)throw Error("مبلغ نهایی سفارش معتبر نیست");
- const commissionAmount=Math.round((subtotal-discount)*commissionRate/100),validUntil=d.validUntil?new Date(d.validUntil+"T23:59:59").getTime():null;
- if(d.validUntil&&!Number.isFinite(validUntil))throw Error("تاریخ اعتبار پیش‌فاکتور معتبر نیست");
+ const commissionAmount=Math.round((subtotal-discount)*commissionRate/100),validUntil=d.validUntil?parseDateOnlyLocal(d.validUntil,"تاریخ اعتبار پیش‌فاکتور",true):null;
  const number=item?.number||"SO-"+Date.now();
- await put("salesOrders",{id:item?.id,number,kind:d.kind==="ORDER"?"ORDER":"QUOTE",status:item?.status||"DRAFT",partyId:party.id,partyName:party.name,warehouseId:warehouse.id,warehouseName:warehouse.name,currency,fxRateRialPerUnit:fxRate,foreignSubtotalMinor:currency==="IRR"?null:foreignSubtotalMinor,foreignTotalMinor:currency==="IRR"?null:Math.round(total*100/fxRate),priceTier:num("priceTier"),commissionPartyId:commissionAmount>0?commissionParty.id:null,commissionPartyName:commissionAmount>0?commissionParty.name:"",commissionRate,commissionAmount,validUntil,discount,tax,subtotal,total,qty:lines.reduce((n,x)=>n+x.totalQty,0),paidQty:lines.reduce((n,x)=>n+x.qty,0),bonusQty:lines.reduce((n,x)=>n+x.bonusQty,0),lines,note:d.note||"",createdAt:item?.createdAt||Date.now(),updatedAt:Date.now()});return
+ await putSalesOrderGuarded({id:item?.id,number,kind:d.kind==="ORDER"?"ORDER":"QUOTE",status:item?.status||"DRAFT",partyId:party.id,partyName:party.name,warehouseId:warehouse.id,warehouseName:warehouse.name,currency,fxRateRialPerUnit:fxRate,foreignSubtotalMinor:currency==="IRR"?null:foreignSubtotalMinor,foreignTotalMinor:currency==="IRR"?null:Math.round(total*100/fxRate),priceTier:num("priceTier"),commissionPartyId:commissionAmount>0?commissionParty.id:null,commissionPartyName:commissionAmount>0?commissionParty.name:"",commissionRate,commissionAmount,validUntil,discount,tax,subtotal,total,qty:lines.reduce((n,x)=>n+x.totalQty,0),paidQty:lines.reduce((n,x)=>n+x.qty,0),bonusQty:lines.reduce((n,x)=>n+x.bonusQty,0),lines,note:d.note||"",createdAt:item?.createdAt||Date.now(),updatedAt:Date.now()},item?{status:item.status,updatedAt:item.updatedAt}:null);return
 }
 if(page==="invoices"){
  const ps=await all("parties"),pr=await all("products"),p=ps.find(x=>x.id===num("partyId"));
@@ -1368,19 +1419,19 @@ if(page==="employees"){const name=String(d.name||"").trim(),salary=num("baseSala
 if(page==="payroll"){const employees=await all("employees"),employee=employees.find(x=>x.id===num("employeeId")),gross=num("gross"),deductions=num("deductions");if(item)throw Error("برای جلوگیری از مغایرت دفتر کل، حقوق ثبت‌شده قابل ویرایش نیست؛ سند اصلاحی جداگانه ثبت کنید");if(!employee||!d.period||!Number.isSafeInteger(gross)||!Number.isSafeInteger(deductions)||gross<=0||deductions<0||deductions>gross)throw Error("اطلاعات حقوق معتبر نیست");await ensureBaseAccounts();const net=gross-deductions,now=Date.now(),status=d.status||"محاسبه‌شده",paymentMethod=d.paymentMethod||"بانک";if(!["محاسبه‌شده","پرداخت‌شده"].includes(status)||!["بانک","صندوق"].includes(paymentMethod))throw Error("وضعیت یا روش پرداخت حقوق معتبر نیست");const row={employeeId:employee.id,employeeName:employee.name,period:d.period,gross,deductions,net,status,paymentMethod,createdAt:now,paidAt:status==="پرداخت‌شده"?now:null};const journal=[{accountCode:"5301",debitRial:gross,creditRial:0,description:"هزینه حقوق "+employee.name}];if(net>0)journal.push({accountCode:status==="پرداخت‌شده"?(paymentMethod==="صندوق"?"1101":"1102"):"2104",debitRial:0,creditRial:net,description:status==="پرداخت‌شده"?"پرداخت خالص حقوق":"حقوق پرداختنی"});if(deductions>0)journal.push({accountCode:"2105",debitRial:0,creditRial:deductions,description:"کسورات حقوق پرداختنی"});const entries=[["payroll",row]];if(status==="پرداخت‌شده"&&net>0)entries.push(["treasury",{kind:"PAYMENT",method:paymentMethod,partyId:null,partyName:employee.name,currency:"IRR",amount:net,date:now,note:"پرداخت حقوق "+employee.name+" - "+d.period,reference:"PAYROLL:"+employee.id+":"+d.period}]);await postVoucherAtomic(entries,{number:"PAY-"+now,date:now,description:"حقوق "+employee.name+" "+d.period,reference:"PAYROLL:"+employee.id+":"+d.period},journal);return}
 if(page==="depreciations"){const assets=await all("fixedAssets"),asset=assets.find(x=>x.id===num("assetId")),entries=await all("assetDepreciations"),amount=num("amount");if(!asset||!d.period||!Number.isSafeInteger(amount)||amount<=0)throw Error("دارایی، دوره و مبلغ استهلاک معتبر الزامی است");if(entries.some(x=>x.assetId===asset.id&&x.period===d.period))throw Error("برای این دارایی در این دوره استهلاک ثبت شده است");const assetSnapshot={accumulatedDepreciation:asset.accumulatedDepreciation,netBookValue:asset.netBookValue},accumulated=Number(asset.accumulatedDepreciation||0),depreciable=Number(asset.cost||0)-Number(asset.residual||0);if(accumulated+amount>depreciable)throw Error("استهلاک از مبلغ قابل استهلاک دارایی بیشتر می‌شود");await ensureBaseAccounts();asset.accumulatedDepreciation=accumulated+amount;asset.netBookValue=Number(asset.cost)-asset.accumulatedDepreciation;const now=Date.now(),row={assetId:asset.id,assetName:asset.name,period:d.period,amount,date:now};await postVoucherAtomic([["fixedAssets",asset],["assetDepreciations",row]],{number:"DEP-"+now,date:now,description:"استهلاک "+asset.name+" "+d.period,reference:"DEPRECIATION:"+asset.id+":"+d.period},[{accountCode:"5401",debitRial:amount,creditRial:0,description:"هزینه استهلاک"},{accountCode:"1502",debitRial:0,creditRial:amount,description:"استهلاک انباشته"}],[{store:"fixedAssets",key:Number(asset.id),expected:assetSnapshot}]);return}
 if(page==="fixedAssets"){if(item){const updated={...item,name:String(d.name||"").trim(),category:d.category,acquired:d.acquired?new Date(d.acquired+"T12:00:00").getTime():item.acquired};if(!updated.name)throw Error("نام دارایی الزامی است");await put("fixedAssets",updated);return}const cost=num("cost"),residual=num("residual"),lifeMonths=num("lifeMonths"),paymentMethod=d.paymentMethod||"بانک";if(!d.name||!Number.isSafeInteger(cost)||cost<=0||!Number.isSafeInteger(residual)||residual<0||residual>cost||!Number.isInteger(lifeMonths)||lifeMonths<=0)throw Error("اطلاعات دارایی و عمر مفید معتبر نیست");if(!["بانک","صندوق","نسیه"].includes(paymentMethod))throw Error("روش پرداخت دارایی معتبر نیست");await ensureBaseAccounts();const now=Date.now(),reference="FIXED-ASSET:"+now,asset={name:String(d.name).trim(),category:d.category,cost,residual,lifeMonths,monthlyDepreciation:Math.round((cost-residual)/lifeMonths),acquired:d.acquired?new Date(d.acquired+"T12:00:00").getTime():now,accumulatedDepreciation:0,netBookValue:cost,paymentMethod,purchaseVoucherReference:reference};const journal=[{accountCode:"1501",debitRial:cost,creditRial:0,description:"خرید دارایی ثابت "+asset.name}],entries=[["fixedAssets",asset]],guards=[];if(paymentMethod==="نسیه"){const parties=await all("parties"),party=parties.find(x=>x.id===num("partyId"));if(!party||party.kind==="CUSTOMER")throw Error("برای خرید نسیه، تأمین‌کننده معتبر انتخاب کنید");const snapshot={...party};applyPartyBalanceDelta(party,-cost,"تأمین‌کننده");journal.push({accountCode:"2101",debitRial:0,creditRial:cost,description:"بدهی خرید دارایی به "+party.name});entries.push(["parties",party],["partyLedger",{partyId:party.id,date:now,debitRial:0,creditRial:cost,description:"خرید نسیه دارایی ثابت "+asset.name,referenceId:reference}]);guards.push({store:"parties",key:Number(party.id),expected:snapshot});asset.partyId=party.id;asset.partyName=party.name}else{const accountCode=paymentMethod==="بانک"?"1102":"1101";journal.push({accountCode,debitRial:0,creditRial:cost,description:"پرداخت خرید دارایی ثابت از "+paymentMethod});entries.push(["treasury",{kind:"PAYMENT",method:paymentMethod,partyId:null,partyName:"",currency:"IRR",amount:cost,date:now,note:"خرید دارایی ثابت "+asset.name,reference}])}await postVoucherAtomic(entries,{number:"FA-"+now,date:now,description:"خرید دارایی ثابت "+asset.name,reference},journal,guards);return}
-if(page==="imports"){const ps=await all("parties"),p=ps.find(x=>x.id===num("supplierId"));if(!p||p.kind==="CUSTOMER")throw Error("تأمین‌کننده معتبر انتخاب کنید");const currency=String(d.currency||"").toUpperCase(),fx=num("fx"),goods=num("goods"),weight=num("weight"),freight=num("freight"),customs=num("customs"),other=num("other");if(!["USD","CNY","EUR"].includes(currency)||!Number.isSafeInteger(fx)||fx<=0||!Number.isFinite(goods)||goods<=0||!Number.isFinite(weight)||weight<=0)throw Error("ارز، نرخ ارز، مبلغ کالا یا وزن معتبر نیست");if([freight,customs,other].some(x=>!Number.isSafeInteger(x)||x<0))throw Error("هزینه‌های جانبی باید عدد صحیح و غیرمنفی باشند");const container=String(d.container||"").trim();if(!container)throw Error("شماره کانتینر الزامی است");const due=new Date(d.due+"T12:00:00").getTime(),goodsRial=Math.round(goods*fx),ancillaryCost=freight+customs+other,totalCost=goodsRial+ancillaryCost;if(!Number.isFinite(due)||![goodsRial,ancillaryCost,totalCost].every(Number.isSafeInteger))throw Error("سررسید یا جمع هزینه‌های سفارش معتبر نیست");await putImportOrderUnique({id:item?.id,supplierId:p.id,supplierName:p.name,currency,fx,container,weight,goods,goodsRial,ancillaryCost,totalCost,extra:totalCost,freight,customs,other,due,status:item?.status||"ثبت سفارش"})}
+if(page==="imports"){const ps=await all("parties"),p=ps.find(x=>x.id===num("supplierId"));if(!p||p.kind==="CUSTOMER")throw Error("تأمین‌کننده معتبر انتخاب کنید");const currency=String(d.currency||"").toUpperCase(),fx=num("fx"),goods=num("goods"),weight=num("weight"),freight=num("freight"),customs=num("customs"),other=num("other");if(!["USD","CNY","EUR"].includes(currency)||!Number.isSafeInteger(fx)||fx<=0||!Number.isFinite(goods)||goods<=0||!Number.isFinite(weight)||weight<=0)throw Error("ارز، نرخ ارز، مبلغ کالا یا وزن معتبر نیست");if([freight,customs,other].some(x=>!Number.isSafeInteger(x)||x<0))throw Error("هزینه‌های جانبی باید عدد صحیح و غیرمنفی باشند");const container=String(d.container||"").trim();if(!container)throw Error("شماره کانتینر الزامی است");const due=parseDateOnlyLocal(d.due,"سررسید سفارش واردات"),goodsRial=Math.round(goods*fx),ancillaryCost=freight+customs+other,totalCost=goodsRial+ancillaryCost;if(![goodsRial,ancillaryCost,totalCost].every(Number.isSafeInteger))throw Error("جمع هزینه‌های سفارش معتبر نیست");await putImportOrderUnique({id:item?.id,supplierId:p.id,supplierName:p.name,currency,fx,container,weight,goods,goodsRial,ancillaryCost,totalCost,extra:totalCost,freight,customs,other,due,status:item?.status||"ثبت سفارش"})}
 if(page==="checks"){
  const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId"));if(item&&item.status!=="OPEN")throw Error("چک وصول‌شده، پرداخت‌شده یا ظهرنویسی‌شده قابل ویرایش نیست");
  if(!p)throw Error("طرف حساب انتخاب نشده");
- const kind=d.kind==="دریافتی"?"RECEIVED":"PAYABLE",amount=num("amount"),due=new Date(d.due+"T12:00:00").getTime(),issue=new Date(d.issue+"T12:00:00").getTime();
- if(!Number.isSafeInteger(amount)||amount<=0||!Number.isFinite(due)||!Number.isFinite(issue)||due<issue)throw Error("مبلغ یا تاریخ چک نامعتبر است");
+ const kind=d.kind==="دریافتی"?"RECEIVED":"PAYABLE",amount=num("amount"),due=parseDateOnlyLocal(d.due,"سررسید چک"),issue=parseDateOnlyLocal(d.issue,"تاریخ صدور چک");
+ if(!Number.isSafeInteger(amount)||amount<=0||due<issue)throw Error("مبلغ یا تاریخ چک نامعتبر است");
  if(kind==="RECEIVED"&&p.kind==="SUPPLIER")throw Error("چک دریافتی باید از مشتری یا طرف حساب مشترک باشد");
  if(kind==="PAYABLE"&&p.kind==="CUSTOMER")throw Error("چک پرداختی باید برای تأمین‌کننده یا طرف حساب مشترک باشد");
  const number=String(d.number||"").trim();if(!number)throw Error("شماره چک الزامی است");
- const existing=await all("checks");if(existing.some(x=>String(x.number)===number&&x.id!==item?.id))throw Error("شماره چک تکراری است");
+ const checkExpected=item?{status:item.status,number:item.number,updatedAt:item.updatedAt}:null;
  const endorseTo=ps.find(x=>x.id===num("endorseToPartyId"));
  if(endorseTo&&(kind!=="RECEIVED"||endorseTo.kind==="CUSTOMER"||endorseTo.id===p.id))throw Error("ذی‌نفع ظهرنویسی باید تأمین‌کننده یا طرف حساب مشترک دیگری باشد");
- await put("checks",{id:item?.id,number,kind,purpose:d.purpose||"عادی",partyId:p.id,partyName:p.name,endorseToPartyId:endorseTo?.id||null,endorseToPartyName:endorseTo?.name||"",amount,issue,due,bank:d.bank,status:item?.status||"OPEN",note:d.note,createdAt:item?.createdAt||Date.now()});return
+ await putCheckUnique({id:item?.id,number,kind,purpose:d.purpose||"عادی",partyId:p.id,partyName:p.name,endorseToPartyId:endorseTo?.id||null,endorseToPartyName:endorseTo?.name||"",amount,issue,due,bank:d.bank,status:item?.status||"OPEN",note:d.note,createdAt:item?.createdAt||Date.now(),updatedAt:Date.now()},checkExpected);return
 }
 if(page==="treasury"){
  const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),currency=String(d.currency||"IRR").toUpperCase(),enteredAmount=num("amount");

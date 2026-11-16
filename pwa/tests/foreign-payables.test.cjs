@@ -56,3 +56,11 @@ test("cash flow uses planned installments and keeps unplanned balance on contrac
  const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
  assert.match(app,/planForeignPayableInstallment/);assert.match(app,/قسط برنامه‌ریزی‌شده تعهد ارزی/);assert.match(app,/مانده برنامه‌ریزی‌نشده تعهد ارزی/);assert.match(app,/data-fx-plan-add/);assert.match(app,/data-fx-plan-clear/);
 });
+
+
+test("reduces scheduled installments by payments made after the plan was created",()=>{
+ const {planForeignPayableInstallment,getRemainingForeignPayableInstallments}=require("../foreign-payables.js"),p=payable(),planned=planForeignPayableInstallment({payable:p,amountMinor:60000,dueDate:1000,createdAt:2000}),paid=planForeignPayablePayment({payable:planned,amountMinor:25000,fxRateRialPerUnit:600000,date:3000}).updated;
+ assert.equal(paid.paymentPlanBasePaidMinor,0);assert.equal(getRemainingForeignPayableInstallments(paid)[0].amountMinor,35000);
+ const alreadyPaid=planForeignPayableInstallment({payable:{...p,paidMinor:20000},amountMinor:50000,dueDate:1000,createdAt:4000});
+ assert.equal(alreadyPaid.paymentPlanBasePaidMinor,20000);assert.equal(getRemainingForeignPayableInstallments(alreadyPaid)[0].amountMinor,50000);
+});

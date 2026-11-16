@@ -176,7 +176,7 @@ function buildForeignPayableBalanceCsv(input){
   }
  }
  const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
- return "\\uFEFF"+cells.map(row=>row.map(quote).join(",")).join("\\r\\n");
+ return "\uFEFF"+cells.map(row=>row.map(quote).join(",")).join("\r\n");
 }
 const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,allocateForeignPayablePaymentToInstallments,getRemainingForeignPayableInstallments,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast,reconcileForeignPayablePayments,reconcileForeignPayableBalances,filterForeignPayableBalanceRows,buildForeignPayableBalanceCsv};
 if(typeof module!=="undefined")module.exports=ForeignPayables;

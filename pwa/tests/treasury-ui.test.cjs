@@ -15,3 +15,11 @@ test("treasury ledger supports search and exposes reference and reversal status"
  assert.match(app,/x\.reference,x\.status/);
  assert.match(app,/برگشت‌شده/);
 });
+
+ 
+test("standalone treasury entries expose a guarded reversal action",()=>{
+ assert.match(app,/async function reverseTreasuryPwa/);
+ assert.match(app,/data-treasury-reverse/);
+ assert.match(app,/treasuryAllocations",match:\{treasuryId:Number\(original\.id\)\},expected:null/);
+ assert.match(app,/party\.balance=Number\(party\.balance\|\|0\)\+\(original\.kind==="RECEIPT"\?/);
+});

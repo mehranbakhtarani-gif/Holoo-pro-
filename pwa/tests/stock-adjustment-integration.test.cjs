@@ -31,3 +31,13 @@ test("stock adjustment and its inventory, lot and accounting records post atomic
  assert.match(body,/postVoucherAtomic\(\[\["products",product\],\["warehouseStock",movement\.record\],\["stockAdjustments",adjustment\],\.\.\.lotEntries\]/);
  assert.match(body,/STOCK_ADJUSTMENT:/);
 });
+
+test("stock adjustments validate the current product and warehouse snapshot inside the posting transaction",()=>{
+ assert.match(body,/expectedProductState=\{stock:product\.stock,value:product\.value\}/);
+ assert.match(body,/expected:expectedProductState/);
+ assert.match(body,/expectedWarehouseRow\?\{stock:expectedWarehouseRow\.stock,value:expectedWarehouseRow\.value\}:null/);
+ const post=app.slice(app.indexOf("function postVoucherAtomic"),app.indexOf("\nfunction all(s)"));
+ assert.match(post,/guards\.map\(x=>x\.store\)/);
+ assert.match(post,/const validateGuards=/);
+ assert.match(post,/staleState=true/);
+});

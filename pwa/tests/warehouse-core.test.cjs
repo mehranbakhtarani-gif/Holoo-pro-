@@ -45,7 +45,7 @@ test("PWA wires warehouse core into invoice and transfer workflows", () => {
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
  const sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
- assert.match(app,/DB_VERSION=8/);
+ assert.match(app,/DB_VERSION=9/);
  assert.match(app,/"warehouseTransfers"/);
  assert.match(app,/calculateWarehouseStockMovement\(/);
  assert.match(app,/calculateWarehouseTransfer\(/);

@@ -109,7 +109,8 @@ function summarizeLotProfit(input){
     const revenue=cumulativeRevenue-allocatedRevenue;
     if(!Number.isSafeInteger(revenue)||revenue<0)throw new Error("تخصیص درآمد بین بچ‌ها معتبر نیست");
     allocatedRevenue=cumulativeRevenue;
-    const lot=lotById.get(String(allocation.lotId)),rootId=String(allocation.originLotId||lot?.originLotId||lot?.id||allocation.lotId),row=summaries.get(rootId);
+    const lot=lotById.get(String(allocation.lotId));if(!lot)throw new Error("بچ مرجع برای تخصیص درآمد پیدا نشد");
+    const rootId=String(allocation.originLotId||lot.originLotId||lot.id),row=summaries.get(rootId);
     if(row){row.revenue+=revenue;if(!Number.isSafeInteger(row.revenue))throw new Error("جمع درآمد محموله از محدوده عددی مجاز خارج است");}
    });
   }

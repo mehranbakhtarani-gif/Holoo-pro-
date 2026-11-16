@@ -45,7 +45,8 @@ function summarizeForeignPayable(input){
  if(paidMinor>totalMinor||bookedPaidRial>totalBookedRial||!Number.isSafeInteger(rate)||rate<=0)throw new Error("مانده یا نرخ ارزش‌گذاری تعهد معتبر نیست");
  const remainingMinor=totalMinor-paidMinor,bookValue=totalBookedRial-bookedPaidRial;
  const revaluedRial=convertMinorAtRate(remainingMinor,rate),delta=subtractSafe(revaluedRial,bookValue,"اختلاف ارزش‌گذاری ارزی");
- const activePayments=payments.filter(p=>p&&p.status!=="REVERSED");
+ const reversedPaymentIds=new Set(payments.filter(p=>p&&p.status==="REVERSED"&&p.id!==undefined).map(p=>String(p.id)));
+ const activePayments=payments.filter(p=>p&&p.status!=="REVERSED"&&!reversedPaymentIds.has(String(p.id)));
  const realizedFxGainRial=activePayments.reduce((n,p)=>addSafe(n,toSafeMinor(p.fxGainRial||0,"سود تسعیر پرداخت"),"جمع سود تسعیر پرداخت‌ها"),0);
  const realizedFxLossRial=activePayments.reduce((n,p)=>addSafe(n,toSafeMinor(p.fxLossRial||0,"زیان تسعیر پرداخت"),"جمع زیان تسعیر پرداخت‌ها"),0);
  return {...payable,remainingMinor,bookValue,revaluedRial,unrealizedFxLossRial:Math.max(0,delta),unrealizedFxGainRial:Math.max(0,-delta),realizedFxGainRial,realizedFxLossRial};

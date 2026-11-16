@@ -106,3 +106,9 @@ test("calendar renders daily projected balance and shortfall indicators",()=>{
  const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8"),css=fs.readFileSync(path.join(__dirname,"..","style.css"),"utf8");
  assert.match(app,/getDailyCashFlowProjection/);assert.match(app,/projection\.shortfall/);assert.match(app,/cash-calendar-balance/);assert.match(app,/cash-calendar-alert/);assert.match(css,/\.cash-calendar-shortfall/);assert.match(css,/\.cash-calendar-alert/);
 });
+
+ 
+test("cash flow dashboard includes a seven-day due summary for near-term inflows and payments",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
+ assert.match(app,/sevenDayEnd/);assert.match(app,/nearDueInflows/);assert.match(app,/nearDueOutflows/);assert.match(app,/سررسیدهای ۷ روز آینده/);assert.match(app,/nearDueMarkup/);
+});

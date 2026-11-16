@@ -21,7 +21,7 @@ test("standalone treasury entries expose a guarded reversal action",()=>{
  assert.match(app,/async function reverseTreasuryPwa/);
  assert.match(app,/data-treasury-reverse/);
  assert.match(app,/treasuryAllocations",match:\{treasuryId:Number\(original\.id\)\},expected:null/);
- assert.match(app,/party\.balance=Number\(party\.balance\|\|0\)\+\(original\.kind==="RECEIPT"\?/);
+ assert.match(app,/applyPartyBalanceDelta\(party,original\.kind==="RECEIPT"\?/);
 });
 
 test("treasury ledger exports currency, FX, Rial amount, reference and reversal status",()=>{

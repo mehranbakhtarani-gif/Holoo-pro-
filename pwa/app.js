@@ -648,15 +648,16 @@ if(currentPage==="cashFlow"){
  for(const p of payables){
   if(p.status==="PAID"||p.status==="CANCELLED"||!p.shipmentReceivedAt)continue;
   const remaining=Math.max(0,Number(p.amountMinor)-Number(p.paidMinor||0)),rate=Number(foreignRateOverrides[p.currency]||p.bookedFxRateRialPerUnit),plan=HolooForeignPayables.getRemainingForeignPayableInstallments(p);
-  const plannedMinor=plan.reduce((n,x)=>n+Number(x.amountMinor||0),0);
-  for(const installment of plan){const amount=Math.round(Number(installment.amountMinor)*rate/100);if(amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:installment.dueDate,source:"قسط برنامه‌ریزی‌شده تعهد ارزی ("+p.currency+")",reference:p.sourceNumber,partyName:p.supplierName,foreignAmountMinor:Number(installment.amountMinor),currency:p.currency})}
-  const unplanned=Math.max(0,remaining-plannedMinor),amount=Math.round(unplanned*rate/100);
+  const plannedMinor=plan.reduce((n,x)=>{const next=n+Number(x.amountMinor||0);if(!Number.isSafeInteger(next))throw Error("جمع اقساط تعهد ارزی از محدوده عددی مجاز خارج است");return next},0);
+  for(const installment of plan){const amount=HolooForeignPayables.convertMinorAtRate(Number(installment.amountMinor),rate);if(amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:installment.dueDate,source:"قسط برنامه‌ریزی‌شده تعهد ارزی ("+p.currency+")",reference:p.sourceNumber,partyName:p.supplierName,foreignAmountMinor:Number(installment.amountMinor),currency:p.currency})}
+  const unplanned=Math.max(0,remaining-plannedMinor),amount=HolooForeignPayables.convertMinorAtRate(unplanned,rate);
   if(amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:p.dueDate,source:plannedMinor>0?"مانده برنامه‌ریزی‌نشده تعهد ارزی ("+p.currency+")":"تعهد ارزی محموله ("+p.currency+")",reference:p.sourceNumber,partyName:p.supplierName,foreignAmountMinor:unplanned,currency:p.currency});
  }
  for(const s of shipments){
   if(linkedShipmentIds.has(Number(s.id))||s.status==="تسویه‌شده")continue;
-  const amount=Math.round(Number(s.goods||0)*Number(s.fx||0));
-  if(Number.isSafeInteger(amount)&&amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:s.dueDate,source:"برآورد پرداخت محموله وارداتی",reference:s.number,partyName:s.supplierName,currency:s.currency,foreignAmountMinor:Math.round(Number(s.goods||0)*100)});
+  const foreignAmountMinor=Math.round(Number(s.goods||0)*100);
+  const amount=Number.isSafeInteger(foreignAmountMinor)&&foreignAmountMinor>0?HolooForeignPayables.convertMinorAtRate(foreignAmountMinor,Number(s.fx)):0;
+  if(Number.isSafeInteger(amount)&&amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:s.dueDate,source:"برآورد پرداخت محموله وارداتی",reference:s.number,partyName:s.supplierName,currency:s.currency,foreignAmountMinor});
  }
  const cashBalance=code=>{const account=accounts.find(x=>String(x.id)===code);if(!account)return 0;return Number(account.openingDebitRial||0)-Number(account.openingCreditRial||0)+voucherLines.filter(x=>String(x.accountCode)===code).reduce((n,x)=>n+Number(x.debitRial||0)-Number(x.creditRial||0),0)};
  const cashOnHandRial=cashBalance("1101"),bankBalanceRial=cashBalance("1102"),openingCashRial=cashOnHandRial+bankBalanceRial;
@@ -1111,7 +1112,7 @@ if(page==="foreignPayablePayments"){
  if(plan.fxGainRial>0)journal.push({accountCode:"4301",debitRial:0,creditRial:plan.fxGainRial,description:"سود تحقق‌یافته تسعیر بدهی "+payable.sourceNumber});
  if(plan.fxLossRial>0)journal.push({accountCode:"5501",debitRial:plan.fxLossRial,creditRial:0,description:"زیان تحقق‌یافته تسعیر بدهی "+payable.sourceNumber});
  if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند پرداخت ارزی تراز نیست");
- party.balance=Number(party.balance||0)+plan.bookedRial;
+ const nextPartyBalance=Number(party.balance||0)+plan.bookedRial;if(!Number.isSafeInteger(nextPartyBalance))throw Error("مانده حساب تأمین‌کننده از محدوده عددی مجاز خارج است");party.balance=nextPartyBalance;
  const movement={partyId:party.id,date:dateValue,debitRial:plan.bookedRial,creditRial:0,description:"پرداخت تعهد ارزی محموله "+payable.sourceNumber,referenceId:reference};
  const treasuryRecord={kind:"PAYMENT",method:d.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payable.currency,foreignAmountMinor:amountMinor,fxRateRialPerUnit:fxRate,date:dateValue,note:d.note||("تسویه تعهد "+payable.sourceNumber),reference,foreignPayableId:payable.id};
  await ensureBaseAccounts();
@@ -1183,7 +1184,7 @@ async function reverseForeignPayablePaymentPwa(id){
  const cashAccount=payment.method==="بانک"?"1102":"1101",journal=[{accountCode:cashAccount,debitRial:plan.settlementRial,creditRial:0,description:"برگشت وجه پرداخت ارزی "+payment.sourceNumber},{accountCode:"2101",debitRial:0,creditRial:plan.bookedRial,description:"برگشت بدهی ارزی "+payment.sourceNumber}];
  if(plan.fxGainRial>0)journal.push({accountCode:"4301",debitRial:plan.fxGainRial,creditRial:0,description:"برگشت سود تسعیر پرداخت "+payment.sourceNumber});
  if(plan.fxLossRial>0)journal.push({accountCode:"5501",debitRial:0,creditRial:plan.fxLossRial,description:"برگشت زیان تسعیر پرداخت "+payment.sourceNumber});
- party.balance=Number(party.balance||0)-plan.bookedRial;sourceShipment.status=plan.updated.status==="PAID"?"تسویه‌شده":"رسید انبار شده";sourceShipment.statusChangedAt=now;
+ const nextPartyBalance=Number(party.balance||0)-plan.bookedRial;if(!Number.isSafeInteger(nextPartyBalance))throw Error("مانده حساب تأمین‌کننده برای برگشت از محدوده عددی مجاز خارج است");party.balance=nextPartyBalance;sourceShipment.status=plan.updated.status==="PAID"?"تسویه‌شده":"رسید انبار شده";sourceShipment.statusChangedAt=now;
  const originalTreasuryUpdated={...originalTreasury,status:"REVERSED",reversedAt:now};
  const reversalTreasury={kind:"RECEIPT",method:payment.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payment.currency,foreignAmountMinor:payment.amountMinor,fxRateRialPerUnit:payment.fxRateRialPerUnit,date:now,note:"برگشت پرداخت ارزی "+payment.sourceNumber,reference,foreignPayableId:payable.id,reversalOf:payment.reference};
  const movement={partyId:party.id,date:now,debitRial:0,creditRial:plan.bookedRial,description:"برگشت پرداخت تعهد ارزی "+payment.sourceNumber,referenceId:reference};
@@ -1201,7 +1202,7 @@ async function exportBackup(prefix="holloo-backup"){
  const records={},counts={};
  for(const store of stores){records[store]=await all(store);counts[store]=records[store].length}
  const data={app:"HOLLOO PRO+ PWA",version:2,schemaVersion:DB_VERSION,exportedAt:new Date().toISOString(),storeNames:[...stores],counts,records};
- const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});if(blob.size>50*1024*1024)throw Error("حجم نسخه پشتیبان از سقف ۵۰ مگابایت بیشتر است؛ فایل صادر نشد");const url=URL.createObjectURL(blob),a=document.createElement("a");
  a.href=url;a.download=prefix+"-"+new Date().toISOString().slice(0,10)+".json";a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
  return {counts,total:Object.values(counts).reduce((sum,n)=>sum+n,0)};
 }
@@ -1224,6 +1225,7 @@ async function restoreBackup(file){
  if(data.version===2&&(!Array.isArray(data.storeNames)||stores.some(name=>!data.storeNames.includes(name)||!Object.prototype.hasOwnProperty.call(data.records,name))))throw Error("فایل پشتیبان نسخه جدید ناقص است");if(data.version===2&&(!Number.isSafeInteger(Number(data.schemaVersion))||Number(data.schemaVersion)<1||Number(data.schemaVersion)>DB_VERSION))throw Error("نسخه ساختار فایل پشتیبان با این برنامه سازگار نیست");
  if(!confirm("بازیابی "+total+" رکورد از فایل پشتیبان انجام شود؟ تمام اطلاعات فعلی جایگزین می‌شود. پیش از جایگزینی، یک نسخه پشتیبان خودکار از اطلاعات فعلی دانلود خواهد شد."))return;
  await exportBackup("holloo-before-restore");
+ if(!confirm("دانلود نسخه پشتیبان قبلی آغاز شد. فقط در صورتی ادامه دهید که فایل پشتیبان را در دستگاه ذخیره کرده‌اید؛ در غیر این صورت لغو کنید."))return;
  const tx=db.transaction(stores,"readwrite");
  for(const store of stores){const objectStore=tx.objectStore(store);objectStore.clear();for(const row of data.records[store]||[])objectStore.put(row)}
  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("بازیابی ناموفق بود"));tx.onabort=()=>reject(tx.error||new Error("بازیابی لغو شد"))});

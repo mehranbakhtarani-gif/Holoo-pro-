@@ -112,3 +112,9 @@ test("cash flow dashboard includes a seven-day due summary for near-term inflows
  const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
  assert.match(app,/sevenDayEnd/);assert.match(app,/nearDueInflows/);assert.match(app,/nearDueOutflows/);assert.match(app,/سررسیدهای ۷ روز آینده/);assert.match(app,/nearDueMarkup/);
 });
+
+ 
+test("cash flow dashboard reports first and worst projected shortfall dates and duration",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
+ assert.match(app,/firstShortfallDay/);assert.match(app,/worstShortfallDay/);assert.match(app,/shortfallDays/);assert.match(app,/اولین روز کسری نقد/);assert.match(app,/شدیدترین کسری نقد/);assert.match(app,/روزهای دارای کسری/);
+});

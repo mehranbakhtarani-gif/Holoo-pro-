@@ -12,7 +12,7 @@ test("calculates converted goods cost, landed cost and cost per kg", () => {
     freight: 1000000, customs: 400000, other: 100000
   });
   assert.deepEqual(result, {
-    goodsRial: 50000000, totalCost: 51500000, unitCost: 2060
+    goodsRial: 50000000, totalCost: 51500000, unitCost: 2060, ancillary: 1500000, breakdown: {freight:1000000,customs:400000,insurance:0,port:0,inland:0,broker:0,storage:0,bank:0,other:100000}
   });
 });
 
@@ -70,4 +70,11 @@ test("editing an allocation excludes its previous value from limits", () => {
     amount:500,currentAllocationId:10,
     allocations:[{id:10,treasuryId:7,invoiceNumber:"S-4",amount:500}]
   }),true);
+});
+
+test("adds itemized direct import costs to landed cost and returns breakdown",()=>{
+ const result=calculateImportShipmentCost({currency:"USD",fx:50000,goods:1000,weight:10000,freight:100000,customs:200000,insurance:30000,port:40000,inland:50000,broker:60000,storage:70000,bank:8000,other:12000});
+ assert.equal(result.ancillary,570000);assert.equal(result.totalCost,50570000);
+ assert.deepEqual(result.breakdown,{freight:100000,customs:200000,insurance:30000,port:40000,inland:50000,broker:60000,storage:70000,bank:8000,other:12000});
+ assert.throws(()=>calculateImportShipmentCost({currency:"USD",fx:1,goods:1,weight:1,storage:-1}));
 });

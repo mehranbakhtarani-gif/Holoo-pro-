@@ -174,7 +174,7 @@ async function receiveImportShipment(id){
  if(!shipment)throw Error("محموله پیدا نشد");
  if(shipment.receivedAt)throw Error("این محموله قبلاً رسید انبار شده است");
  if(shipment.status!=="رسیده")throw Error("ابتدا وضعیت محموله را به «رسیده» تغییر دهید");
- const [products,parties,warehouses,stockRows,lots]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock"),all("inventoryLots")]);
+ const [products,parties,warehouses,stockRows,lots,foreignPayables]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock"),all("inventoryLots"),all("foreignPayables")]);
  const product=products.find(x=>Number(x.id)===Number(shipment.productId)),party=parties.find(x=>Number(x.id)===Number(shipment.supplierId)),warehouse=warehouses.find(x=>Number(x.id)===Number(shipment.warehouseId));
  if(!product||!party||!warehouse)throw Error("کالا، تأمین‌کننده یا انبار مقصد محموله پیدا نشد");
  const costs=calculateImportShipmentCost({currency:shipment.currency,fx:shipment.fx,weight:shipment.weight,goods:shipment.goods,freight:shipment.freight,customs:shipment.customs,other:shipment.other});
@@ -186,6 +186,7 @@ async function receiveImportShipment(id){
  product.stock=nextStock;product.value=nextValue;product.avg=nextStock>0?nextValue/nextStock:0;
  const ancillary=costs.totalCost-costs.goodsRial,now=Date.now(),reference="IMPORT-RECEIPT:"+shipment.number;
  shipment.goodsRial=costs.goodsRial;shipment.totalCost=costs.totalCost;shipment.unitCost=costs.unitCost;shipment.status="رسید انبار شده";shipment.receivedAt=now;shipment.receivedVoucherNumber="IMP-"+now;
+ const linkedPayable=foreignPayables.find(x=>Number(x.sourceShipmentId)===Number(shipment.id));if(linkedPayable)linkedPayable.shipmentReceivedAt=now;
  const lot=planLotReceipt({productId:product.id,productName:product.name,warehouseId:warehouse.id,sourceType:"IMPORT_SHIPMENT",sourceId:shipment.id,sourceNumber:shipment.number,container:shipment.container,supplierId:party.id,supplierName:party.name,quantity:Number(shipment.weight),totalCost:costs.totalCost,receivedAt:now});
  if(lots.some(x=>x.id===lot.id))throw Error("برای این محموله قبلاً بچ موجودی ثبت شده است");
  party.balance=Number(party.balance||0)-costs.goodsRial;
@@ -195,7 +196,7 @@ async function receiveImportShipment(id){
  if(ancillary>0)journal.push({accountCode:"2102",debitRial:0,creditRial:ancillary,description:"هزینه‌های جانبی واردات پرداختنی"});
  if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند رسید محموله تراز نیست");
  await ensureBaseAccounts();
- await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["inventoryLots",lot],["parties",party],["partyLedger",ledger]],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal);
+ await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["inventoryLots",lot],...(linkedPayable?[["foreignPayables",linkedPayable]]:[]),["parties",party],["partyLedger",ledger]],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal);
  toast("محموله رسید انبار شد؛ بهای تمام‌شده به موجودی کالا اضافه شد");await render();
 }
 async function importBankStatementCsv(file,bankName){

@@ -895,10 +895,13 @@ if(page==="foreignPayablePayments"){
  if(item)throw Error("پرداخت ثبت‌شده قابل ویرایش نیست؛ برای اصلاح سند معکوس ثبت کنید");
  const payables=await all("foreignPayables"),payable=payables.find(x=>Number(x.id)===num("payableId"));
  if(!payable)throw Error("تعهد ارزی انتخاب‌شده پیدا نشد");
+ const payableSnapshot={...payable};
  const sourceShipment=(await all("importShipments")).find(x=>Number(x.id)===Number(payable.sourceShipmentId));
  if(!sourceShipment?.receivedAt)throw Error("پرداخت این تعهد در این نسخه پس از ثبت رسید انبار محموله مجاز است؛ پیش‌پرداخت تأمین‌کننده باید در گردش پیش‌پرداخت ثبت شود");
+ const sourceShipmentSnapshot={...sourceShipment};
  const parties=await all("parties"),party=parties.find(x=>Number(x.id)===Number(payable.supplierId));
  if(!party)throw Error("تأمین‌کننده تعهد ارزی پیدا نشد");
+ const partySnapshot={...party};
  const amountMinor=Math.round(num("amount")*100),fxRate=num("fxRateRialPerUnit"),dateValue=new Date(String(d.date||"")+"T12:00:00").getTime();
  if(!Number.isFinite(dateValue)||!["بانک","صندوق"].includes(d.method))throw Error("تاریخ یا روش پرداخت معتبر نیست");
  const reference="FXPAY:"+payable.id+":"+Date.now(),plan=HolooForeignPayables.planForeignPayablePayment({payable,amountMinor,fxRateRialPerUnit:fxRate,date:dateValue,reference,method:d.method,note:d.note});
@@ -910,7 +913,13 @@ if(page==="foreignPayablePayments"){
  const movement={partyId:party.id,date:dateValue,debitRial:plan.bookedRial,creditRial:0,description:"پرداخت تعهد ارزی محموله "+payable.sourceNumber,referenceId:reference};
  const treasuryRecord={kind:"PAYMENT",method:d.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payable.currency,foreignAmountMinor:amountMinor,fxRateRialPerUnit:fxRate,date:dateValue,note:d.note||("تسویه تعهد "+payable.sourceNumber),reference,foreignPayableId:payable.id};
  await ensureBaseAccounts();
- await postVoucherAtomic([["foreignPayables",plan.updated],["foreignPayablePayments",plan.payment],["treasury",treasuryRecord],["parties",party],["partyLedger",movement]],{number:"FXP-"+Date.now(),date:dateValue,description:"پرداخت "+fmtForeign(amountMinor/100)+" "+payable.currency+" بابت "+payable.sourceNumber,reference},journal);
+ await postVoucherAtomic([["foreignPayables",plan.updated],["foreignPayablePayments",plan.payment],["treasury",treasuryRecord],["parties",party],["partyLedger",movement]],{number:"FXP-"+Date.now(),date:dateValue,description:"پرداخت "+fmtForeign(amountMinor/100)+" "+payable.currency+" بابت "+payable.sourceNumber,reference},journal,[
+  {store:"foreignPayables",key:Number(payable.id),expected:payableSnapshot},
+  {store:"importShipments",key:Number(sourceShipment.id),expected:sourceShipmentSnapshot},
+  {store:"parties",key:Number(party.id),expected:partySnapshot},
+  {store:"foreignPayablePayments",match:{reference},expected:null},
+  {store:"treasury",match:{reference},expected:null}
+ ]);
  return
 }
 if(page==="approvals"){if(!d.referenceId||!d.stage)throw Error("شناسه سند و مرحله الزامی است");await put("approvals",{id:item?.id,referenceType:d.referenceType,referenceId:d.referenceId,stage:d.stage,approver:d.approver,status:d.status,note:d.note,updatedAt:Date.now()});return}
@@ -935,6 +944,7 @@ if(page==="checks"){
 if(page==="treasury"){
  const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),currency=String(d.currency||"IRR").toUpperCase(),enteredAmount=num("amount");
  if(!p||!Number.isFinite(enteredAmount)||enteredAmount<=0)throw Error("طرف حساب و مبلغ صحیح و مثبت الزامی است");
+ const partySnapshot={...p};
  let amount=0,foreignAmountMinor=null,fxRate=1;if(currency==="IRR"){if(!Number.isSafeInteger(enteredAmount))throw Error("مبلغ ریالی باید عدد صحیح باشد");amount=enteredAmount}else{fxRate=num("fxRateRialPerUnit");foreignAmountMinor=Math.round(enteredAmount*100);if(!["USD","CNY","EUR"].includes(currency)||!Number.isSafeInteger(foreignAmountMinor)||foreignAmountMinor<=0)throw Error("مبلغ ارزی معتبر نیست");amount=convertForeignAmountToRial({currency,amountMinor:foreignAmountMinor,fxRateRialPerUnit:fxRate}).rial}if(!Number.isSafeInteger(amount)||amount<=0)throw Error("معادل ریالی تراکنش معتبر نیست");
  if(!["صندوق","بانک"].includes(d.method))throw Error("روش دریافت یا پرداخت معتبر نیست");
  const kind=d.kind==="دریافت"?"RECEIPT":"PAYMENT",now=Date.now(),reference="TREASURY:"+now;
@@ -953,7 +963,10 @@ if(page==="treasury"){
  const movement={partyId:p.id,date:now,debitRial:kind==="PAYMENT"?amount:0,creditRial:kind==="RECEIPT"?amount:0,description:kind==="RECEIPT"?"دریافت وجه":"پرداخت وجه",referenceId:reference};
  const record={kind,method:d.method,partyId:p.id,partyName:p.name,amount,currency,foreignAmountMinor,fxRateRialPerUnit:fxRate,date:now,note:d.note,reference};
  await ensureBaseAccounts();
- await postVoucherAtomic([["parties",p],["treasury",record],["partyLedger",movement]],{number:"TV-"+now,date:now,description:(kind==="RECEIPT"?"دریافت ":"پرداخت ")+p.name,reference},journal);
+ await postVoucherAtomic([["parties",p],["treasury",record],["partyLedger",movement]],{number:"TV-"+now,date:now,description:(kind==="RECEIPT"?"دریافت ":"پرداخت ")+p.name,reference},journal,[
+  {store:"parties",key:Number(p.id),expected:partySnapshot},
+  {store:"treasury",match:{reference},expected:null}
+ ]);
 }}
 async function reverseForeignPayablePaymentPwa(id){
  const [payments,payables,parties,treasury]=await Promise.all([all("foreignPayablePayments"),all("foreignPayables"),all("parties"),all("treasury")]);
@@ -962,6 +975,7 @@ async function reverseForeignPayablePaymentPwa(id){
  const payable=payables.find(x=>Number(x.id)===Number(payment.payableId)),party=parties.find(x=>Number(x.id)===Number(payment.supplierId));
  const originalTreasury=treasury.find(x=>x.reference===payment.reference);
  if(!payable||!party||!originalTreasury)throw Error("تعهد، تأمین‌کننده یا گردش خزانه پرداخت پیدا نشد");
+ const paymentSnapshot={...payment},payableSnapshot={...payable},partySnapshot={...party},originalTreasurySnapshot={...originalTreasury};
  const now=Date.now(),plan=HolooForeignPayables.planForeignPayableReversal({payable,payment,date:now}),reference="FXPAY-REV:"+payment.id;
  if(treasury.some(x=>x.reference===reference))throw Error("سند برگشت این پرداخت قبلاً ثبت شده است");
  const cashAccount=payment.method==="بانک"?"1102":"1101",journal=[{accountCode:cashAccount,debitRial:plan.settlementRial,creditRial:0,description:"برگشت وجه پرداخت ارزی "+payment.sourceNumber},{accountCode:"2101",debitRial:0,creditRial:plan.bookedRial,description:"برگشت بدهی ارزی "+payment.sourceNumber}];
@@ -972,7 +986,13 @@ async function reverseForeignPayablePaymentPwa(id){
  const reversalTreasury={kind:"RECEIPT",method:payment.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payment.currency,foreignAmountMinor:payment.amountMinor,fxRateRialPerUnit:payment.fxRateRialPerUnit,date:now,note:"برگشت پرداخت ارزی "+payment.sourceNumber,reference,foreignPayableId:payable.id,reversalOf:payment.reference};
  const movement={partyId:party.id,date:now,debitRial:0,creditRial:plan.bookedRial,description:"برگشت پرداخت تعهد ارزی "+payment.sourceNumber,referenceId:reference};
  await ensureBaseAccounts();
- await postVoucherAtomic([["foreignPayables",plan.updated],["foreignPayablePayments",plan.reversedPayment],["treasury",originalTreasuryUpdated],["treasury",reversalTreasury],["parties",party],["partyLedger",movement]],{number:"FXPR-"+now,date:now,description:"برگشت پرداخت تعهد ارزی "+payment.sourceNumber,reference},journal);
+ await postVoucherAtomic([["foreignPayables",plan.updated],["foreignPayablePayments",plan.reversedPayment],["treasury",originalTreasuryUpdated],["treasury",reversalTreasury],["parties",party],["partyLedger",movement]],{number:"FXPR-"+now,date:now,description:"برگشت پرداخت تعهد ارزی "+payment.sourceNumber,reference},journal,[
+  {store:"foreignPayables",key:payable.id,expected:payableSnapshot},
+  {store:"foreignPayablePayments",key:payment.id,expected:paymentSnapshot},
+  {store:"parties",key:party.id,expected:partySnapshot},
+  {store:"treasury",key:originalTreasury.id,expected:originalTreasurySnapshot},
+  {store:"treasury",match:{reference},expected:null}
+ ]);
 }
 async function exportBackup(prefix="holloo-backup"){
  const records={},counts={};

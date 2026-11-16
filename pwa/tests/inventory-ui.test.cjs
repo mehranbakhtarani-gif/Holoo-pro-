@@ -38,6 +38,11 @@ test("products referenced by pending shipments, sales orders, lots or transfers 
 });
 
  
+test("product creation rejects non-finite and non-positive denier values",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/!Number\.isFinite\(v\.denier\)\|\|v\.denier<=0/);
+});
+
 test("inventory supports unique barcodes and minimum-stock alerts",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.ok(app.includes('["barcode","بارکد","text"]'));

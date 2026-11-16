@@ -366,6 +366,37 @@ async function createPartyWithOpeningBalance(record,plan){
 }
 function all(s){return new Promise((res,rej)=>{const q=db.transaction(s).objectStore(s).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 function put(s,v){if(globalThis.HolooOperationDate?.stampOperationRecord)v=globalThis.HolooOperationDate.stampOperationRecord({store:s,record:v,mode:operationDateMode,manualValue:operationManualDate});return new Promise((res,rej)=>{const t=db.transaction([s,"auditLog"],"readwrite"),q=t.objectStore(s).put(v);let id;q.onsuccess=()=>{id=q.result;t.objectStore("auditLog").add({action:"ثبت/ویرایش",store:s,recordId:id,at:Date.now(),summary:"ذخیره رکورد در "+s})};q.onerror=()=>{try{t.abort()}catch(_){}};t.oncomplete=()=>res(id);t.onerror=()=>rej(t.error||new Error("ذخیره‌سازی ناموفق بود"));t.onabort=()=>rej(t.error||new Error("ذخیره‌سازی لغو شد"))})}
+function putImportShipmentUnique(record){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["importShipments","foreignPayables","auditLog"],"readwrite"),shipmentStore=tx.objectStore("importShipments");
+  const shipmentsRead=shipmentStore.getAll(),payablesRead=tx.objectStore("foreignPayables").getAll();
+  let shipments=null,payables=null,savedId,conflict="",missing=false,received=false;
+  const validateAndWrite=()=>{
+   if(!shipments||!payables)return;
+   const current=record.id===undefined?null:shipments.find(row=>Number(row.id)===Number(record.id));
+   if(record.id!==undefined&&!current){missing=true;try{tx.abort()}catch(_){};return}
+   if(current?.receivedAt){received=true;try{tx.abort()}catch(_){};return}
+   if(shipments.some(row=>Number(row.id)!==Number(record.id)&&(row.number===record.number||String(row.container||"").trim().toLowerCase()===String(record.container||"").trim().toLowerCase())))conflict="شماره محموله یا کانتینر تکراری است";
+   const linked=current&&payables.find(row=>Number(row.sourceShipmentId)===Number(current.id));
+   if(linked){
+    const immutable=["supplierId","currency","fx","weight","goods","container","number","productId","warehouseId","freight","customs","insurance","port","inland","broker","storage","bank","other"];
+    const changed=immutable.some(key=>["supplierId","productId","warehouseId"].includes(key)?Number(record[key])!==Number(current[key]):["fx","weight","goods","freight","customs","insurance","port","inland","broker","storage","bank","other"].includes(key)?Number(record[key])!==Number(current[key]):String(record[key]??"")!==String(current[key]??""))||Number(record.dueDate||0)!==Number(current.dueDate||0);
+    if(changed)conflict="برای این محموله تعهد ارزی ثبت شده است؛ اطلاعات مالی، کالا و تأمین‌کننده قفل شده‌اند و فقط وضعیت حمل قابل تغییر است";
+   }
+   if(conflict){try{tx.abort()}catch(_){};return}
+   const write=shipmentStore.put(record);
+   write.onsuccess=()=>{savedId=write.result;tx.objectStore("auditLog").add({action:"ثبت/ویرایش",store:"importShipments",recordId:savedId,at:Date.now(),summary:"ذخیره کنترل‌شده محموله وارداتی"})};
+   write.onerror=()=>{try{tx.abort()}catch(_){}};
+  };
+  shipmentsRead.onsuccess=()=>{shipments=shipmentsRead.result||[];validateAndWrite()};
+  payablesRead.onsuccess=()=>{payables=payablesRead.result||[];validateAndWrite()};
+  shipmentsRead.onerror=()=>{try{tx.abort()}catch(_){}};
+  payablesRead.onerror=()=>{try{tx.abort()}catch(_){}};
+  tx.oncomplete=()=>resolve(savedId);
+  tx.onerror=()=>reject(tx.error||new Error("ذخیره محموله ناموفق بود"));
+  tx.onabort=()=>reject(missing?new Error("محموله برای ویرایش پیدا نشد"):received?new Error("محموله رسیدشده قابل ویرایش نیست؛ برای اصلاح سند برگشت ثبت کنید"):new Error(conflict||tx.error?.message||"ذخیره محموله لغو شد"));
+ });
+}
 function putProductUnique(record){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(["products","auditLog"],"readwrite"),store=tx.objectStore("products");
@@ -1239,9 +1270,7 @@ if(page==="warehouses"){const name=String(d.name||"").trim();if(!name)throw Erro
  const number=String(d.number||"").trim(),container=String(d.container||"").trim();
  if(!number||!container)throw Error("شماره محموله و کانتینر الزامی است");
  const costs=calculateImportShipmentCost({currency:d.currency,fx:num("fx"),weight:num("weight"),goods:num("goods"),freight:num("freight"),customs:num("customs"),insurance:num("insurance"),port:num("port"),inland:num("inland"),broker:num("broker"),storage:num("storage"),bank:num("bank"),other:num("other")});
- const old=await all("importShipments");
- if(old.some(x=>(x.number===number||String(x.container||"").toLowerCase()===container.toLowerCase())&&x.id!==item?.id))throw Error("شماره محموله یا کانتینر تکراری است");
- await put("importShipments",{id:item?.id,customFields:(()=>{try{return {...(item?.customFields||{}),...JSON.parse(d.__entityCustomFields||"{}")}}catch(_){return item?.customFields||{}}})(),number,container,supplierId:p.id,supplierName:p.name,productId:product.id,productName:product.name,warehouseId:warehouse.id,warehouseName:warehouse.name,currency:d.currency,fx:num("fx"),weight:num("weight"),goods:num("goods"),freight:num("freight"),customs:num("customs"),insurance:num("insurance"),port:num("port"),inland:num("inland"),broker:num("broker"),storage:num("storage"),bank:num("bank"),other:num("other"),goodsRial:costs.goodsRial,totalCost:costs.totalCost,unitCost:costs.unitCost,dueDate:d.dueDate?new Date(d.dueDate+"T12:00:00").getTime():null,status:d.status||"سفارش",statusChangedAt:item?.status!==d.status?Date.now():(item?.statusChangedAt||null),receivedAt:null,updatedAt:Date.now()});return
+ const shipmentRecord={id:item?.id,customFields:(()=>{try{return {...(item?.customFields||{}),...JSON.parse(d.__entityCustomFields||"{}")}}catch(_){return item?.customFields||{}}})(),number,container,supplierId:p.id,supplierName:p.name,productId:product.id,productName:product.name,warehouseId:warehouse.id,warehouseName:warehouse.name,currency:d.currency,fx:num("fx"),weight:num("weight"),goods:num("goods"),freight:num("freight"),customs:num("customs"),insurance:num("insurance"),port:num("port"),inland:num("inland"),broker:num("broker"),storage:num("storage"),bank:num("bank"),other:num("other"),goodsRial:costs.goodsRial,totalCost:costs.totalCost,unitCost:costs.unitCost,dueDate:d.dueDate?new Date(d.dueDate+"T12:00:00").getTime():null,status:d.status||"سفارش",statusChangedAt:item?.status!==d.status?Date.now():(item?.statusChangedAt||null),receivedAt:null,updatedAt:Date.now()};await putImportShipmentUnique(shipmentRecord);return
 }
 if(page==="foreignPayables"){
  if(item)throw Error("تعهد ارزی ثبت‌شده قابل ویرایش نیست؛ برای اصلاح، سند اصلاحی ثبت کنید");

@@ -20,3 +20,11 @@ test("cheque bounce and cancellation retain explicit event timestamps",()=>{
  assert.match(app,/if\(next==="BOUNCED"\)c\.bouncedAt=c\.statusChangedAt/);
  assert.match(app,/if\(next==="CANCELLED"\)c\.cancelledAt=c\.statusChangedAt/);
 });
+
+ 
+test("cleared cheques can be reversed with ledger and treasury corrections",()=>{
+ assert.match(app,/async function reverseClearedCheckPwa/);
+ assert.match(app,/data-check-reverse/);
+ assert.match(app,/check\.bouncedAfterClearing=true/);
+ assert.match(app,/treasuryAllocations",match:\{treasuryId:Number\(original\.id\)\},expected:null/);
+});

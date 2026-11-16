@@ -279,7 +279,7 @@ async function receiveImportShipment(id){
   {store:"importShipments",key:Number(shipment.id),expected:expectedShipmentState},
   {store:"products",key:Number(product.id),expected:expectedProductState},
   {store:"parties",key:Number(party.id),expected:expectedPartyState},
-  {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:expectedWarehouseRow?{stock:expectedWarehouseRow.stock,value:expectedWarehouseRow.value}:null},
+  {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:expectedWarehouseRow?{...expectedWarehouseRow}:null},
   {store:"inventoryLots",match:{sourceType:"IMPORT_SHIPMENT",sourceId:Number(shipment.id)},expected:null},
   {store:"foreignPayables",match:{sourceShipmentId:Number(shipment.id)},expected:expectedPayableState}
  ]);

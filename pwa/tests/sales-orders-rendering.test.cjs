@@ -28,3 +28,10 @@ test("sales order search includes item names, amounts, currency and dates",()=>{
  assert.match(app,/\.\.\.\(Array\.isArray\(x\.lines\)\?x\.lines\.flatMap\(line=>\[line\.productName,line\.productId,line\.qty\]\):\[\]\)/);
  assert.match(app,/x\.currency,x\.invoiceNumber,date\(x\.createdAt\),date\(x\.validUntil\),x\.total,fmt\(x\.total\|\|0\)/);
 });
+
+ 
+test("sales-order print labels local totals with the selected display unit",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/تخفیف '\+moneyUnit\(\)/);
+ assert.match(app,/money\(order\.total\|\|0\)\+' '\+moneyUnit\(\)/);
+});

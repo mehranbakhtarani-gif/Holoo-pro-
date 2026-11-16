@@ -47,12 +47,16 @@ test("rejects aggregate weight overflow and non-finite unit costs",()=>{
   {number:"TINY",weight:Number.MIN_VALUE,goodsRial:1,totalCost:1}
  ]}));
 });
-test("rejects negative or unsafe foreign currency amounts",()=>{
+test("accepts fractional foreign currency values but rejects negative and non-finite amounts",()=>{
+ const report=summarizeImportShipments({shipments:[
+  {number:"DECIMAL",weight:1,goods:12.5,goodsRial:100,totalCost:100,currency:"USD"}
+ ]});
+ assert.equal(report.foreignGoods.USD,12.5);
  assert.throws(()=>summarizeImportShipments({shipments:[
   {number:"NEG",weight:1,goods:-1,goodsRial:1,totalCost:1,currency:"USD"}
  ]}));
  assert.throws(()=>summarizeImportShipments({shipments:[
-  {number:"UNSAFE",weight:1,goods:Number.MAX_SAFE_INTEGER+1,goodsRial:1,totalCost:1,currency:"USD"}
+  {number:"INF",weight:1,goods:Number.POSITIVE_INFINITY,goodsRial:1,totalCost:1,currency:"USD"}
  ]}));
 });
 

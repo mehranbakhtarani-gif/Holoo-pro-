@@ -88,6 +88,6 @@ function summarizeForeignPayablesForecast(input){
  }
  return result;
 }
-const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable,summarizeForeignPayablesForecast};
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable,summarizeForeignPayablesForecast,convertMinorAtRate};
 if(typeof module!=="undefined")module.exports=ForeignPayables;
 if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

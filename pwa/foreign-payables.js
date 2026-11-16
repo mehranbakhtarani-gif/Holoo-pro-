@@ -46,7 +46,8 @@ function planForeignPayableInstallment(input){
  const planned=existing.reduce((n,x)=>n+toSafeMinor(x.amountMinor,"مبلغ قسط برنامه‌ریزی‌شده"),0);
  if(planned+amountMinor>outstanding)throw new Error("جمع اقساط برنامه‌ریزی‌شده از مانده تعهد بیشتر است");
  const installment={amountMinor,dueDate,note:String(input.note||""),createdAt:Number(input.createdAt||Date.now())};
- return {...payable,paymentPlan:[...existing,installment],paymentPlanUpdatedAt:Number(input.createdAt||Date.now())};
+ const basePaid=existing.length?Number(payable.paymentPlanBasePaidMinor??payable.paidMinor??0):Number(payable.paidMinor||0);
+ return {...payable,paymentPlan:[...existing,installment],paymentPlanBasePaidMinor:basePaid,paymentPlanUpdatedAt:Number(input.createdAt||Date.now())};
 }
 function getRemainingForeignPayableInstallments(payable){
  const plan=Array.isArray(payable?.paymentPlan)?payable.paymentPlan:[],baseline=Number(payable?.paymentPlanBasePaidMinor??payable?.paidMinor??0);

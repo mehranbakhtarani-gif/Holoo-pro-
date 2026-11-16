@@ -748,6 +748,50 @@ class AccountingRepository(private val db: AppDatabase) {
         }
     }
 
+    /**
+     * Allocates one receipt/payment to several invoices in a single Room transaction.
+     * Current invoice and receipt balances are re-read inside the transaction to avoid stale UI totals.
+     */
+    suspend fun allocateTreasuryToInvoices(
+        treasuryEntryId: Long,
+        allocations: List<InvoiceSettlementAllocationInput>
+    ) {
+        db.withTransaction {
+            val entry = db.treasuryDao().byId(treasuryEntryId)
+                ?: error("رسید دریافت/پرداخت پیدا نشد")
+            val alreadyAllocated = db.treasuryDao().allocatedAmount(treasuryEntryId)
+            val capacities = allocations.map { request ->
+                val invoice = db.invoiceDao().getById(request.invoiceId)
+                    ?: error("فاکتور ${request.invoiceId} پیدا نشد")
+                val settled = db.invoiceDao().settledForInvoice(invoice.id)
+                val returned = db.invoiceReturnDao().returnedForInvoice(invoice.id)
+                val remaining = Math.subtractExact(Math.subtractExact(invoice.totalRial, settled), returned)
+                InvoiceSettlementCapacity(
+                    invoiceId = invoice.id,
+                    partyId = invoice.partyId,
+                    invoiceKind = invoice.kind,
+                    status = invoice.status,
+                    remainingRial = remaining
+                )
+            }
+            InvoiceSettlementAllocator.validate(
+                treasuryKind = entry.kind,
+                treasuryPartyId = entry.partyId,
+                treasuryAmountRial = entry.amountRial,
+                alreadyAllocatedRial = alreadyAllocated,
+                capacities = capacities,
+                requests = allocations
+            )
+            db.invoiceSettlementDao().insertAll(allocations.map { request ->
+                InvoiceSettlementEntity(
+                    invoiceId = request.invoiceId,
+                    treasuryEntryId = treasuryEntryId,
+                    amountRial = request.amountRial
+                )
+            })
+        }
+    }
+
     suspend fun removeInvoiceSettlement(settlementId: Long) {
         db.withTransaction {
             val settlement = db.invoiceSettlementDao().byId(settlementId)

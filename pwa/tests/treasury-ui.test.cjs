@@ -23,3 +23,11 @@ test("standalone treasury entries expose a guarded reversal action",()=>{
  assert.match(app,/treasuryAllocations",match:\{treasuryId:Number\(original\.id\)\},expected:null/);
  assert.match(app,/party\.balance=Number\(party\.balance\|\|0\)\+\(original\.kind==="RECEIPT"\?/);
 });
+
+test("treasury ledger exports currency, FX, Rial amount, reference and reversal status",()=>{
+ assert.match(app,/id="exportTreasuryCsv"/);
+ assert.match(app,/holloo-treasury\.csv/);
+ assert.match(app,/fxRateRialPerUnit/);
+ assert.match(app,/مبلغ ارزی/);
+ assert.match(app,/برگشت‌شده/);
+});

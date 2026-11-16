@@ -956,8 +956,9 @@ class AccountingRepository(private val db: AppDatabase) {
                 }
                 val key = BankStatementDuplicateKey.from(normalizedBank, row)
                 // Track file-local duplicates explicitly; do not depend on database read visibility.
-                val duplicateInFile = !seenInFile.add(key)
-                val duplicateInDatabase = db.bankStatementDao().countDuplicate(
+                val hasReliableIdentity = key.bankReference.isNotBlank() || key.description.isNotBlank()
+                val duplicateInFile = hasReliableIdentity && !seenInFile.add(key)
+                val duplicateInDatabase = hasReliableIdentity && db.bankStatementDao().countDuplicate(
                     key.bankName, key.transactionDateEpoch, key.signedAmountRial, key.bankReference, key.description
                 ) > 0
                 if (duplicateInFile || duplicateInDatabase) {
@@ -1007,12 +1008,13 @@ class AccountingRepository(private val db: AppDatabase) {
         db.withTransaction {
             val normalizedBank = bankName.trim()
             val normalizedReference = bankReference.trim()
+            val hasReliableIdentity = normalizedReference.isNotBlank() || description.isNotBlank()
             val normalizedDescription = description.trim().ifBlank { "کارمزد بانکی" }
             val feeKey = BankStatementDuplicateKey.from(
                 normalizedBank,
                 BankStatementCsvRow(transactionDateEpoch, Math.negateExact(amountRial), normalizedReference, normalizedDescription)
             )
-            require(db.bankStatementDao().countDuplicate(
+            if (hasReliableIdentity) require(db.bankStatementDao().countDuplicate(
                 feeKey.bankName, feeKey.transactionDateEpoch, feeKey.signedAmountRial,
                 feeKey.bankReference, feeKey.description
             ) == 0) { "کارمزد بانکی مشابه قبلاً ثبت شده است" }

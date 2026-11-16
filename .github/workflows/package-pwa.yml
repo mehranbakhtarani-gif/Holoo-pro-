@@ -1,4 +1,5 @@
 name: Package HOLLOO PRO+ PWA
+# Includes syntax and regression checks for accounting and invoice aging modules.
 on:
   push:
     branches: [main]

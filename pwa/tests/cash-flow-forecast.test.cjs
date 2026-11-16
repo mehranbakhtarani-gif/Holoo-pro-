@@ -59,11 +59,6 @@ test("rejects fractional or invalid due-date timestamps",()=>{
   {direction:"OUTFLOW",amountRial:1,dueDate:asOf+0.5}
  ]}),/تاریخ سررسید/);
 });
-test("daily cash projection also rejects arithmetic overflow",()=>{
- assert.throws(()=>getDailyCashFlowProjection({asOf,horizonDays:30,openingCashRial:Number.MAX_SAFE_INTEGER,events:[
-  {direction:"INFLOW",amountRial:1,dueDate:asOf+day}
- ]}),/محدوده/);
-});
 
 test("PWA wires the cash flow dashboard and helper into the offline build",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");

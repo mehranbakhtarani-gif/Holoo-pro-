@@ -1,4 +1,4 @@
-const CACHE="holloo-pwa-v67-fx-balance-reconciliation";
+const CACHE="holloo-pwa-v68-fx-balance-traceability";
 const ASSETS=["./","./index.html","./style.css","./app.js","./import-cost.js","./settlement.js","./warehouse-stock.js","./warehouse-transfer.js","./foreign-currency.js","./accounting-reports.js","./receivables-aging.js","./import-shipment-analytics.js","./inventory-lots.js","./foreign-payables.js","./cash-flow-forecast.js","./import-capital-planner.js","./operation-date.js","./invoice-costing.js","./bank-reconciliation.js","./manifest.webmanifest","./icon.svg"];
 const NETWORK_FIRST=/\/(?:index\.html|app\.js|import-cost\.js|settlement\.js|warehouse-stock\.js|warehouse-transfer\.js|foreign-currency\.js|accounting-reports\.js|receivables-aging\.js|import-shipment-analytics\.js|inventory-lots\.js|foreign-payables\.js|cash-flow-forecast\.js|import-capital-planner\.js|operation-date\.js|invoice-costing\.js|bank-reconciliation\.js|style\.css|manifest\.webmanifest|sw\.js)(?:\?.*)?$/;
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));

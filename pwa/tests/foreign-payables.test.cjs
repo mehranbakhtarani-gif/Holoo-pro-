@@ -201,3 +201,11 @@ test("foreign payable creation revalidates its source shipment snapshot in the s
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/store:"importShipments",key:Number\(shipment\.id\),expected:\{\.\.\.shipment\}/);
 });
+
+ 
+test("foreign payable installment plan add and clear operations use stale-snapshot guards",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.ok(app.includes('const snapshot={...payable},updated=HolooForeignPayables.planForeignPayableInstallment'));
+ assert.ok(app.includes('const snapshot={...payable},updated=HolooForeignPayables.clearForeignPayableInstallmentPlan'));
+ assert.ok(app.includes('store:"foreignPayables",key:Number(payable.id),expected:snapshot'));
+});

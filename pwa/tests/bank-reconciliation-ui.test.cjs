@@ -21,3 +21,7 @@ test("bank reconciliation exports statement lines and matched treasury trace to 
  assert.match(app,/شناسه گردش خزانه/);
  assert.match(app,/line\.matchedTreasuryId/);
 });
+
+test("bank reconciliation export loads its own line records before generating the file",()=>{
+ assert.match(app,/exportBankReconciliation\.onclick=async\(\)=>\{try\{const lines=await all\("bankStatementLines"\)/);
+});

@@ -11,6 +11,8 @@ test("warehouse transfers use one guarded transaction for stock rows and lot sna
  const end=app.indexOf('\nif(page==="warehouses")',start);
  const body=app.slice(start,end);
  assert.ok(body.includes("putManyGuarded("));
+ assert.ok(body.includes('store:"warehouses",key:Number(source.id)'));
+ assert.ok(body.includes('store:"warehouses",key:Number(destination.id)'));
  assert.ok(body.includes('store:"warehouseStock"'));
  assert.ok(body.includes('store:"inventoryLots"'));
  assert.ok(body.includes('store:"warehouseTransfers",match:{number:transferNumber},expected:null'));

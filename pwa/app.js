@@ -30,10 +30,20 @@ async function reversePwaInvoice(number){
    stockRow.stock=warehouseStock+totalQty;stockRow.value=warehouseValue+cost;product.stock=productStock+totalQty;product.value=productValue+cost;valueChange=cost;
   }else{
    if(warehouseStock+1e-9<totalQty||productStock+1e-9<totalQty)throw Error("موجودی برای برگشت خرید در انبار یا کل کالا کافی نیست");
-   const cost=totalQty>=warehouseStock-1e-9?warehouseValue:Math.round(totalQty*(warehouseValue/warehouseStock));
-   const originalCost=Number(line.lineTotal||0);
-   if(!Number.isSafeInteger(cost)||cost<0||!Number.isSafeInteger(originalCost)||cost!==originalCost)throw Error("میانگین بهای موجودی با بهای فاکتور خرید متفاوت شده است؛ برگشت خودکار امن نیست");
-   if(productValue<cost)throw Error("ارزش کل موجودی برای برگشت خرید کافی نیست");
+   let cost=0;
+   if(line.inboundLotId){
+    const sourceLot=inventoryLots.find(x=>String(x.id)===String(line.inboundLotId));
+    if(!sourceLot)throw Error("بچ خرید برای برگشت پیدا نشد");
+    if(Number(sourceLot.remainingQty)+1e-6<Number(sourceLot.originalQty))throw Error("بخشی از این بچ قبلاً فروخته یا منتقل شده است؛ برگشت فاکتور خرید امن نیست");
+    cost=Number(sourceLot.remainingValue);
+    if(!Number.isSafeInteger(cost)||cost!==Number(line.lineTotal||0))throw Error("بهای بچ خرید با فاکتور یکسان نیست");
+    lotUpdates.push({...sourceLot,remainingQty:0,remainingValue:0,status:"REVERSED",reversedAt:Date.now()});
+   }else{
+    cost=totalQty>=warehouseStock-1e-9?warehouseValue:Math.round(totalQty*(warehouseValue/warehouseStock));
+    const originalCost=Number(line.lineTotal||0);
+    if(!Number.isSafeInteger(cost)||cost<0||!Number.isSafeInteger(originalCost)||cost!==originalCost)throw Error("میانگین بهای موجودی با بهای فاکتور خرید متفاوت شده است؛ برگشت خودکار امن نیست");
+   }
+   if(!Number.isSafeInteger(cost)||cost<0||warehouseValue<cost||productValue<cost)throw Error("ارزش موجودی برای برگشت خرید کافی نیست");
    stockRow.stock=totalQty>=warehouseStock-1e-9?0:warehouseStock-totalQty;stockRow.value=warehouseValue-cost;
    product.stock=productStock-totalQty;product.value=productValue-cost;valueChange=cost;
   }

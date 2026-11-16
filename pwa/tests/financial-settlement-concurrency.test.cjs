@@ -39,7 +39,7 @@ test("foreign payable payment reversal guards the payment, payable, party and tr
  assert.ok(start>=0&&end>start);
  const body=app.slice(start,end);
  for(const expected of [
-  "const paymentSnapshot={...payment},payableSnapshot={...payable},partySnapshot={...party},originalTreasurySnapshot={...originalTreasury}",
+  "const paymentSnapshot={...payment},payableSnapshot={...payable},partySnapshot={...party},sourceShipmentSnapshot={...sourceShipment},originalTreasurySnapshot={...originalTreasury}",
   'store:"foreignPayables",key:payable.id,expected:payableSnapshot',
   'store:"foreignPayablePayments",key:payment.id,expected:paymentSnapshot',
   'store:"parties",key:party.id,expected:partySnapshot',

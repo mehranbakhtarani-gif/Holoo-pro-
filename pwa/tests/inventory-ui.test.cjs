@@ -51,7 +51,7 @@ test("inventory supports unique barcodes and minimum-stock alerts",()=>{
  
 test("party edits preserve opening balance and cannot reclassify parties with history",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/balance:item\?Number\(item\.balance\|\|0\):num\("balance"\)/);
+ assert.match(app,/const balance=item\?Number\(item\.balance\|\|0\):num\("balance"\)/);
  assert.match(app,/balanceField\.readOnly=true/);
  assert.match(app,/hasHistory&&kind!==item\.kind/);
 });

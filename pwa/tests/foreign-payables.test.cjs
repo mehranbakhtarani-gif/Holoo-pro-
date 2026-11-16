@@ -83,3 +83,27 @@ test("reversing a payment restores its scheduled installment allocation",()=>{
  const reversed=planForeignPayableReversal({payable:posted.updated,payment:posted.payment,date:4000});
  assert.equal(getRemainingForeignPayableInstallments(reversed.updated)[0].amountMinor,45000);
 });
+
+test("reconciles foreign payable payment against treasury, supplier ledger and balanced journal",()=>{
+ const {reconcileForeignPayablePayments}=require("../foreign-payables.js");
+ const payment={id:9,payableId:12,supplierId:2,sourceNumber:"IMP-007",reference:"FXPAY:12:900",status:"POSTED",amountMinor:25000,bookedRial:150000000,settlementRial:137500000,fxGainRial:12500000,fxLossRial:0};
+ const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:payment.settlementRial,foreignAmountMinor:payment.amountMinor,foreignPayableId:payment.payableId}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:payment.bookedRial,creditRial:0}],vouchers:[{id:31,reference:payment.reference}],voucherLines:[{voucherId:31,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:31,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:31,accountCode:"4301",debitRial:0,creditRial:12500000}]};
+ const result=reconcileForeignPayablePayments(data);
+ assert.deepEqual({total:result.total,matched:result.matched,withIssues:result.withIssues},{total:1,matched:1,withIssues:0});
+ const broken=reconcileForeignPayablePayments({...data,treasury:[]});
+ assert.equal(broken.withIssues,1);assert.match(broken.rows[0].issues.join(" "),/خزانه پیدا نشد/);
+});
+test("detects duplicate and mismatched foreign payment accounting records",()=>{
+ const {reconcileForeignPayablePayments}=require("../foreign-payables.js");
+ const payment={id:10,payableId:12,supplierId:2,sourceNumber:"IMP-008",reference:"FXPAY:12:901",status:"POSTED",amountMinor:10000,bookedRial:60000000,settlementRial:65000000,fxGainRial:0,fxLossRial:5000000};
+ const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:1,foreignAmountMinor:payment.amountMinor,foreignPayableId:payment.payableId},{reference:payment.reference,kind:"PAYMENT",amount:1,foreignAmountMinor:payment.amountMinor,foreignPayableId:payment.payableId}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:payment.bookedRial,creditRial:0}],vouchers:[{id:32,reference:payment.reference}],voucherLines:[{voucherId:32,accountCode:"2101",debitRial:60000000,creditRial:0},{voucherId:32,accountCode:"1102",debitRial:0,creditRial:65000000},{voucherId:32,accountCode:"5501",debitRial:5000000,creditRial:0}]};
+ const result=reconcileForeignPayablePayments(data);
+ assert.equal(result.withIssues,1);assert.match(result.rows[0].issues.join(" "),/تکراری/);assert.match(result.rows[0].issues.join(" "),/مغایر/);
+});
+test("reconciles reversed foreign payable payments including reversal voucher and cash receipt",()=>{
+ const {reconcileForeignPayablePayments}=require("../foreign-payables.js");
+ const payment={id:11,payableId:12,supplierId:2,sourceNumber:"IMP-009",reference:"FXPAY:12:902",status:"REVERSED",amountMinor:25000,bookedRial:150000000,settlementRial:137500000,fxGainRial:12500000,fxLossRial:0};
+ const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,status:"REVERSED"},{reference:"FXPAY-REV:11",kind:"RECEIPT",amount:137500000}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:150000000,creditRial:0},{referenceId:"FXPAY-REV:11",partyId:2,debitRial:0,creditRial:150000000}],vouchers:[{id:33,reference:payment.reference},{id:34,reference:"FXPAY-REV:11"}],voucherLines:[{voucherId:33,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:33,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:33,accountCode:"4301",debitRial:0,creditRial:12500000},{voucherId:34,accountCode:"1102",debitRial:137500000,creditRial:0},{voucherId:34,accountCode:"4301",debitRial:12500000,creditRial:0},{voucherId:34,accountCode:"2101",debitRial:0,creditRial:150000000}]};
+ const result=reconcileForeignPayablePayments(data);
+ assert.equal(result.matched,1);assert.equal(result.withIssues,0);
+});

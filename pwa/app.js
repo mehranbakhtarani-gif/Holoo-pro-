@@ -155,7 +155,7 @@ function postVoucherAtomic(entries,voucher,lines,guards=[]){
    const check=tx.objectStore("vouchers").getAll();
    check.onsuccess=()=>{
     if(voucher.reference&&check.result.some(v=>v.reference===voucher.reference)){duplicateReference=true;try{tx.abort()}catch(_){}return}
-    const closeMatch=/^YEAR_END_CLOSE:(\\d+):(\\d+)$/.exec(String(voucher.reference||""));
+    const closeMatch=/^YEAR_END_CLOSE:(\d+):(\d+)$/.exec(String(voucher.reference||""));
     if(closeMatch){
      const from=Number(closeMatch[1]),to=Number(closeMatch[2]);
      const overlap=globalThis.HolooAccountingReports?.hasOverlappingPeriodClose;

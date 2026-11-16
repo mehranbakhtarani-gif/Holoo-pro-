@@ -38,7 +38,7 @@ test("invoice conversion carries the approved order ID and exact commercial term
 test("sales order page exposes edit, approval, cancellation and invoice actions",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/if\(currentPage==="salesOrders"\)/);
- assert.match(app,/data-edit="salesOrders:/);
+ assert.match(app,/actButtons\("salesOrders",x\.id\)/);
  assert.match(app,/data-order-action="CANCELLED"/);
  assert.match(app,/bindSalesOrders\(\)/);
 });

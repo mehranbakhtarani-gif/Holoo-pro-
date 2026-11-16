@@ -107,8 +107,8 @@ function reconcileForeignPayablePayments(input){
   else if(Number(originalLedger[0].partyId)!==Number(payment.supplierId)||Number(originalLedger[0].debitRial)!==Number(payment.bookedRial)||Number(originalLedger[0].creditRial||0)!==0)issues.push("گردش طرف حساب مغایر است");
   if(originalVouchers.length!==1)issues.push(originalVouchers.length?"سند حسابداری تکراری":"سند حسابداری پیدا نشد");
   else{
-   const debit=lines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=lines.reduce((n,x)=>n+Number(x.creditRial||0),0);
-   const liability=lines.filter(x=>String(x.accountCode)==="2101").reduce((n,x)=>n+Number(x.debitRial||0)-Number(x.creditRial||0),0);
+   const debit=lines.reduce((n,x)=>addSafe(n,toSafeMinor(x.debitRial||0,"بدهکار سند پرداخت"),"جمع بدهکار سند"),0),credit=lines.reduce((n,x)=>addSafe(n,toSafeMinor(x.creditRial||0,"بستانکار سند پرداخت"),"جمع بستانکار سند"),0);
+   const liability=lines.filter(x=>String(x.accountCode)==="2101").reduce((n,x)=>subtractSafe(addSafe(n,toSafeMinor(x.debitRial||0,"بدهکار حساب تأمین‌کننده"),"جمع بدهکار حساب تأمین‌کننده"),toSafeMinor(x.creditRial||0,"بستانکار حساب تأمین‌کننده"),"مانده حساب تأمین‌کننده"),0);
    if(!lines.length||debit!==credit||liability!==Number(payment.bookedRial))issues.push("سند حسابداری نامتوازن یا بدهی آن مغایر است");
   }
   if(!active){
@@ -118,7 +118,7 @@ function reconcileForeignPayablePayments(input){
    if(reversalLedger.length!==1)issues.push(reversalLedger.length?"گردش برگشت طرف حساب تکراری":"گردش برگشت طرف حساب پیدا نشد");
    else if(Number(reversalLedger[0].partyId)!==Number(payment.supplierId)||Number(reversalLedger[0].creditRial)!==Number(payment.bookedRial))issues.push("گردش برگشت طرف حساب مغایر است");
    if(reversalVouchers.length!==1)issues.push(reversalVouchers.length?"سند برگشت تکراری":"سند برگشت حسابداری پیدا نشد");
-   else{const debit=reversalLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=reversalLines.reduce((n,x)=>n+Number(x.creditRial||0),0);if(!reversalLines.length||debit!==credit)issues.push("سند برگشت نامتوازن است")}
+   else{const debit=reversalLines.reduce((n,x)=>addSafe(n,toSafeMinor(x.debitRial||0,"بدهکار سند برگشت"),"جمع بدهکار سند برگشت"),0),credit=reversalLines.reduce((n,x)=>addSafe(n,toSafeMinor(x.creditRial||0,"بستانکار سند برگشت"),"جمع بستانکار سند برگشت"),0);if(!reversalLines.length||debit!==credit)issues.push("سند برگشت نامتوازن است")}
   }else if(reversalTreasury.length||reversalLedger.length||reversalVouchers.length)issues.push("برای پرداخت فعال، سند برگشت غیرمنتظره وجود دارد");
   return {paymentId:payment.id,reference,sourceNumber:payment.sourceNumber,status:active?"فعال":"برگشت‌شده",ok:issues.length===0,issues};
  });
@@ -135,7 +135,7 @@ function reconcileForeignPayableBalances(input){
   const currency=String(payable.currency||"");if(!group.currencies[currency])group.currencies[currency]={outstandingMinor:0,bookValueRial:0,payableCount:0};
   const bucket=group.currencies[currency],remaining=Number(payable.amountMinor)-Number(payable.paidMinor||0),bookValue=Number(payable.bookedRial)-Number(payable.bookedRialPaid||0);
   if(!Number.isSafeInteger(remaining)||remaining<0||!Number.isSafeInteger(bookValue)||bookValue<0)throw new Error("مانده تعهد ارزی برای تطبیق معتبر نیست");
-  bucket.outstandingMinor+=remaining;bucket.bookValueRial+=bookValue;bucket.payableCount++;
+  bucket.outstandingMinor=addSafe(bucket.outstandingMinor,remaining,"جمع مانده ارزی تأمین‌کننده");bucket.bookValueRial=addSafe(bucket.bookValueRial,bookValue,"جمع ارزش دفتری تأمین‌کننده");bucket.payableCount++;
   const receiptReference="IMPORT-RECEIPT:"+String(payable.sourceNumber||"");
   const payablePayments=payments.filter(x=>Number(x.payableId)===Number(payable.id));
   group.payables.push({payableId:payable.id,sourceNumber:payable.sourceNumber,currency,remainingMinor:remaining,bookValueRial:bookValue});
@@ -149,12 +149,12 @@ function reconcileForeignPayableBalances(input){
  }
  const rows=[...groups.values()].map(group=>{
   const refs=group.references,ledgerRows=partyLedger.filter(x=>refs.has(String(x.referenceId||""))&&Number(x.partyId)===group.supplierId);
-  const partyLedgerBalanceRial=ledgerRows.reduce((n,x)=>n+Number(x.creditRial||0)-Number(x.debitRial||0),0);
+  const partyLedgerBalanceRial=ledgerRows.reduce((n,x)=>subtractSafe(addSafe(n,toSafeMinor(x.creditRial||0,"بستانکار دفتر تفصیلی"),"جمع دفتر تفصیلی"),toSafeMinor(x.debitRial||0,"بدهکار دفتر تفصیلی"),"مانده دفتر تفصیلی"),0);
   const voucherIds=new Set(vouchers.filter(x=>refs.has(String(x.reference||""))).map(x=>Number(x.id)));
   const liabilityLines=voucherLines.filter(x=>voucherIds.has(Number(x.voucherId))&&String(x.accountCode)==="2101");
-  const generalLedgerBalanceRial=liabilityLines.reduce((n,x)=>n+Number(x.creditRial||0)-Number(x.debitRial||0),0);
-  const bookValueRial=Object.values(group.currencies).reduce((n,x)=>n+x.bookValueRial,0);
-  const ledgerDeltaRial=partyLedgerBalanceRial-bookValueRial,generalLedgerDeltaRial=generalLedgerBalanceRial-bookValueRial,subledgerDeltaRial=partyLedgerBalanceRial-generalLedgerBalanceRial;
+  const generalLedgerBalanceRial=liabilityLines.reduce((n,x)=>subtractSafe(addSafe(n,toSafeMinor(x.creditRial||0,"بستانکار دفتر کل"),"جمع دفتر کل"),toSafeMinor(x.debitRial||0,"بدهکار دفتر کل"),"مانده دفتر کل"),0);
+  const bookValueRial=Object.values(group.currencies).reduce((n,x)=>addSafe(n,x.bookValueRial,"جمع ارزش دفتری تعهدها"),0);
+  const ledgerDeltaRial=subtractSafe(partyLedgerBalanceRial,bookValueRial,"اختلاف دفتر تفصیلی"),generalLedgerDeltaRial=subtractSafe(generalLedgerBalanceRial,bookValueRial,"اختلاف دفتر کل"),subledgerDeltaRial=subtractSafe(partyLedgerBalanceRial,generalLedgerBalanceRial,"اختلاف تفصیلی و کل");
   const issues=[];if(ledgerDeltaRial!==0)issues.push("مانده تفصیلی با ارزش دفتری تعهدها برابر نیست");if(generalLedgerDeltaRial!==0)issues.push("حساب کل ۲۱۰۱ مرتبط با محموله‌ها با ارزش دفتری برابر نیست");if(subledgerDeltaRial!==0)issues.push("دفتر تفصیلی تأمین‌کننده با حساب کل مرتبط برابر نیست");
   const trace=group.trace.map(item=>{const refsFor=[item.receiptReference,...item.payments.flatMap(p=>[p.reference,p.reversalReference].filter(Boolean))];const relatedVouchers=vouchers.filter(v=>refsFor.includes(String(v.reference||"")));return {...item,partyLedgerRows:partyLedger.filter(x=>refsFor.includes(String(x.referenceId||""))&&Number(x.partyId)===group.supplierId).length,vouchers:relatedVouchers.map(v=>({number:String(v.number||v.voucherNumber||v.id),reference:String(v.reference||""),id:v.id,lines:voucherLines.filter(line=>Number(line.voucherId)===Number(v.id)).length}))}});return {supplierId:group.supplierId,supplierName:group.supplierName,currencies:group.currencies,payableCount:group.payables.length,payables:group.payables,trace,bookValueRial,partyLedgerBalanceRial,generalLedgerBalanceRial,ledgerDeltaRial,generalLedgerDeltaRial,subledgerDeltaRial,ok:issues.length===0,issues,referenceCount:refs.size,references:[...refs]};
  });

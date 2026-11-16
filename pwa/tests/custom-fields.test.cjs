@@ -2,9 +2,11 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
+const vm=require("node:vm");
 const root=path.resolve(__dirname,"..");
 const read=p=>fs.readFileSync(path.join(root,p),"utf8");
 const app=read("app.js"),custom=read("custom-fields.js"),html=read("index.html"),sw=read("sw.js");
+function loadCustom(){const sandbox={window:{},document:{readyState:"loading",addEventListener(){}},console};vm.runInNewContext(custom,sandbox);return sandbox.window.HolooCustomFields;}
 test("custom fields module loads before the main PWA app",()=>{
  const customAt=html.indexOf('src="./custom-fields.js');
  const appAt=html.indexOf('src="./app.js');
@@ -60,4 +62,23 @@ test("custom date fields reject malformed and impossible calendar dates",()=>{
 });
 test("customization config records are not shown as user audit events",()=>{
  assert.match(app,/filter\(x=>x\.id!=="__HOLLOO_CUSTOM_FIELDS_V1__"&&x\.action!=="CUSTOMIZATION_CONFIG"\)/);
+});
+
+test("runtime: required checkbox preserves explicit false",()=>{
+ const api=loadCustom();
+ const value=api.normalizeLineValues({active:false},[{key:"active",label:"فعال",type:"checkbox",required:true,enabled:true}]);
+ assert.equal(value.active,false);
+});
+test("runtime: custom date validation accepts real dates and rejects impossible dates",()=>{
+ const api=loadCustom();
+ const defs=[{key:"shipDate",label:"تاریخ ارسال",type:"date",enabled:true}];
+ assert.equal(api.normalizeLineValues({shipDate:"2026-11-16"},defs).shipDate,"2026-11-16");
+ assert.throws(()=>api.normalizeLineValues({shipDate:"2026-02-30"},defs),/تاریخ/);
+ assert.throws(()=>api.normalizeLineValues({shipDate:"16-11-2026"},defs),/تاریخ/);
+});
+test("runtime: number fields reject non-finite input",()=>{
+ const api=loadCustom();
+ const defs=[{key:"cartons",label:"تعداد کارتن",type:"number",enabled:true}];
+ assert.equal(api.normalizeLineValues({cartons:"12.5"},defs).cartons,12.5);
+ assert.throws(()=>api.normalizeLineValues({cartons:"NaN"},defs),/عدد معتبر/);
 });

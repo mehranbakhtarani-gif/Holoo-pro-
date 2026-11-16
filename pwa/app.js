@@ -141,37 +141,57 @@ async function adjustStockPwa(id){
  if(raw===null)return;
  const delta=Number(String(raw).replace(",","."));
  if(!Number.isFinite(delta)||Math.abs(delta)<0.000001)throw Error("مقدار اصلاح معتبر نیست");
- let adjustmentValue=0,debitCode="",creditCode="";
+ const [warehouses,allStockRows,inventoryLots]=await Promise.all([all("warehouses"),all("warehouseStock"),all("inventoryLots")]);
+ if(!warehouses.length)throw Error("ابتدا حداقل یک انبار تعریف کنید");
+ let warehouse=warehouses[0];
+ if(warehouses.length>1){
+  const choices=warehouses.map(w=>String(w.id)+" = "+w.name).join("\n");
+  const selected=prompt("شناسه انبار مقصد اصلاح را وارد کنید:\n"+choices,String(warehouse.id));
+  if(selected===null)return;
+  warehouse=warehouses.find(w=>String(w.id)===String(selected).trim());
+  if(!warehouse)throw Error("انبار انتخاب‌شده معتبر نیست");
+ }
+ const warehouseRows=allStockRows.filter(x=>Number(x.productId)===Number(product.id));
+ const qty=Math.abs(delta),number="ADJ-"+Date.now(),now=Date.now();
+ let adjustmentValue=0,debitCode="",creditCode="",movement,lotEntries=[];
  if(delta>0){
   const costRaw=prompt("بهای هر کیلو برای افزایش موجودی (ریال)",String(Math.round(Number(product.avg)||0)));
   if(costRaw===null)return;
   const cost=Number(costRaw);
   if(!Number.isSafeInteger(cost)||cost<=0)throw Error("بهای هر کیلو باید عدد صحیح مثبت باشد");
-  adjustmentValue=Math.round(delta*cost);
+  adjustmentValue=Math.round(qty*cost);
   if(!Number.isSafeInteger(adjustmentValue)||adjustmentValue<=0)throw Error("ارزش اصلاح خارج از محدوده مجاز است");
-  product.value=Number(product.value||0)+adjustmentValue;product.stock=Number(product.stock||0)+delta;product.avg=product.value/product.stock;
+  movement=calculateWarehouseStockMovement({product,warehouseId:warehouse.id,warehouseRows,quantity:qty,direction:"PURCHASE",lineTotal:adjustmentValue});
+  product.value=Number(product.value||0)+adjustmentValue;product.stock=Number(product.stock||0)+qty;
+  product.avg=product.stock>0?product.value/product.stock:0;
+  const lot=planLotReceipt({productId:product.id,productName:product.name,warehouseId:warehouse.id,sourceType:"STOCK_ADJUSTMENT",sourceId:number,sourceNumber:number,quantity:qty,totalCost:adjustmentValue,receivedAt:now});
+  lotEntries.push(["inventoryLots",lot]);
   debitCode="1301";creditCode="4201";
  }else{
-  const qty=-delta;
-  if(Number(product.stock||0)+1e-9<qty)throw Error("موجودی برای این کاهش کافی نیست");
-  if(!(Number(product.avg)>0))throw Error("ابتدا بهای موجودی کالا را مشخص کنید");
-  adjustmentValue=Math.round(qty*Number(product.avg));
-  if(!Number.isSafeInteger(adjustmentValue)||adjustmentValue<=0||adjustmentValue>Number(product.value||0)+1)throw Error("ارزش کسری موجودی معتبر نیست");
-  product.stock=Number(product.stock||0)-qty;product.value=Math.max(0,Number(product.value||0)-adjustmentValue);
+  if(Number(product.stock||0)+1e-9<qty)throw Error("موجودی کل کالا برای این کاهش کافی نیست");
+  const existing=warehouseRows.find(x=>Number(x.warehouseId)===Number(warehouse.id));
+  const hasWarehouseRows=warehouseRows.length>0;
+  const currentWarehouse=existing||{productId:product.id,productName:product.name,warehouseId:warehouse.id,stock:hasWarehouseRows?0:Number(product.stock||0),value:hasWarehouseRows?0:Number(product.value||0)};
+  const sale=planLotSale({productId:product.id,productName:product.name,warehouseId:warehouse.id,quantity:qty,warehouseStock:currentWarehouse,lots:inventoryLots,date:now});
+  adjustmentValue=sale.cogs;
+  if(!Number.isSafeInteger(adjustmentValue)||adjustmentValue<=0||adjustmentValue>Number(product.value||0))throw Error("بهای FIFO کسری موجودی با ارزش کل کالا سازگار نیست");
+  movement=calculateWarehouseStockMovement({product,warehouseId:warehouse.id,warehouseRows,quantity:qty,direction:"SALE"});
+  movement.record.stock=sale.remainingStock;movement.record.value=sale.remainingValue;movement.record.average=sale.average;
+  product.stock=Number(product.stock||0)-qty;product.value=Number(product.value||0)-adjustmentValue;
   product.avg=product.stock>0?product.value/product.stock:0;
+  lotEntries.push(...[...sale.newLots,...sale.updates].map(lot=>["inventoryLots",lot]));
   debitCode="5201";creditCode="1301";
  }
+ if(!Number.isFinite(product.stock)||product.stock<0||!Number.isSafeInteger(product.value)||product.value<0)throw Error("مانده کل کالا پس از اصلاح معتبر نیست");
  await ensureBaseAccounts();
- const accounts=await all("accounts"),byCode=new Map(accounts.map(x=>[x.code,x]));
- const debit=byCode.get(debitCode),credit=byCode.get(creditCode);
- if(!debit||!credit)throw Error("حساب اصلاح موجودی تعریف نشده است");
- const now=Date.now(),number="ADJ-"+now;
- const adjustment={productId:product.id,productName:product.name,deltaKg:delta,valueRial:adjustmentValue,date:now,number};
- await postVoucherAtomic([["products",product],["stockAdjustments",adjustment]],{number,date:now,description:"اصلاح موجودی "+product.name,reference:"STOCK_ADJUSTMENT:"+product.id+":"+now},[
+ const accounts=await all("accounts"),byId=new Map(accounts.map(x=>[String(x.id),x]));
+ if(!byId.has(debitCode)||!byId.has(creditCode))throw Error("حساب اصلاح موجودی تعریف نشده است");
+ const adjustment={productId:product.id,productName:product.name,warehouseId:warehouse.id,warehouseName:warehouse.name,deltaKg:delta,valueRial:adjustmentValue,date:now,number};
+ await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["stockAdjustments",adjustment],...lotEntries],{number,date:now,description:"اصلاح موجودی "+product.name+" در انبار "+warehouse.name,reference:"STOCK_ADJUSTMENT:"+product.id+":"+now},[
   {accountCode:debitCode,debitRial:adjustmentValue,creditRial:0,description:"اصلاح موجودی"},
   {accountCode:creditCode,debitRial:0,creditRial:adjustmentValue,description:"اصلاح موجودی"}
  ]);
- toast("اصلاح موجودی و سند حسابداری ثبت شد");await render();
+ toast("اصلاح موجودی، انبار، بچ FIFO و سند حسابداری ثبت شد");await render();
 }
 async function receiveImportShipment(id){
  const shipments=await all("importShipments"),shipment=shipments.find(x=>Number(x.id)===Number(id));

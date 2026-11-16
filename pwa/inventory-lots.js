@@ -102,8 +102,19 @@ function summarizeLotProfit(input){
   }
  }
  for(const row of summaries.values()){
-  row.soldQty=Math.max(0,row.originalQty-row.remainingQty);row.soldCost=Math.max(0,row.originalCost-row.remainingValue);row.grossProfit=row.revenue-row.soldCost;
+  row.soldQty=Math.max(0,row.originalQty-row.remainingQty);row.soldCost=Math.max(0,row.originalCost-row.remainingValue);row.grossProfit=row.revenue-row.soldCost;row.grossMarginPercent=row.revenue>0?row.grossProfit/row.revenue*100:null;row.sellThroughPercent=row.originalQty>0?row.soldQty/row.originalQty*100:0;
  }
  return [...summaries.values()].sort((a,b)=>b.grossProfit-a.grossProfit);
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={planLotReceipt,planLotSale,planLotTransfer,restoreLotSale,summarizeLotProfit};
+function summarizeImportShipmentProfit(input){
+ const rows=summarizeLotProfit(input).filter(row=>row.sourceType==="IMPORT_SHIPMENT");
+ const totals=rows.reduce((sum,row)=>{for(const key of ["originalQty","soldQty","remainingQty","originalCost","remainingValue","soldCost","revenue","grossProfit"])sum[key]+=Number(row[key]||0);return sum;},{originalQty:0,soldQty:0,remainingQty:0,originalCost:0,remainingValue:0,soldCost:0,revenue:0,grossProfit:0});
+ totals.grossMarginPercent=totals.revenue>0?totals.grossProfit/totals.revenue*100:null;totals.sellThroughPercent=totals.originalQty>0?totals.soldQty/totals.originalQty*100:0;
+ return {rows,totals};
+}
+function buildImportShipmentProfitCsv(input){
+ const report=summarizeImportShipmentProfit(input),quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
+ const data=[["کانتینر","شماره محموله","تأمین‌کننده","کالا","وزن اولیه","فروخته‌شده","مانده","بهای اولیه","بهای تمام‌شده فروش","ارزش موجودی مانده","درآمد فروش","سود ناخالص","حاشیه سود درصد","درصد فروش‌رفت"],...report.rows.map(row=>[row.container,row.sourceNumber,row.supplierName,row.productName,row.originalQty,row.soldQty,row.remainingQty,row.originalCost,row.soldCost,row.remainingValue,row.revenue,row.grossProfit,row.grossMarginPercent,row.sellThroughPercent])];
+ return "\uFEFF"+data.map(row=>row.map(quote).join(",")).join("\r\n");
+}
+if(typeof module!=="undefined"&&module.exports)module.exports={planLotReceipt,planLotSale,planLotTransfer,restoreLotSale,summarizeLotProfit,summarizeImportShipmentProfit,buildImportShipmentProfitCsv};

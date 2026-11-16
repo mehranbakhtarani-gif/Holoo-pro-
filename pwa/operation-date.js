@@ -17,14 +17,20 @@ function resolveOperationDate({mode="AUTO",manualValue="",now=Date.now()}={}){
 }
 function stampOperationRecord({store,record,mode="AUTO",manualValue="",now=Date.now()}={}){
  if(!record||typeof record!=="object"||!OPERATION_DATE_STORES.has(store))return record;
- const copy={...record},at=resolveOperationDate({mode,manualValue,now});
- if(mode==="MANUAL"||!Object.prototype.hasOwnProperty.call(copy,"date"))copy.date=at;
- const fields={
-  importShipments:["updatedAt","receivedAt"],inventoryLots:["receivedAt","transferredAt"],
-  checks:["createdAt","statusChangedAt","clearedAt","endorsedAt","bouncedAt","cancelledAt"],
-  salesOrders:["createdAt","updatedAt"],foreignPayables:["createdAt","updatedAt"]
+ const copy={...record},at=resolveOperationDate({mode,manualValue,now}),hasDate=Object.prototype.hasOwnProperty.call(copy,"date"),freshDate=hasDate&&Number.isFinite(Number(copy.date))&&Math.abs(now-Number(copy.date))<=60000;
+ if(mode==="MANUAL"?(!hasDate||freshDate):!hasDate)copy.date=at;
+ const updatedFields={
+  importShipments:["updatedAt"],salesOrders:["updatedAt"],foreignPayables:["updatedAt"],approvals:["updatedAt"]
  }[store]||[];
- if(mode==="MANUAL")for(const key of fields)if(Object.prototype.hasOwnProperty.call(copy,key)&&copy[key]!==null)copy[key]=at;
+ for(const key of updatedFields)if(Object.prototype.hasOwnProperty.call(copy,key)&&copy[key]!==null)copy[key]=at;
+ if(mode==="MANUAL"){
+  const eventFields={
+   invoices:["reversedAt"],importShipments:["receivedAt"],inventoryLots:["receivedAt","transferredAt"],
+   checks:["createdAt","statusChangedAt","clearedAt","endorsedAt","bouncedAt","cancelledAt"],
+   salesOrders:["createdAt"],foreignPayables:["createdAt"],payroll:["createdAt"]
+  }[store]||[];
+  for(const key of eventFields)if(Object.prototype.hasOwnProperty.call(copy,key)&&copy[key]!==null&&Number.isFinite(Number(copy[key]))&&Math.abs(now-Number(copy[key]))<=60000)copy[key]=at;
+ }
  return copy;
 }
 if(typeof module!=="undefined"&&module.exports)module.exports={parseOperationDate,resolveOperationDate,stampOperationRecord,OPERATION_DATE_STORES};

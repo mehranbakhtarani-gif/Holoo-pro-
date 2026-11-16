@@ -47,3 +47,16 @@ test("inventory supports unique barcodes and minimum-stock alerts",()=>{
  assert.match(app,/Number\(x\.stock\|\|0\)<=Number\(x\.minStock\)/);
  assert.match(app,/حداقل تعیین نشده/);
 });
+
+ 
+test("party edits preserve opening balance and cannot reclassify parties with history",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/balance:item\?Number\(item\.balance\|\|0\):num\("balance"\)/);
+ assert.match(app,/balanceField\.readOnly=true/);
+ assert.match(app,/hasHistory&&kind!==item\.kind/);
+});
+
+test("party deletion checks orders, import shipments and foreign payable links",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/all\("salesOrders"\).*all\("importShipments"\).*all\("foreignPayables"\).*all\("foreignPayablePayments"\)/);
+});

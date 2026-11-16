@@ -931,7 +931,7 @@ if(["warehouses","importShipments","approvals","employees","payroll","fixedAsset
  }
 }
 if(currentPage==="accounting"){
-const sales=invoices.filter(x=>x.kind==="SALE"&&x.status!=="REVERSED");
+const sales=invoices.filter(x=>x.kind==="SALE"&&(!x.status||x.status==="POSTED"));
 const statements=buildFinancialStatements({accounts,vouchers,voucherLines,fromDate:0,toDate:Date.now()});const trial=statements.trialBalance;renderTrialBalanceTable=columnCount=>{const view=buildTrialBalanceColumns(trial,columnCount);return table(view.headers,view.rows.map(row=>"<tr>"+row.map((value,index)=>"<td>"+(index<2?h(value):money(value))+"</td>").join("")+"</tr>"))};const trialDebit=trial.reduce((n,x)=>n+x.debit,0),trialCredit=trial.reduce((n,x)=>n+x.credit,0),trialEndingDebit=trial.reduce((n,x)=>n+x.endingDebit,0),trialEndingCredit=trial.reduce((n,x)=>n+x.endingCredit,0);const byProduct=Object.values(sales.reduce((a,x)=>{const k=x.product||"نامشخص";a[k]??={name:k,sales:0,cogs:0,count:0};a[k].sales+=Number(x.total||0);a[k].cogs+=Number(x.cogs||0);a[k].count++;return a},{}));
 const byParty=Object.values(sales.reduce((a,x)=>{const k=x.partyName||"نامشخص";a[k]??={name:k,sales:0,cogs:0,count:0};a[k].sales+=Number(x.total||0);a[k].cogs+=Number(x.cogs||0);a[k].count++;return a},{}));
 const invoiceRows=sales.slice().sort((a,b)=>(b.date||0)-(a.date||0)).map(x=>'<tr><td>'+h(x.number)+'</td><td>'+h(x.partyName)+'</td><td>'+h(x.product)+'</td><td>'+money(x.total)+' '+moneyUnit()+'</td><td>'+money(x.cogs)+' '+moneyUnit()+'</td><td>'+money((x.total||0)-(x.cogs||0))+' '+moneyUnit()+'</td><td>'+date(x.date)+'</td></tr>');

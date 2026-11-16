@@ -1,5 +1,5 @@
 const test=require("node:test");const assert=require("node:assert/strict");
-const {parseOperationDate,resolveOperationDate,stampOperationRecord}=require("../operation-date.js");
+const {parseOperationDate,resolveOperationDate,stampOperationRecord,OPERATION_DATE_STORES}=require("../operation-date.js");
 test("parses local date and time without UTC day shifting",()=>{
  const x=parseOperationDate("2026-11-16T13:45");
  const d=new Date(x);assert.equal(d.getFullYear(),2026);assert.equal(d.getMonth(),10);assert.equal(d.getDate(),16);assert.equal(d.getHours(),13);assert.equal(d.getMinutes(),45);
@@ -54,4 +54,11 @@ test("manual date stamps the reversal event without rewriting the original forei
  const now=Date.now(),old=now-86400000,manualValue="2026-11-15T11:15",at=parseOperationDate(manualValue);
  const payment=stampOperationRecord({store:"foreignPayablePayments",record:{date:old,status:"REVERSED",reversedAt:now},mode:"MANUAL",manualValue,now});
  assert.equal(payment.date,old);assert.equal(payment.reversedAt,at);
+});
+
+test("manual operation dates are enabled for sales orders and stamp their creation/update events",()=>{
+ const now=Date.now(),manualValue="2026-11-16T08:20",at=parseOperationDate(manualValue);
+ assert.equal(OPERATION_DATE_STORES.has("salesOrders"),true);
+ const order=stampOperationRecord({store:"salesOrders",record:{date:now,createdAt:now,updatedAt:now,validUntil:now+86400000},mode:"MANUAL",manualValue,now});
+ assert.equal(order.date,at);assert.equal(order.createdAt,at);assert.equal(order.updatedAt,at);assert.equal(order.validUntil,now+86400000);
 });

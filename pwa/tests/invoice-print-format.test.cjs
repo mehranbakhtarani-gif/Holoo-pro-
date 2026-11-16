@@ -23,6 +23,6 @@ test("invoice print format is visible in list, print document, search and CSV ex
 });
 
 test("invoice print-format update refreshes the PWA script and offline cache",()=>{
- assert.match(html,/app\.js\?v=invoice-print-format-1/);
+ assert.match(html,/app\.js\?v=party-credit-terms-1/);
  assert.match(sw,/holloo-pwa-v158-invoice-print-format/);
 });

@@ -31,3 +31,21 @@ test("print actions use popup synchronously from click and open browser print di
  assert.match(app,/popup\.print\(\)/);
  assert.match(app,/setTimeout\(\(\)=>popup\.print\(\),700\)/);
 });
+
+ 
+test("check receipt printing has one authoritative implementation",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.equal(app.split("async function printCheckDocument(id)").length-1,1);
+});
+
+ 
+test("invoice printing uses one configurable template-aware implementation",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.equal(app.split("async function printInvoiceDocument(number)").length-1,1);
+ const start=app.indexOf("async function printInvoiceDocument(number)");
+ const end=app.indexOf("async function printCheckDocument(id)",start);
+ const printer=app.slice(start,end);
+ assert.ok(printer.includes("getInvoicePrintTemplate"));
+ assert.ok(printer.includes("getDefinitions(\"invoices\")"));
+ assert.ok(printer.includes("template.footerNote"));
+});

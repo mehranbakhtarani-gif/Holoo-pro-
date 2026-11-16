@@ -22,5 +22,5 @@ test("party statement CSV exports opening balance and dated running ledger balan
 
 test("party search includes identifier, contact details, type and balance",()=>{
  assert.match(app,/جست‌وجوی کد، نام، تلفن، نشانی، نوع یا مانده طرف حساب/);
- assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.phone,x\.address,x\.balance,fmt\(x\.balance\|\|0\)\]/);
+ assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\)\]/);
 });

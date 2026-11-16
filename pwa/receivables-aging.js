@@ -4,12 +4,13 @@ function buildReceivablePayableAging(input){
  const buckets=[{key:"current",label:"سررسیدنشده / سررسید امروز",min:0,max:0},{key:"1_30",label:"۱ تا ۳۰ روز",min:1,max:30},{key:"31_60",label:"۳۱ تا ۶۰ روز",min:31,max:60},{key:"61_90",label:"۶۱ تا ۹۰ روز",min:61,max:90},{key:"over_90",label:"بیش از ۹۰ روز",min:91,max:Infinity}];
  const groups={SALE:[],PURCHASE:[]};
  for(const invoice of invoices){
-  if(!invoice||invoice.status==="REVERSED"||!["SALE","PURCHASE"].includes(invoice.kind))continue;
+  if(!invoice||(invoice.status&&invoice.status!=="POSTED")||!["SALE","PURCHASE"].includes(invoice.kind))continue;
   const total=Number(invoice.total||0);
   if(!Number.isSafeInteger(total)||total<0)throw new Error("مبلغ فاکتور برای گزارش سنی معتبر نیست: "+String(invoice.number||""));
-  const paid=allocations.filter(row=>row.invoiceNumber===invoice.number).reduce((sum,row)=>sum+Number(row.amount||0),0);
+  const paid=allocations.filter(row=>row.invoiceNumber===invoice.number&&row.status!=="REVERSED").reduce((sum,row)=>sum+Number(row.amount||0),0);
   if(!Number.isSafeInteger(paid)||paid<0)throw new Error("جمع تخصیص‌های فاکتور معتبر نیست: "+String(invoice.number||""));
-  const outstanding=Math.max(0,total-paid);
+  if(paid>total)throw new Error("جمع تخصیص‌های فاکتور از مبلغ کل بیشتر است: "+String(invoice.number||""));
+  const outstanding=total-paid;
   if(outstanding===0)continue;
   const hasDueDate=Number.isFinite(Number(invoice.dueDate))&&Number(invoice.dueDate)>0;
   const dueDate=hasDueDate?Number(invoice.dueDate):Number(invoice.date||0);

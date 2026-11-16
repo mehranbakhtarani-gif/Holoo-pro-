@@ -1,5 +1,6 @@
 const test=require("node:test");const assert=require("node:assert/strict");
 const {createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable,convertMinorAtRate}=require("../foreign-payables.js");
+const fs=require("node:fs");const path=require("node:path");
 const payable=()=>({...createForeignPayable({sourceType:"IMPORT_SHIPMENT",sourceId:7,sourceNumber:"IMP-007",container:"MSCU123",supplierId:2,supplierName:"تأمین‌کننده چین",currency:"USD",amountMinor:100000,bookedFxRateRialPerUnit:600000,dueDate:500}),id:12});
 test("creates a supplier obligation at the original booking FX rate",()=>{const p=payable();assert.equal(p.bookedRial,600000000);assert.equal(p.paidMinor,0);assert.equal(p.status,"OPEN")});
 test("calculates partial settlement and realized FX gain for a foreign-currency liability",()=>{const p=payable(),x=planForeignPayablePayment({payable:p,amountMinor:25000,fxRateRialPerUnit:550000,date:600});assert.equal(x.bookedRial,150000000);assert.equal(x.settlementRial,137500000);assert.equal(x.fxGainRial,12500000);assert.equal(x.fxLossRial,0);assert.equal(x.remainingMinor,75000);assert.equal(x.updated.status,"PARTIAL")});
@@ -187,4 +188,24 @@ test("exports supplier balance reconciliation as Persian UTF-8 CSV with shipment
  assert.ok(csv.includes('"شرکت ""الف"""'));
  assert.ok(csv.includes("IMPORT-RECEIPT:S-1"));
  assert.ok(csv.includes("FXPR-1"));
+});
+
+ 
+test("foreign payable creation guards the source shipment reference inside the write transaction",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.ok(app.includes('match:{sourceShipmentId:Number(shipment.id)},expected:null'));
+});
+
+ 
+test("foreign payable creation revalidates its source shipment snapshot in the same transaction",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/store:"importShipments",key:Number\(shipment\.id\),expected:\{\.\.\.shipment\}/);
+});
+
+ 
+test("foreign payable installment plan add and clear operations use stale-snapshot guards",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.ok(app.includes('const snapshot={...payable},updated=HolooForeignPayables.planForeignPayableInstallment'));
+ assert.ok(app.includes('const snapshot={...payable},updated=HolooForeignPayables.clearForeignPayableInstallmentPlan'));
+ assert.ok(app.includes('store:"foreignPayables",key:Number(payable.id),expected:snapshot'));
 });

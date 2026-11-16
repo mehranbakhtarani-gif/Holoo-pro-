@@ -60,3 +60,11 @@ test("PWA performs manual and automatic bank matching inside shared readwrite tr
  assert.match(app,/const linesRequest=tx\.objectStore\("bankStatementLines"\)\.getAll\(\)/);
  assert.match(app,/const matchedIds=lines\.filter\(x=>x\.status==="MATCHED"/);
 });
+
+ 
+test("automatic and manual bank matching reject reversed treasury movements",()=>{
+ const line={id:1,date:1000,signedAmount:500,status:"UNMATCHED"};
+ const reversed={id:2,method:"بانک",kind:"RECEIPT",amount:500,date:1000,status:"REVERSED"};
+ assert.deepEqual(findBankMatchCandidates(line,[reversed]),[]);
+ assert.throws(()=>validateBankManualMatch(line,reversed,[]),/حساب بانکی فعال/);
+});

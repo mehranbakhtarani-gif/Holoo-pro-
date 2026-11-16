@@ -1,0 +1,26 @@
+name: PWA quality checks
+on:
+  pull_request:
+    paths:
+      - "pwa/**"
+      - ".github/workflows/pwa-quality.yml"
+  push:
+    branches:
+      - feature/pwa-customization-framework
+      - feature/pwa-customization-qa
+    paths:
+      - "pwa/**"
+      - ".github/workflows/pwa-quality.yml"
+jobs:
+  syntax-and-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: JavaScript syntax checks
+        run: |
+          for file in pwa/*.js; do node --check "$file"; done
+      - name: Full PWA regression suite
+        run: node --test pwa/tests/*.test.cjs

@@ -50,3 +50,9 @@ test("invoice price tier initialization runs after its callback is declared",()=
  assert.ok(start>=0&&fn>start&&call>fn);
  assert.doesNotMatch(app,/typeof updateTierPrice==="function"/);
 });
+
+ 
+test("sales-order approval and cancellation transitions use a stale-state guard",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const expected=\{status:order\.status,updatedAt:order\.updatedAt\};order\.status=next;order\.updatedAt=Date\.now\(\);await putManyGuarded\(\[\["salesOrders",order\]\],\[\{store:"salesOrders",key:Number\(order\.id\),expected\}\]\)/);
+});

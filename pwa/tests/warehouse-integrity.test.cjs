@@ -49,3 +49,12 @@ test("warehouse transfer history exports quantity, source, destination and value
  assert.match(app,/holloo-warehouse-transfers\.csv/);
  assert.match(app,/ارزش منتقل‌شده ریال/);
 });
+
+ 
+test("warehouse names are normalized and checked atomically on create and edit",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putWarehouseUnique\(record\)/);
+ assert.match(app,/db\.transaction\(\["warehouses","auditLog"\],"readwrite"\)/);
+ assert.ok(app.includes('toLocaleLowerCase("fa")===normalized'));
+ assert.match(app,/await putWarehouseUnique\(\{id:item\?\.id,name,address/);
+});

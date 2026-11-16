@@ -1,6 +1,6 @@
-const CACHE="holloo-pwa-v132-nav-refresh";
-const ASSETS=["./","./index.html","./style.css","./app.js","./import-cost.js","./party-opening-balance.js","./settlement.js","./warehouse-stock.js","./warehouse-transfer.js","./foreign-currency.js","./accounting-reports.js","./receivables-aging.js","./import-shipment-analytics.js","./inventory-lots.js","./foreign-payables.js","./cash-flow-forecast.js","./import-capital-planner.js","./operation-date.js","./invoice-costing.js","./bank-reconciliation.js","./manifest.webmanifest","./icon.svg"];
-const NETWORK_FIRST=/\/(?:index\.html|app\.js|import-cost\.js|party-opening-balance\.js|settlement\.js|warehouse-stock\.js|warehouse-transfer\.js|foreign-currency\.js|accounting-reports\.js|receivables-aging\.js|import-shipment-analytics\.js|inventory-lots\.js|foreign-payables\.js|cash-flow-forecast\.js|import-capital-planner\.js|operation-date\.js|invoice-costing\.js|bank-reconciliation\.js|style\.css|manifest\.webmanifest|sw\.js)(?:\?.*)?$/;
+const CACHE="holloo-pwa-v159-party-credit-terms";
+const ASSETS=["./","./index.html","./style.css","./app.js","./import-cost.js","./party-opening-balance.js","./settlement.js","./warehouse-stock.js","./warehouse-transfer.js","./foreign-currency.js","./accounting-reports.js","./receivables-aging.js","./import-shipment-analytics.js","./inventory-lots.js","./foreign-payables.js","./cash-flow-forecast.js","./import-capital-planner.js","./operation-date.js","./invoice-costing.js","./bank-reconciliation.js","./custom-fields.js","./manifest.webmanifest","./icon.svg"];
+const NETWORK_FIRST=/\/(?:index\.html|app\.js|import-cost\.js|party-opening-balance\.js|settlement\.js|warehouse-stock\.js|warehouse-transfer\.js|foreign-currency\.js|accounting-reports\.js|receivables-aging\.js|import-shipment-analytics\.js|inventory-lots\.js|foreign-payables\.js|cash-flow-forecast\.js|import-capital-planner\.js|operation-date\.js|invoice-costing\.js|bank-reconciliation\.js|custom-fields\.js|style\.css|manifest\.webmanifest|sw\.js)(?:\?.*)?$/;
 self.addEventListener("install",event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener("fetch",event=>{
@@ -15,10 +15,10 @@ self.addEventListener("fetch",event=>{
     if(response&&response.ok)await cache.put(event.request,response.clone());
     return response;
    }catch(error){
-    return (await cache.match(event.request))||(await cache.match("./index.html"));
+    return (await cache.match(event.request,{ignoreSearch:true}))||(await cache.match("./index.html"));
    }
   }
-  const cached=await cache.match(event.request);
+  const cached=await cache.match(event.request,{ignoreSearch:true});
   if(cached)return cached;
   try{
    const response=await fetch(event.request);

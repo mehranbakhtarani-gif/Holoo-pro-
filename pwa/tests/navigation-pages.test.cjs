@@ -61,3 +61,8 @@ test("all enabled pages are generated into desktop and mobile navigation and hav
  assert.match(app,/\$\("#sidebar"\)\.innerHTML=items/);
  assert.match(app,/\$\("#mobileNav"\)\.innerHTML=items/);
 });
+
+ 
+test("approval decisions revalidate pending status and update timestamp atomically",()=>{
+ assert.match(app,/const snapshot=\{status:row\.status,updatedAt:row\.updatedAt\};await putManyGuarded\(\[\["approvals",\{\.\.\.row,status,updatedAt:Date\.now\(\)\}\]\],\[\{store:"approvals",key:Number\(row\.id\),expected:snapshot\}\]\)/);
+});

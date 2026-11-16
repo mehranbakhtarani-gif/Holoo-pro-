@@ -47,3 +47,26 @@ test("foreign payable payment reversal guards the payment, payable, party and tr
   'store:"treasury",match:{reference},expected:null'
  ])assert.ok(body.includes(expected),"Missing foreign payable reversal guard: "+expected);
 });
+
+ 
+test("treasury allocation creation and reversal use invoice and settlement version guards",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.ok(app.includes('incrementAllocationVersion(tr,"خزانه");incrementAllocationVersion(invoice,"فاکتور");'));
+ assert.ok(app.includes('incrementAllocationVersion(transaction,"خزانه");'));
+ assert.match(app,/function incrementAllocationVersion\(record,label="سند"\)/);
+ assert.ok(app.includes('store:"treasury",key:Number(tr.id),expected:transactionSnapshot'));
+ assert.ok(app.includes('store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot'));
+ assert.ok(app.includes('allocationVersion:invoice.allocationVersion'));
+ assert.ok(app.includes("treasurySnapshot={...original}"));
+ assert.ok(app.includes("originalSnapshot={...original}"));
+ assert.ok(app.includes('await putManyGuarded([["treasury",tr],["invoices",invoice],["treasuryAllocations",allocation]]'));
+});
+
+test("every active treasury allocation is reversed through the guarded allocation action",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ const start=app.indexOf('if(currentPage==="allocations")');
+ const end=app.indexOf('if(currentPage==="foreignPayables")',start);
+ const body=app.slice(start,end);
+ assert.ok(body.includes('data-allocation-reverse'));
+ assert.ok(!body.includes('data-del="treasuryAllocations:'));
+});

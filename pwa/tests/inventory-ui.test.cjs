@@ -5,7 +5,7 @@ const path=require("node:path");
 
 test("inventory search covers product identifiers, yarn attributes and denier",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/x\.sku,x\.barcode,x\.name,x\.group,x\.yarn,x\.color,x\.denier/);
+ assert.match(app,/x\.sku,x\.barcode,x\.name,x\.group,x\.group1,x\.group2,x\.group3,x\.unit,x\.yarn,x\.color,x\.denier/);
  assert.match(app,/toLocaleLowerCase\("fa"\)/);
  assert.match(app,/جست‌وجوی کد، بارکد، نام، گروه، نوع نخ، دنیر یا رنگ/);
 });
@@ -54,14 +54,32 @@ test("product creation rejects non-finite and non-positive denier values",()=>{
 
 test("inventory supports unique barcodes and minimum-stock alerts",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.ok(app.includes('["barcode","بارکد","text"]'));
+ assert.ok(app.includes('["barcode","بارکد اصلی","text"]'));
  assert.match(app,/جست‌وجوی کد، بارکد، نام/);
  assert.ok(app.includes('["minStock","حداقل موجودی هشدار (کیلوگرم)","number"]'));
- assert.match(app,/if\(v\.barcode&&a\.some\(x=>x\.barcode===v\.barcode&&x\.id!==v\.id\)\)throw Error\("بارکد تکراری است"\)/);
+ assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
  assert.match(app,/Number\(x\.stock\|\|0\)<=Number\(x\.minStock\)/);
  assert.match(app,/حداقل تعیین نشده/);
 });
 
+ 
+test("master-data edits preserve live stock valuation and party balance inside the same IndexedDB transaction",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putPreservingFields\(store,record,fields\)/);
+ assert.match(app,/const tx=db\.transaction\(\[store,"auditLog"\],"readwrite"\),objectStore=tx\.objectStore\(store\)/);
+ assert.match(app,/const read=objectStore\.get\(record\.id\)/);
+ assert.match(app,/for\(const field of fields\)merged\[field\]=read\.result\[field\]/);
+ assert.match(app,/await putProductUnique\(v\)/);
+ assert.match(app,/await putPartyGuarded\(partyRecord\)/);
+});
+ 
+test("product, party and warehouse deletion rechecks references atomically before deleting",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function deleteMasterRecordGuarded\(store,id\)/);
+ assert.match(app,/db\.transaction\(\[\.\.\.new Set\(\[\.\.\.stores,"auditLog"\]\)\],"readwrite"\)/);
+ assert.match(app,/if\(\["products","parties","warehouses"\]\.includes\(s\)\)\{await deleteMasterRecordGuarded\(s,id\)/);
+ assert.match(app,/data\.invoices\.some\(x=>Number\(x\.commissionPartyId\)===key\)/);
+});
  
 test("party edits preserve opening balance and cannot reclassify parties with history",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
@@ -87,11 +105,55 @@ test("party statements display opening balance before dated movements",()=>{
 test("parties page filters by ID, name, type, phone, address and balance",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/جست‌وجوی کد، نام، تلفن، نشانی، نوع یا مانده طرف حساب/);
- assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.phone,x\.address,x\.balance,fmt\(x\.balance\|\|0\)\]/);
+ assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\)\]/);
 });
 
  
 test("party type changes are blocked while linked import shipments exist",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/all\("importShipments"\).*shipments\.some\(x=>Number\(x\.supplierId\)===Number\(item\.id\)\)/);
+});
+
+ 
+test("dashboard sales and gross profit exclude drafts and reversed invoices while retaining legacy posted rows",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const postedSales=invoices\.filter\(x=>x\.kind==="SALE"&&\(!x\.status\|\|x\.status==="POSTED"\)\)/);
+ assert.match(app,/totalSales=postedSales\.reduce/);
+ assert.match(app,/cogs=postedSales\.reduce/);
+});
+ 
+test("dashboard demo data action is bound and refuses to overwrite a non-empty ledger",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const demoButton=\$\("#loadDemoData"\);if\(demoButton\)demoButton\.onclick/);
+ assert.match(app,/vouchersNow\.length\|\|ledgerNow\.length\|\|treasuryNow\.length/);
+ assert.match(app,/داده آزمایشی فقط در دفتر کاملاً خالی قابل بارگذاری است/);
+});
+
+ 
+test("demo seeding uses transactional empty-ledger guards to prevent multi-tab duplicate or overwrite races",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const emptyStores=\["products","parties","vouchers","partyLedger","treasury","invoices","checks","imports","importShipments","stockAdjustments"\]/);
+ assert.match(app,/emptyStores\.map\(store=>\(\{store,match:\{\},expected:null\}\)\)/);
+ assert.match(app,/await putManyGuarded\(entries,guards\)/);
+});
+
+ 
+test("product SKU and barcode uniqueness are enforced in the same transaction as create or edit",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putProductUnique\(record\)/);
+ assert.match(app,/db\.transaction\(\["products","auditLog"\],"readwrite"\)/);
+ assert.match(app,/rows\.some\(row=>row\.sku===record\.sku/);
+ assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
+ assert.match(app,/if\(current\)\{for\(const field of \["stock","value","avg"\]\)value\[field\]=current\[field\]\}/);
+ assert.match(app,/await putProductUnique\(v\)/);
+});
+
+ 
+test("party type reclassification and balance preservation are rechecked atomically with all financial history stores",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putPartyGuarded\(record\)/);
+ assert.match(app,/db\.transaction\(\["parties",\.\.\.relatedStores,"auditLog"\],"readwrite"\)/);
+ assert.match(app,/relatedStores=\["invoices","treasury","checks","partyLedger","imports","salesOrders","importShipments","foreignPayables","foreignPayablePayments","fixedAssets"\]/);
+ assert.match(app,/if\(current\.kind!==record\.kind\)/);
+ assert.match(app,/const merged=\{\.\.\.record,balance:current\.balance\}/);
 });

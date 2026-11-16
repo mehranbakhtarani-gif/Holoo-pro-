@@ -27,7 +27,7 @@ test("sales commission posts expense and payable and is reversed with the invoic
  assert.match(app,/commissionRate/);
  assert.match(app,/commissionAmount/);
  assert.match(app,/accountCode:"5203"/);
- assert.match(app,/commissionParty\.balance=Number\(commissionParty\.balance\|\|0\)\+Number\(invoice\.commissionAmount\)/);
+ assert.match(app,/applyPartyBalanceDelta\(commissionParty,Number\(invoice\.commissionAmount\),"کارگزار"\)/);
  assert.match(app,/برگشت پورسانت فاکتور/);
 });
 

@@ -43,7 +43,7 @@ function parseBankCsv(text,defaultBank=""){
 function getTreasurySignedAmount(row){return row.kind==="RECEIPT"?Number(row.amount):-Number(row.amount)}
 function findBankMatchCandidates(line,treasury,matchedTreasuryIds=[],toleranceDays=3){
  const used=new Set(matchedTreasuryIds.map(Number)),tolerance=toleranceDays*86400000;
- return (treasury||[]).filter(row=>row.method==="بانک"&&!used.has(Number(row.id))&&getTreasurySignedAmount(row)===Number(line.signedAmount)&&Math.abs(Number(row.date)-Number(line.date))<=tolerance)
+ return (treasury||[]).filter(row=>row.method==="بانک"&&row.status!=="REVERSED"&&!used.has(Number(row.id))&&getTreasurySignedAmount(row)===Number(line.signedAmount)&&Math.abs(Number(row.date)-Number(line.date))<=tolerance)
   .sort((a,b)=>Math.abs(Number(a.date)-Number(line.date))-Math.abs(Number(b.date)-Number(line.date)));
 }
 function autoMatchBankLines(lines,treasury,toleranceDays=3){
@@ -58,7 +58,7 @@ function autoMatchBankLines(lines,treasury,toleranceDays=3){
 }
 function validateBankManualMatch(line,treasury,matchedTreasuryIds=[]){
  if(!line||line.status==="MATCHED")throw new Error("این ردیف قبلاً تطبیق داده شده است");
- if(!treasury||treasury.method!=="بانک")throw new Error("گردش انتخابی از حساب بانکی نیست");
+ if(!treasury||treasury.method!=="بانک"||treasury.status==="REVERSED")throw new Error("گردش انتخابی از حساب بانکی فعال نیست");
  if(getTreasurySignedAmount(treasury)!==Number(line.signedAmount))throw new Error("مبلغ یا جهت گردش بانکی یکسان نیست");
  if(matchedTreasuryIds.map(Number).includes(Number(treasury.id)))throw new Error("این گردش قبلاً با ردیف دیگری تطبیق داده شده است");
  return true;

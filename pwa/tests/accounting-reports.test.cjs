@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose}=require("../accounting-reports.js");
+const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,buildTrialBalanceColumns,hasOverlappingPeriodClose}=require("../accounting-reports.js");
 
 const accounts=[
  {id:"1101",title:"Cash",type:"ASSET",openingDebitRial:80000,openingCreditRial:0},
@@ -65,4 +65,16 @@ test("purchase reversal valuation adjustment balances the difference between cur
  assert.deepEqual(lower.map(x=>[x.accountCode,x.debitRial,x.creditRial]),[["1301",2500,0],["5202",0,2500]]);
  assert.deepEqual(buildPurchaseReversalAdjustment({actualInventoryCostRial:10000,originalInventoryDebitRial:10000}),[]);
  for(const input of [{actualInventoryCostRial:-1,originalInventoryDebitRial:0},{actualInventoryCostRial:1.5,originalInventoryDebitRial:0},{actualInventoryCostRial:Number.MAX_SAFE_INTEGER,originalInventoryDebitRial:-1}])assert.throws(()=>buildPurchaseReversalAdjustment(input));
+});
+
+
+test("trial balance renders two, four, six and eight numeric column modes",()=>{
+ const rows=[{id:"1101",title:"Cash",openingDebit:100,openingCredit:0,debit:30,credit:10,endingDebit:120,endingCredit:0}];
+ assert.deepEqual(buildTrialBalanceColumns(rows,2).rows[0],["1101","Cash",120,0]);
+ assert.deepEqual(buildTrialBalanceColumns(rows,4).rows[0],["1101","Cash",30,10,120,0]);
+ assert.deepEqual(buildTrialBalanceColumns(rows,6).rows[0],["1101","Cash",100,0,30,10,120,0]);
+ assert.deepEqual(buildTrialBalanceColumns(rows,8).rows[0],["1101","Cash",100,0,30,10,130,10,120,0]);
+ assert.throws(()=>buildTrialBalanceColumns(rows,3));
+ assert.throws(()=>buildTrialBalanceColumns([{...rows[0],debit:-1}],8));
+ assert.throws(()=>buildTrialBalanceColumns([{...rows[0],openingDebit:Number.MAX_SAFE_INTEGER,debit:1}],8));
 });

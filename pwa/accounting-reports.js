@@ -87,6 +87,25 @@ function buildPeriodClosingJournal(input){
  if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==credit)throw new Error("سند اختتامیه متوازن نیست");
  return {lines,revenue,expense,netProfit,debit,credit};
 }
+function buildTrialBalanceColumns(trialRows,columnCount){
+ const count=Number(columnCount);
+ const columns={
+  2:["endingDebit","endingCredit"],
+  4:["debit","credit","endingDebit","endingCredit"],
+  6:["openingDebit","openingCredit","debit","credit","endingDebit","endingCredit"],
+  8:["openingDebit","openingCredit","debit","credit","totalDebit","totalCredit","endingDebit","endingCredit"]
+ };
+ const keys=columns[count];if(!keys)throw new Error("تعداد ستون‌ها باید ۲، ۴، ۶ یا ۸ باشد");
+ const labels={openingDebit:"افتتاحیه بدهکار",openingCredit:"افتتاحیه بستانکار",debit:"گردش بدهکار",credit:"گردش بستانکار",totalDebit:"جمع بدهکار",totalCredit:"جمع بستانکار",endingDebit:"مانده بدهکار",endingCredit:"مانده بستانکار"};
+ const rows=(trialRows||[]).map(row=>{
+  const openingDebit=Number(row.openingDebit||0),openingCredit=Number(row.openingCredit||0),debit=Number(row.debit||0),credit=Number(row.credit||0);
+  const totalDebit=openingDebit+debit,totalCredit=openingCredit+credit;
+  const values={...row,totalDebit,totalCredit};
+  for(const key of ["openingDebit","openingCredit","debit","credit","totalDebit","totalCredit","endingDebit","endingCredit"]){const value=Number(values[key]||0);if(!Number.isSafeInteger(value)||value<0)throw new Error("مقادیر تراز آزمایشی معتبر نیست");values[key]=value;}
+  return {id:String(row.id??""),title:String(row.title??""),values};
+ });
+ return {headers:["کد حساب","عنوان حساب",...keys.map(key=>labels[key])],rows:rows.map(row=>[row.id,row.title,...keys.map(key=>row.values[key])])};
+}
 function buildPurchaseReversalAdjustment(input){
  const actual=Number(input.actualInventoryCostRial),original=Number(input.originalInventoryDebitRial);
  if(!Number.isSafeInteger(actual)||actual<0||!Number.isSafeInteger(original)||original<0)throw new Error("بهای واقعی یا بهای ثبت‌شده برگشت خرید معتبر نیست");
@@ -111,6 +130,6 @@ function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
   return Number.isSafeInteger(oldFrom)&&Number.isSafeInteger(oldTo)&&oldFrom<=oldTo&&fromDate<=oldTo&&toDate>=oldFrom;
  });
 }
-const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
+const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
 if(typeof module!=="undefined"&&module.exports)module.exports=accountingReportsApi;
 if(typeof globalThis!=="undefined")globalThis.HolooAccountingReports=accountingReportsApi;

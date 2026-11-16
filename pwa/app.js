@@ -381,7 +381,7 @@ async function receiveImportShipment(id){
  const movement=calculateWarehouseStockMovement({product,warehouseId:warehouse.id,warehouseRows:stockRows.filter(x=>Number(x.productId)===Number(product.id)),quantity:Number(shipment.weight),direction:"PURCHASE",lineTotal:costs.totalCost});
  product.stock=nextStock;product.value=nextValue;product.avg=nextStock>0?nextValue/nextStock:0;
  const ancillary=costs.totalCost-costs.goodsRial,now=Date.now(),reference="IMPORT-RECEIPT:"+shipment.number;
- shipment.goodsRial=costs.goodsRial;shipment.totalCost=costs.totalCost;shipment.unitCost=costs.unitCost;shipment.status="رسید انبار شده";shipment.receivedAt=now;shipment.receivedVoucherNumber="IMP-"+now;
+ shipment.goodsRial=costs.goodsRial;shipment.totalCost=costs.totalCost;shipment.unitCost=costs.unitCost;shipment.status="رسید انبار شده";shipment.statusChangedAt=now;shipment.receivedAt=now;shipment.receivedVoucherNumber="IMP-"+now;
  const linkedPayable=foreignPayables.find(x=>Number(x.sourceShipmentId)===Number(shipment.id));
  const expectedPayableState=linkedPayable?{...linkedPayable}:null;
  if(linkedPayable)linkedPayable.shipmentReceivedAt=now;
@@ -1007,7 +1007,7 @@ if(page==="warehouses"){const name=String(d.name||"").trim();if(!name)throw Erro
  const costs=calculateImportShipmentCost({currency:d.currency,fx:num("fx"),weight:num("weight"),goods:num("goods"),freight:num("freight"),customs:num("customs"),insurance:num("insurance"),port:num("port"),inland:num("inland"),broker:num("broker"),storage:num("storage"),bank:num("bank"),other:num("other")});
  const old=await all("importShipments");
  if(old.some(x=>(x.number===number||String(x.container||"").toLowerCase()===container.toLowerCase())&&x.id!==item?.id))throw Error("شماره محموله یا کانتینر تکراری است");
- await put("importShipments",{id:item?.id,number,container,supplierId:p.id,supplierName:p.name,productId:product.id,productName:product.name,warehouseId:warehouse.id,warehouseName:warehouse.name,currency:d.currency,fx:num("fx"),weight:num("weight"),goods:num("goods"),freight:num("freight"),customs:num("customs"),insurance:num("insurance"),port:num("port"),inland:num("inland"),broker:num("broker"),storage:num("storage"),bank:num("bank"),other:num("other"),goodsRial:costs.goodsRial,totalCost:costs.totalCost,unitCost:costs.unitCost,dueDate:d.dueDate?new Date(d.dueDate+"T12:00:00").getTime():null,status:d.status||"سفارش",receivedAt:null,updatedAt:Date.now()});return
+ await put("importShipments",{id:item?.id,number,container,supplierId:p.id,supplierName:p.name,productId:product.id,productName:product.name,warehouseId:warehouse.id,warehouseName:warehouse.name,currency:d.currency,fx:num("fx"),weight:num("weight"),goods:num("goods"),freight:num("freight"),customs:num("customs"),insurance:num("insurance"),port:num("port"),inland:num("inland"),broker:num("broker"),storage:num("storage"),bank:num("bank"),other:num("other"),goodsRial:costs.goodsRial,totalCost:costs.totalCost,unitCost:costs.unitCost,dueDate:d.dueDate?new Date(d.dueDate+"T12:00:00").getTime():null,status:d.status||"سفارش",statusChangedAt:item?.status!==d.status?Date.now():(item?.statusChangedAt||null),receivedAt:null,updatedAt:Date.now()});return
 }
 if(page==="foreignPayables"){
  if(item)throw Error("تعهد ارزی ثبت‌شده قابل ویرایش نیست؛ برای اصلاح، سند اصلاحی ثبت کنید");
@@ -1040,7 +1040,7 @@ if(page==="foreignPayablePayments"){
  const movement={partyId:party.id,date:dateValue,debitRial:plan.bookedRial,creditRial:0,description:"پرداخت تعهد ارزی محموله "+payable.sourceNumber,referenceId:reference};
  const treasuryRecord={kind:"PAYMENT",method:d.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payable.currency,foreignAmountMinor:amountMinor,fxRateRialPerUnit:fxRate,date:dateValue,note:d.note||("تسویه تعهد "+payable.sourceNumber),reference,foreignPayableId:payable.id};
  await ensureBaseAccounts();
- sourceShipment.status=plan.updated.status==="PAID"?"تسویه‌شده":"رسید انبار شده";await postVoucherAtomic([["foreignPayables",plan.updated],["foreignPayablePayments",plan.payment],["importShipments",sourceShipment],["treasury",treasuryRecord],["parties",party],["partyLedger",movement]],{number:"FXP-"+Date.now(),date:dateValue,description:"پرداخت "+fmtForeign(amountMinor/100)+" "+payable.currency+" بابت "+payable.sourceNumber,reference},journal,[
+ sourceShipment.status=plan.updated.status==="PAID"?"تسویه‌شده":"رسید انبار شده";sourceShipment.statusChangedAt=Date.now();await postVoucherAtomic([["foreignPayables",plan.updated],["foreignPayablePayments",plan.payment],["importShipments",sourceShipment],["treasury",treasuryRecord],["parties",party],["partyLedger",movement]],{number:"FXP-"+Date.now(),date:dateValue,description:"پرداخت "+fmtForeign(amountMinor/100)+" "+payable.currency+" بابت "+payable.sourceNumber,reference},journal,[
   {store:"foreignPayables",key:Number(payable.id),expected:payableSnapshot},
   {store:"importShipments",key:Number(sourceShipment.id),expected:sourceShipmentSnapshot},
   {store:"parties",key:Number(party.id),expected:partySnapshot},
@@ -1108,7 +1108,7 @@ async function reverseForeignPayablePaymentPwa(id){
  const cashAccount=payment.method==="بانک"?"1102":"1101",journal=[{accountCode:cashAccount,debitRial:plan.settlementRial,creditRial:0,description:"برگشت وجه پرداخت ارزی "+payment.sourceNumber},{accountCode:"2101",debitRial:0,creditRial:plan.bookedRial,description:"برگشت بدهی ارزی "+payment.sourceNumber}];
  if(plan.fxGainRial>0)journal.push({accountCode:"4301",debitRial:plan.fxGainRial,creditRial:0,description:"برگشت سود تسعیر پرداخت "+payment.sourceNumber});
  if(plan.fxLossRial>0)journal.push({accountCode:"5501",debitRial:0,creditRial:plan.fxLossRial,description:"برگشت زیان تسعیر پرداخت "+payment.sourceNumber});
- party.balance=Number(party.balance||0)-plan.bookedRial;sourceShipment.status=plan.updated.status==="PAID"?"تسویه‌شده":"رسید انبار شده";
+ party.balance=Number(party.balance||0)-plan.bookedRial;sourceShipment.status=plan.updated.status==="PAID"?"تسویه‌شده":"رسید انبار شده";sourceShipment.statusChangedAt=now;
  const originalTreasuryUpdated={...originalTreasury,status:"REVERSED",reversedAt:now};
  const reversalTreasury={kind:"RECEIPT",method:payment.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payment.currency,foreignAmountMinor:payment.amountMinor,fxRateRialPerUnit:payment.fxRateRialPerUnit,date:now,note:"برگشت پرداخت ارزی "+payment.sourceNumber,reference,foreignPayableId:payable.id,reversalOf:payment.reference};
  const movement={partyId:party.id,date:now,debitRial:0,creditRial:plan.bookedRial,description:"برگشت پرداخت تعهد ارزی "+payment.sourceNumber,referenceId:reference};

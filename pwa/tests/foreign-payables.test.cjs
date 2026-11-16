@@ -16,6 +16,21 @@ test("reverses a posted installment and restores the outstanding payable balance
  assert.throws(()=>planForeignPayableReversal({payable:reversed.updated,payment:reversed.reversedPayment}),/قبلاً برگشت/);
 });
 
+test("converts large minor-unit FX amounts exactly when the intermediate product exceeds safe Number range",()=>{
+ const p=createForeignPayable({sourceNumber:"BIG",supplierId:1,currency:"USD",amountMinor:1_000_000,bookedFxRateRialPerUnit:900_719_925_474});
+ assert.equal(p.bookedRial,9_007_199_254_740_000);
+});
+test("rejects unsafe settlement conversions and inconsistent payable balances",()=>{
+ const p=payable();
+ assert.throws(()=>planForeignPayablePayment({payable:p,amountMinor:100_000,fxRateRialPerUnit:Number.MAX_SAFE_INTEGER}),/محدوده/);
+ assert.throws(()=>planForeignPayablePayment({payable:{...p,paidMinor:-1},amountMinor:1,fxRateRialPerUnit:1}),/غیرمنفی/);
+ assert.throws(()=>planForeignPayableReversal({payable:p,payment:{payableId:p.id,amountMinor:-1,bookedRial:1,settlementRial:1}}),/غیرمنفی/);
+});
+test("rejects overflow in realized FX totals rather than wrapping",()=>{
+ const p={...payable(),realizedFxGainRial:Number.MAX_SAFE_INTEGER};
+ assert.throws(()=>planForeignPayablePayment({payable:p,amountMinor:1,fxRateRialPerUnit:600_000}),/محدوده/);
+});
+
 test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX accounting",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");

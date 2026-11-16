@@ -8,7 +8,7 @@ function summarizeImportShipments(input){
   if(!Number.isSafeInteger(goodsRial)||goodsRial<0||!Number.isSafeInteger(totalCost)||totalCost<goodsRial)throw new Error("بهای ریالی محموله معتبر نیست: "+String(s.number||""));
   const ancillary=totalCost-goodsRial,weight=Number(s.weight),unitCost=totalCost/weight,status=String(s.status||"نامشخص"),currency=String(s.currency||"نامشخص");
   totalWeight+=weight;totalGoodsRial+=goodsRial;totalAncillary+=ancillary;totalLanded+=totalCost;
-  if(status==="رسید انبار شده"){receivedWeight+=weight;receivedCost+=totalCost}else inTransitWeight+=weight;
+  if(status==="رسید انبار شده"||status==="تسویه‌شده"){receivedWeight+=weight;receivedCost+=totalCost}else inTransitWeight+=weight;
   statusCounts.set(status,(statusCounts.get(status)||0)+1);
   foreignGoods[currency]=(foreignGoods[currency]||0)+Number(s.goods||0);
   const productKey=String(s.productId??s.productName??"unknown"),product=byProduct.get(productKey)||{productId:s.productId??null,productName:s.productName||"بدون نام",shipments:0,weight:0,landedCost:0};

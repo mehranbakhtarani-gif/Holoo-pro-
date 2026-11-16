@@ -12,6 +12,11 @@ async function reversePwaInvoice(number){
  if(vouchers.some(v=>v.reference==="REVERSAL:INVOICE:"+invoice.number))throw Error("این فاکتور قبلاً برگشت داده شده است");
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(original.id));
  if(oldLines.length<2)throw Error("ردیف‌های سند اصلی ناقص است");
+ const invoiceSnapshot={...invoice};
+ const productSnapshots=new Map(products.map(row=>[Number(row.id),{...row}]));
+ const partySnapshots=new Map(parties.map(row=>[Number(row.id),{...row}]));
+ const warehouseStockSnapshots=new Map(warehouseStockRows.map(row=>[Number(row.productId)+":"+Number(row.warehouseId),{...row}]));
+ const lotSnapshots=new Map(inventoryLots.map(row=>[String(row.id),{...row}]));
  const updated=[],warehouseUpdates=[],lotUpdates=[],lotAllocationsToRestore=[];
  for(const line of lines){
   const product=products.find(x=>Number(x.id)===Number(line.productId));
@@ -63,7 +68,16 @@ async function reversePwaInvoice(number){
  const now=Date.now(),reverseVoucherLines=oldLines.map(l=>({accountCode:l.accountCode,debitRial:Number(l.creditRial||0),creditRial:Number(l.debitRial||0),description:"برگشت فاکتور "+invoice.number}));
  const debit=reverseVoucherLines.reduce((n,l)=>n+l.debitRial,0),credit=reverseVoucherLines.reduce((n,l)=>n+l.creditRial,0);
  if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==credit||debit<=0)throw Error("سند معکوس تراز نیست");
- await postVoucherAtomic(entries,{number:"RV-"+now,date:now,description:"برگشت فاکتور "+invoice.number,reference:"REVERSAL:INVOICE:"+invoice.number},reverseVoucherLines);
+ const productIds=[...new Set(updated.map(([,row])=>Number(row.id)))];
+ const warehouseKeys=[...new Set(warehouseUpdates.map(([,row])=>Number(row.productId)+":"+Number(row.warehouseId)))];
+ const lotIds=[...new Set(lotUpdates.map(row=>String(row.id)))];
+ const partyIds=[...new Set(entries.filter(([store])=>store==="parties").map(([,row])=>Number(row.id)))];
+ const guards=[{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot}];
+ for(const id of partyIds){const snapshot=partySnapshots.get(id);if(!snapshot)throw Error("اطلاعات طرف حساب برای کنترل برگشت ناقص است");guards.push({store:"parties",key:id,expected:snapshot})}
+ for(const id of productIds){const snapshot=productSnapshots.get(id);if(!snapshot)throw Error("اطلاعات کالا برای کنترل برگشت ناقص است");guards.push({store:"products",key:id,expected:snapshot})}
+ for(const key of warehouseKeys){const snapshot=warehouseStockSnapshots.get(key);if(!snapshot)throw Error("اطلاعات موجودی انبار برای کنترل برگشت ناقص است");const [productId,warehouseId]=key.split(":").map(Number);guards.push({store:"warehouseStock",match:{productId,warehouseId},expected:snapshot})}
+ for(const id of lotIds){const snapshot=lotSnapshots.get(id);if(!snapshot)throw Error("اطلاعات بچ برای کنترل برگشت ناقص است");guards.push({store:"inventoryLots",key:snapshot.id,expected:snapshot})}
+ await postVoucherAtomic(entries,{number:"RV-"+now,date:now,description:"برگشت فاکتور "+invoice.number,reference:"REVERSAL:INVOICE:"+invoice.number},reverseVoucherLines,guards);
 }
 async function printInvoiceDocument(number){
  const popup=window.open("","_blank","width=1000,height=800");

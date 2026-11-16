@@ -4,7 +4,7 @@ async function reversePwaInvoice(number){
  if(!invoice||(invoice.status&&invoice.status!=="POSTED"))throw Error("فقط فاکتور ثبت‌شده قابل برگشت است");
  const lines=Array.isArray(invoice.lines)?invoice.lines:[];
  if(!lines.length)throw Error("ردیف‌های فاکتور برای برگشت پیدا نشد");
- const [products,parties,vouchers,voucherLines,warehouseStockRows]=await Promise.all([all("products"),all("parties"),all("vouchers"),all("voucherLines"),all("warehouseStock")]);
+ const [products,parties,vouchers,voucherLines,warehouseStockRows,inventoryLots]=await Promise.all([all("products"),all("parties"),all("vouchers"),all("voucherLines"),all("warehouseStock"),all("inventoryLots")]);
  const party=parties.find(x=>Number(x.id)===Number(invoice.partyId));
  if(!party)throw Error("طرف حساب فاکتور پیدا نشد");
  const original=vouchers.find(v=>v.reference===invoice.number);
@@ -12,7 +12,7 @@ async function reversePwaInvoice(number){
  if(vouchers.some(v=>v.reference==="REVERSAL:INVOICE:"+invoice.number))throw Error("این فاکتور قبلاً برگشت داده شده است");
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(original.id));
  if(oldLines.length<2)throw Error("ردیف‌های سند اصلی ناقص است");
- const updated=[],warehouseUpdates=[];
+ const updated=[],warehouseUpdates=[],lotUpdates=[];
  for(const line of lines){
   const product=products.find(x=>Number(x.id)===Number(line.productId));
   if(!product)throw Error("کالای "+(line.productName||line.productId)+" پیدا نشد");
@@ -26,6 +26,7 @@ async function reversePwaInvoice(number){
   let valueChange=0;
   if(invoice.kind==="SALE"){
    const cost=Number(line.cogs||0);if(!Number.isSafeInteger(cost)||cost<0)throw Error("بهای تمام‌شده ردیف فروش برای برگشت نامعتبر است");
+   if(Array.isArray(line.lotAllocations)&&line.lotAllocations.length){lotUpdates.push(...restoreLotSale({lots:inventoryLots,allocations:line.lotAllocations,date:Date.now()}));}
    stockRow.stock=warehouseStock+totalQty;stockRow.value=warehouseValue+cost;product.stock=productStock+totalQty;product.value=productValue+cost;valueChange=cost;
   }else{
    if(warehouseStock+1e-9<totalQty||productStock+1e-9<totalQty)throw Error("موجودی برای برگشت خرید در انبار یا کل کالا کافی نیست");
@@ -41,7 +42,7 @@ async function reversePwaInvoice(number){
   updated.push(["products",product]);warehouseUpdates.push(["warehouseStock",stockRow]);
  }
  party.balance=Number(party.balance||0)+(invoice.kind==="SALE"?-Number(invoice.total||0):Number(invoice.total||0));
- const entries=[...updated,...warehouseUpdates,["parties",party],["invoices",{...invoice,status:"REVERSED",reversedAt:Date.now()}],["partyLedger",{partyId:party.id,date:Date.now(),debitRial:invoice.kind==="PURCHASE"?invoice.total:0,creditRial:invoice.kind==="SALE"?invoice.total:0,description:"برگشت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]];
+ const entries=[...updated,...warehouseUpdates,...lotUpdates.map(lot=>["inventoryLots",lot]),["parties",party],["invoices",{...invoice,status:"REVERSED",reversedAt:Date.now()}],["partyLedger",{partyId:party.id,date:Date.now(),debitRial:invoice.kind==="PURCHASE"?invoice.total:0,creditRial:invoice.kind==="SALE"?invoice.total:0,description:"برگشت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]];
  if(Number(invoice.commissionAmount||0)>0&&invoice.commissionPartyId){
   const commissionParty=parties.find(x=>Number(x.id)===Number(invoice.commissionPartyId));
   if(!commissionParty)throw Error("طرف حساب پورسانت برای برگشت پیدا نشد");
@@ -78,8 +79,8 @@ async function printCheckDocument(id){
   popup.document.open();popup.document.write(doc);popup.document.close();popup.focus();setTimeout(()=>popup.print(),700);
  }catch(error){popup.close();throw error}
 }
-const DB_NAME="holloo-pro-pwa",DB_VERSION=9;
-const stores=["products","parties","invoices","imports","checks","treasury","accounts","vouchers","voucherLines","stockAdjustments","partyLedger","warehouses","warehouseStock","warehouseTransfers","importShipments","approvals","employees","payroll","fixedAssets","treasuryAllocations","auditLog","assetDepreciations","bankStatements","bankStatementLines","salesOrders"];
+const DB_NAME="holloo-pro-pwa",DB_VERSION=10;
+const stores=["products","parties","invoices","imports","checks","treasury","accounts","vouchers","voucherLines","stockAdjustments","partyLedger","warehouses","warehouseStock","warehouseTransfers","importShipments","approvals","employees","payroll","fixedAssets","treasuryAllocations","auditLog","assetDepreciations","bankStatements","bankStatementLines","salesOrders","inventoryLots"];
 let db,showToman=true,currentPage="home",searchText="";
 const $=s=>document.querySelector(s),h=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])),fmt=n=>new Intl.NumberFormat("fa-IR").format(Math.round(Number(n)||0)),fmtForeign=n=>new Intl.NumberFormat("fa-IR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0),money=n=>fmt(showToman?Number(n||0)/10:Number(n||0)),moneyUnit=()=>showToman?"تومان":"ریال",date=v=>v?new Intl.DateTimeFormat("fa-IR").format(new Date(v)):"—";
 const titles={home:["داشبورد کسب‌وکار","نمای کلی فروش، انبار و گردش مالی"],inventory:["کالا و انبار","مدیریت کالاهای نخ و ارزش موجودی"],parties:["اشخاص","مشتریان و تأمین‌کنندگان و مانده حساب"],invoices:["فاکتورها","ثبت خرید و فروش با کنترل موجودی"],salesOrders:["پیش‌فاکتور و سفارش","ثبت پیش‌فاکتور، سفارش فروش و تبدیل به فاکتور"],imports:["واردات نخ","ثبت سفارش، ارز و هزینه‌های واردات"],checks:["مدیریت چک‌ها","چک‌های دریافتی و پرداختی و سررسیدها"],treasury:["دریافت و پرداخت","ثبت گردش صندوق و بانک"],accounting:["گزارش مالی","خلاصه عملکرد و گردش حساب‌ها"],bankReconciliation:["مغایرت بانکی","ورود صورت‌حساب و تطبیق با گردش بانک"],foreignExchange:["سود و زیان ارزی","گزارش سود و زیان تحقق‌یافته تسعیر ارز"],warehouses:["مدیریت انبارها","موجودی مستقل، ارزش موجودی و گردش بین انبارها"],warehouseTransfers:["انتقال بین انبارها","ثبت و پیگیری انتقال موجودی و ارزش دفتری"],importShipments:["محموله‌های وارداتی","پیگیری کانتینرها، هزینه‌ها و تسویه محموله"],approvals:["گردش تأیید","ثبت و پیگیری درخواست‌های تأیید اسناد"],employees:["کارکنان","اطلاعات پرسنلی و حقوق پایه"],payroll:["حقوق و دستمزد","ثبت دوره حقوق، کسورات و پرداخت"],fixedAssets:["دارایی ثابت","ثبت بهای خرید و استهلاک دارایی‌ها"],auditLog:["گزارش ممیزی","سوابق ثبت، ویرایش و حذف اطلاعات"],allocations:["تخصیص دریافت و پرداخت","تخصیص تراکنش‌های خزانه به چند فاکتور"],depreciations:["استهلاک دارایی‌ها","ثبت استهلاک دوره‌ای با سند حسابداری"]};
@@ -163,7 +164,7 @@ async function receiveImportShipment(id){
  if(!shipment)throw Error("محموله پیدا نشد");
  if(shipment.receivedAt)throw Error("این محموله قبلاً رسید انبار شده است");
  if(shipment.status!=="رسیده")throw Error("ابتدا وضعیت محموله را به «رسیده» تغییر دهید");
- const [products,parties,warehouses,stockRows]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock")]);
+ const [products,parties,warehouses,stockRows,lots]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock"),all("inventoryLots")]);
  const product=products.find(x=>Number(x.id)===Number(shipment.productId)),party=parties.find(x=>Number(x.id)===Number(shipment.supplierId)),warehouse=warehouses.find(x=>Number(x.id)===Number(shipment.warehouseId));
  if(!product||!party||!warehouse)throw Error("کالا، تأمین‌کننده یا انبار مقصد محموله پیدا نشد");
  const costs=calculateImportShipmentCost({currency:shipment.currency,fx:shipment.fx,weight:shipment.weight,goods:shipment.goods,freight:shipment.freight,customs:shipment.customs,other:shipment.other});
@@ -175,6 +176,8 @@ async function receiveImportShipment(id){
  product.stock=nextStock;product.value=nextValue;product.avg=nextStock>0?nextValue/nextStock:0;
  const ancillary=costs.totalCost-costs.goodsRial,now=Date.now(),reference="IMPORT-RECEIPT:"+shipment.number;
  shipment.goodsRial=costs.goodsRial;shipment.totalCost=costs.totalCost;shipment.unitCost=costs.unitCost;shipment.status="رسید انبار شده";shipment.receivedAt=now;shipment.receivedVoucherNumber="IMP-"+now;
+ const lot=planLotReceipt({productId:product.id,productName:product.name,warehouseId:warehouse.id,sourceType:"IMPORT_SHIPMENT",sourceId:shipment.id,sourceNumber:shipment.number,container:shipment.container,supplierId:party.id,supplierName:party.name,quantity:Number(shipment.weight),totalCost:costs.totalCost,receivedAt:now});
+ if(lots.some(x=>x.id===lot.id))throw Error("برای این محموله قبلاً بچ موجودی ثبت شده است");
  party.balance=Number(party.balance||0)-costs.goodsRial;
  const ledger={partyId:party.id,date:now,debitRial:0,creditRial:costs.goodsRial,description:"ثبت بدهی خرید محموله "+shipment.number,referenceId:reference};
  const journal=[{accountCode:"1301",debitRial:costs.totalCost,creditRial:0,description:"ورود موجودی محموله "+shipment.number}];
@@ -182,7 +185,7 @@ async function receiveImportShipment(id){
  if(ancillary>0)journal.push({accountCode:"2102",debitRial:0,creditRial:ancillary,description:"هزینه‌های جانبی واردات پرداختنی"});
  if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند رسید محموله تراز نیست");
  await ensureBaseAccounts();
- await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["parties",party],["partyLedger",ledger]],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal);
+ await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["inventoryLots",lot],["parties",party],["partyLedger",ledger]],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal);
  toast("محموله رسید انبار شد؛ بهای تمام‌شده به موجودی کالا اضافه شد");await render();
 }
 async function importBankStatementCsv(file,bankName){

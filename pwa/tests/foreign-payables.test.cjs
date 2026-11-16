@@ -1,6 +1,10 @@
 const test=require("node:test");const assert=require("node:assert/strict");
-const {createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable}=require("../foreign-payables.js");
+const {createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable,convertMinorAtRate}=require("../foreign-payables.js");
 const payable=()=>({...createForeignPayable({sourceType:"IMPORT_SHIPMENT",sourceId:7,sourceNumber:"IMP-007",container:"MSCU123",supplierId:2,supplierName:"تأمین‌کننده چین",currency:"USD",amountMinor:100000,bookedFxRateRialPerUnit:600000,dueDate:500}),id:12});
+test("converts minor currency units with exact integer arithmetic",()=>{
+ assert.equal(convertMinorAtRate(100000,600000),600000000);
+ assert.throws(()=>convertMinorAtRate(Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER),/محدوده/);
+});
 test("creates a supplier obligation at the original booking FX rate",()=>{const p=payable();assert.equal(p.bookedRial,600000000);assert.equal(p.paidMinor,0);assert.equal(p.status,"OPEN")});
 test("calculates partial settlement and realized FX gain for a foreign-currency liability",()=>{const p=payable(),x=planForeignPayablePayment({payable:p,amountMinor:25000,fxRateRialPerUnit:550000,date:600});assert.equal(x.bookedRial,150000000);assert.equal(x.settlementRial,137500000);assert.equal(x.fxGainRial,12500000);assert.equal(x.fxLossRial,0);assert.equal(x.remainingMinor,75000);assert.equal(x.updated.status,"PARTIAL")});
 test("calculates realized FX loss when settlement rate rises",()=>{const p=payable(),x=planForeignPayablePayment({payable:p,amountMinor:100000,fxRateRialPerUnit:650000});assert.equal(x.bookedRial,600000000);assert.equal(x.settlementRial,650000000);assert.equal(x.fxLossRial,50000000);assert.equal(x.updated.status,"PAID")});
@@ -37,7 +41,7 @@ test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX ac
  assert.match(app,/DB_VERSION=11/);assert.match(app,/"foreignPayables","foreignPayablePayments"/);
  assert.match(app,/createForeignPayable\(/);assert.match(app,/summarizeForeignPayablesForecast\(/);assert.match(app,/planForeignPayablePayment\(/);assert.match(app,/reverseForeignPayablePaymentPwa\(/);assert.match(app,/data-fx-payment-reverse/);
  assert.match(app,/sourceNumber/);assert.match(app,/sourceShipment\?\.receivedAt/);assert.match(app,/shipmentReceivedAt/);assert.match(app,/fxGainRial/);assert.match(app,/fxLossRial/);
- assert.match(app,/foreignRateOverrides/);assert.match(app,/foreignPayablePayments/);
+ assert.match(app,/foreignRateOverrides/);assert.match(app,/foreignPayablePayments/);\n assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(remaining,rate\)/);\n assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(foreignAmountMinor,Number\(s\.fx\)\)/);
  assert.match(html,/foreign-payables\.js\?v=foreign-payables-1/);
  assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v=foreign-payables-1"));
  assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);

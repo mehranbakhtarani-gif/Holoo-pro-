@@ -16,3 +16,17 @@ test("import order requires a valid supplier, unique container and safe direct c
  assert.match(app,/شماره کانتینر قبلاً ثبت شده است/);
  assert.match(app,/هزینه‌های جانبی باید عدد صحیح و غیرمنفی باشند/);
 });
+
+ 
+test("shipment landed cost includes every itemized direct cost",()=>{
+ assert.match(app,/insurance:num\("insurance"\),port:num\("port"\),inland:num\("inland"\),broker:num\("broker"\),storage:num\("storage"\),bank:num\("bank"\),other:num\("other"\)/);
+});
+
+test("shipment search covers container, supplier and product and deletion protects linked payables",()=>{
+ assert.match(app,/جست‌وجوی شماره محموله، کانتینر، کالا یا تأمین‌کننده/);
+ assert.match(app,/payables\.some\(x=>Number\(x\.sourceShipmentId\)===key\)/);
+});
+
+test("shipment finance fields are locked after a foreign payable is created",()=>{
+ assert.match(app,/برای این محموله تعهد ارزی ثبت شده است؛ اطلاعات مالی، کالا و تأمین‌کننده قفل شده‌اند/);
+});

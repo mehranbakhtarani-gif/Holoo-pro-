@@ -90,7 +90,7 @@ function buildPeriodClosingJournal(input){
 function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
  if(!Number.isSafeInteger(fromDate)||!Number.isSafeInteger(toDate)||fromDate>toDate)throw new Error("بازه بستن دوره معتبر نیست");
  return (vouchers||[]).some(v=>{
-  const match=/^YEAR_END_CLOSE:(\\d+):(\\d+)$/.exec(String(v.reference||""));
+  const match=/^YEAR_END_CLOSE:(\d+):(\d+)$/.exec(String(v.reference||""));
   if(!match)return false;
   const oldFrom=Number(match[1]),oldTo=Number(match[2]);
   return Number.isSafeInteger(oldFrom)&&Number.isSafeInteger(oldTo)&&oldFrom<=oldTo&&fromDate<=oldTo&&toDate>=oldFrom;

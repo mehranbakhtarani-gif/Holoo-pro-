@@ -62,8 +62,8 @@ async function reverseTreasuryAllocationPwa(id){
  if(!invoice||!transaction)throw Error("فاکتور یا گردش خزانه تخصیص پیدا نشد");
  const invoiceSnapshot={...invoice},transactionSnapshot={...transaction},allocationSnapshot={...allocation};
  const now=Date.now();
- transaction.allocationVersion=Number(transaction.allocationVersion||0)+1;
- invoice.allocationVersion=Number(invoice.allocationVersion||0)+1;
+ incrementAllocationVersion(transaction,"خزانه");
+ incrementAllocationVersion(invoice,"فاکتور");
  const gain=Number(allocation.fxGainRial||0),loss=Number(allocation.fxLossRial||0);
  if(gain<=0&&loss<=0){
   allocation.originalTreasuryId=allocation.treasuryId;allocation.treasuryId=null;allocation.status="REVERSED";allocation.reversedAt=now;
@@ -253,6 +253,7 @@ async function loadDemoData(){
  toast("داده‌های آزمایشی اضافه شد؛ سه کالا، سه شخص و مانده‌های افتتاحیه آماده‌اند");await render();
 }
 async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["2104","حقوق پرداختنی","LIABILITY"],["2105","کسورات حقوق پرداختنی","LIABILITY"],["1501","دارایی ثابت مشهود","ASSET"],["1502","استهلاک انباشته دارایی","ASSET"],["3101","سرمایه","EQUITY"],["3102","مانده افتتاحیه اشخاص","EQUITY"],["3201","سود و زیان انباشته","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["4301","سود تسعیر ارز","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"],["5202","اختلاف بهای برگشت خرید","EXPENSE"],["5203","هزینه پورسانت فروش","EXPENSE"],["5301","هزینه حقوق و دستمزد","EXPENSE"],["5401","هزینه استهلاک","EXPENSE"],["5501","زیان تسعیر ارز","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title:byId.get(id)?.title||title,type:byId.get(id)?.type||type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
+function incrementAllocationVersion(record,label="سند"){const next=Number(record.allocationVersion||0)+1;if(!Number.isSafeInteger(next)||next<1)throw Error("نسخه تخصیص "+label+" از محدوده عددی مجاز خارج است");record.allocationVersion=next;return next}
 function applyPartyBalanceDelta(party,delta,label="طرف حساب"){
  const current=Number(party?.balance||0),change=Number(delta),next=current+change;
  if(!Number.isSafeInteger(current)||!Number.isSafeInteger(change)||!Number.isSafeInteger(next))throw Error("مانده "+label+" از محدوده عددی مجاز خارج است");
@@ -1231,7 +1232,7 @@ if(page==="allocations"){
  validateTreasuryAllocation({transaction:tr,invoice,amount,allocations:allocs,currentAllocationId:item?.id});
  const invoiceCurrency=String(invoice.currency||"IRR"),transactionCurrency=String(tr.currency||"IRR"),transactionSnapshot={...tr},invoiceSnapshot={...invoice};
  if(invoiceCurrency!==transactionCurrency)throw Error("ارز دریافت/پرداخت باید با ارز فاکتور یکسان باشد");
- if(item)throw Error("تخصیص ثبت‌شده قابل ویرایش نیست؛ برای اصلاح سند جدید ثبت کنید");const party=(await all("parties")).find(x=>x.id===invoice.partyId);if(!party)throw Error("طرف حساب تخصیص پیدا نشد");const allocation={treasuryId:tr.id,invoiceNumber:invoice.number,partyId:invoice.partyId,partyName:invoice.partyName,amount,date:Date.now()};tr.allocationVersion=Number(tr.allocationVersion||0)+1;invoice.allocationVersion=Number(invoice.allocationVersion||0)+1;
+ if(item)throw Error("تخصیص ثبت‌شده قابل ویرایش نیست؛ برای اصلاح سند جدید ثبت کنید");const party=(await all("parties")).find(x=>x.id===invoice.partyId);if(!party)throw Error("طرف حساب تخصیص پیدا نشد");const allocation={treasuryId:tr.id,invoiceNumber:invoice.number,partyId:invoice.partyId,partyName:invoice.partyName,amount,date:Date.now()};incrementAllocationVersion(tr,"خزانه");incrementAllocationVersion(invoice,"فاکتور");
  let fxJournal=[];
  if(invoiceCurrency!=="IRR"){
   if(!Number.isSafeInteger(invoice.foreignTotalMinor)||invoice.foreignTotalMinor<=0||!Number.isSafeInteger(tr.foreignAmountMinor)||tr.foreignAmountMinor<=0||!Number.isSafeInteger(tr.fxRateRialPerUnit)||tr.fxRateRialPerUnit<=0)throw Error("اطلاعات ارزی فاکتور یا تراکنش ناقص است");

@@ -128,3 +128,13 @@ test("reconciles supplier foreign balances against supplier subledger and linked
  const broken=reconcileForeignPayableBalances({payables,payments,partyLedger,vouchers,voucherLines:voucherLines.slice(1)});
  assert.equal(broken.withIssues,1);assert.notEqual(broken.rows[0].generalLedgerDeltaRial,0);
 });
+
+test("provides shipment-level trace from foreign balance to payment and voucher references",()=>{
+ const {reconcileForeignPayableBalances}=require("../foreign-payables.js");
+ const payable={id:21,supplierId:7,supplierName:"Supplier",sourceNumber:"SHIP-21",currency:"USD",amountMinor:5000,paidMinor:1000,bookedRial:30000000,bookedRialPaid:6000000,shipmentReceivedAt:10,status:"PARTIAL"};
+ const payment={id:44,payableId:21,reference:"FXPAY:21:44",status:"REVERSED",amountMinor:1000,bookedRial:6000000,settlementRial:5500000};
+ const result=reconcileForeignPayableBalances({payables:[payable],payments:[payment],partyLedger:[{partyId:7,referenceId:"IMPORT-RECEIPT:SHIP-21",creditRial:30000000},{partyId:7,referenceId:payment.reference,debitRial:6000000},{partyId:7,referenceId:"FXPAY-REV:44",creditRial:6000000}],vouchers:[{id:1,number:"V-1",reference:"IMPORT-RECEIPT:SHIP-21"},{id:2,number:"V-2",reference:payment.reference},{id:3,number:"V-3",reference:"FXPAY-REV:44"}],voucherLines:[{voucherId:1,accountCode:"2101",creditRial:30000000},{voucherId:2,accountCode:"2101",debitRial:6000000},{voucherId:3,accountCode:"2101",creditRial:6000000}]});
+ const trace=result.rows[0].trace[0];
+ assert.equal(trace.sourceNumber,"SHIP-21");assert.equal(trace.payments[0].reversalReference,"FXPAY-REV:44");
+ assert.deepEqual(trace.vouchers.map(x=>x.number),["V-1","V-2","V-3"]);assert.equal(trace.partyLedgerRows,3);
+});

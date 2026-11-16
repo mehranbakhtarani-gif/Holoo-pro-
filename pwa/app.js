@@ -645,6 +645,35 @@ if(page==="warehouses"){const name=String(d.name||"").trim();if(!name)throw Erro
  if(old.some(x=>(x.number===number||String(x.container||"").toLowerCase()===container.toLowerCase())&&x.id!==item?.id))throw Error("شماره محموله یا کانتینر تکراری است");
  await put("importShipments",{id:item?.id,number,container,supplierId:p.id,supplierName:p.name,productId:product.id,productName:product.name,warehouseId:warehouse.id,warehouseName:warehouse.name,currency:d.currency,fx:num("fx"),weight:num("weight"),goods:num("goods"),freight:num("freight"),customs:num("customs"),other:num("other"),goodsRial:costs.goodsRial,totalCost:costs.totalCost,unitCost:costs.unitCost,dueDate:d.dueDate?new Date(d.dueDate+"T12:00:00").getTime():null,status:d.status||"سفارش",receivedAt:null,updatedAt:Date.now()});return
 }
+if(page==="foreignPayables"){
+ if(item)throw Error("تعهد ارزی ثبت‌شده قابل ویرایش نیست؛ برای اصلاح، سند اصلاحی ثبت کنید");
+ const shipments=await all("importShipments"),shipment=shipments.find(x=>Number(x.id)===num("shipmentId"));
+ if(!shipment||!["USD","CNY","EUR"].includes(shipment.currency))throw Error("محموله ارزی معتبر انتخاب کنید");
+ const existing=await all("foreignPayables");if(existing.some(x=>Number(x.sourceShipmentId)===Number(shipment.id)))throw Error("برای این محموله قبلاً تعهد ارزی ثبت شده است");
+ const amountMinor=Math.round(Number(shipment.goods)*100),dueDate=d.dueDate?new Date(d.dueDate+"T12:00:00").getTime():Number(shipment.dueDate||0);
+ const payable=HolooForeignPayables.createForeignPayable({sourceType:"IMPORT_SHIPMENT",sourceShipmentId:shipment.id,sourceNumber:shipment.number,container:shipment.container,supplierId:shipment.supplierId,supplierName:shipment.supplierName,currency:shipment.currency,amountMinor,bookedFxRateRialPerUnit:Number(shipment.fx),dueDate:dueDate||null});
+ await put("foreignPayables",payable);return
+}
+if(page==="foreignPayablePayments"){
+ if(item)throw Error("پرداخت ثبت‌شده قابل ویرایش نیست؛ برای اصلاح سند معکوس ثبت کنید");
+ const payables=await all("foreignPayables"),payable=payables.find(x=>Number(x.id)===num("payableId"));
+ if(!payable)throw Error("تعهد ارزی انتخاب‌شده پیدا نشد");
+ const parties=await all("parties"),party=parties.find(x=>Number(x.id)===Number(payable.supplierId));
+ if(!party)throw Error("تأمین‌کننده تعهد ارزی پیدا نشد");
+ const amountMinor=Math.round(num("amount")*100),fxRate=num("fxRateRialPerUnit"),dateValue=new Date(String(d.date||"")+"T12:00:00").getTime();
+ if(!Number.isFinite(dateValue)||!["بانک","صندوق"].includes(d.method))throw Error("تاریخ یا روش پرداخت معتبر نیست");
+ const reference="FXPAY:"+payable.id+":"+Date.now(),plan=HolooForeignPayables.planForeignPayablePayment({payable,amountMinor,fxRateRialPerUnit:fxRate,date:dateValue,reference,method:d.method,note:d.note});
+ const cashAccount=d.method==="بانک"?"1102":"1101",journal=[{accountCode:"2101",debitRial:plan.bookedRial,creditRial:0,description:"کاهش بدهی ارزی "+payable.sourceNumber},{accountCode:cashAccount,debitRial:0,creditRial:plan.settlementRial,description:"پرداخت ارزی به تأمین‌کننده"}];
+ if(plan.fxGainRial>0)journal.push({accountCode:"4301",debitRial:0,creditRial:plan.fxGainRial,description:"سود تحقق‌یافته تسعیر بدهی "+payable.sourceNumber});
+ if(plan.fxLossRial>0)journal.push({accountCode:"5501",debitRial:plan.fxLossRial,creditRial:0,description:"زیان تحقق‌یافته تسعیر بدهی "+payable.sourceNumber});
+ if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند پرداخت ارزی تراز نیست");
+ party.balance=Number(party.balance||0)+plan.bookedRial;
+ const movement={partyId:party.id,date:dateValue,debitRial:plan.bookedRial,creditRial:0,description:"پرداخت تعهد ارزی محموله "+payable.sourceNumber,referenceId:reference};
+ const treasuryRecord={kind:"PAYMENT",method:d.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payable.currency,foreignAmountMinor:amountMinor,fxRateRialPerUnit:fxRate,date:dateValue,note:d.note||("تسویه تعهد "+payable.sourceNumber),reference,foreignPayableId:payable.id};
+ await ensureBaseAccounts();
+ await postVoucherAtomic([["foreignPayables",plan.updated],["foreignPayablePayments",plan.payment],["treasury",treasuryRecord],["parties",party],["partyLedger",movement]],{number:"FXP-"+Date.now(),date:dateValue,description:"پرداخت "+fmtForeign(amountMinor/100)+" "+payable.currency+" بابت "+payable.sourceNumber,reference},journal);
+ return
+}
 if(page==="approvals"){if(!d.referenceId||!d.stage)throw Error("شناسه سند و مرحله الزامی است");await put("approvals",{id:item?.id,referenceType:d.referenceType,referenceId:d.referenceId,stage:d.stage,approver:d.approver,status:d.status,note:d.note,updatedAt:Date.now()});return}
 if(page==="employees"){const name=String(d.name||"").trim(),salary=num("baseSalary");if(!name||!Number.isSafeInteger(salary)||salary<0)throw Error("نام و حقوق پایه معتبر الزامی است");await put("employees",{id:item?.id,name,role:d.role,phone:d.phone,baseSalary:salary,startDate:d.startDate?new Date(d.startDate+"T12:00:00").getTime():null});return}
 if(page==="payroll"){const employees=await all("employees"),employee=employees.find(x=>x.id===num("employeeId")),gross=num("gross"),deductions=num("deductions");if(item)throw Error("برای جلوگیری از مغایرت دفتر کل، حقوق ثبت‌شده قابل ویرایش نیست؛ سند اصلاحی جداگانه ثبت کنید");if(!employee||!d.period||!Number.isSafeInteger(gross)||!Number.isSafeInteger(deductions)||gross<=0||deductions<0||deductions>gross)throw Error("اطلاعات حقوق معتبر نیست");await ensureBaseAccounts();const net=gross-deductions,now=Date.now(),status=d.status||"محاسبه‌شده",row={employeeId:employee.id,employeeName:employee.name,period:d.period,gross,deductions,net,status,createdAt:now};const journal=[{accountCode:"5301",debitRial:gross,creditRial:0,description:"هزینه حقوق "+employee.name}];if(net>0)journal.push({accountCode:status==="پرداخت‌شده"?"1102":"2104",debitRial:0,creditRial:net,description:status==="پرداخت‌شده"?"پرداخت خالص حقوق":"حقوق پرداختنی"});if(deductions>0)journal.push({accountCode:"2105",debitRial:0,creditRial:deductions,description:"کسورات حقوق پرداختنی"});await postVoucherAtomic([["payroll",row]],{number:"PAY-"+now,date:now,description:"حقوق "+employee.name+" "+d.period,reference:"PAYROLL:"+employee.id+":"+d.period},journal);return}

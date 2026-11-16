@@ -8,7 +8,8 @@ function buildCashFlowForecast(input){
  for(let i=0;i<weekCount;i++){const from=new Date(start);from.setDate(from.getDate()+i*7);const to=new Date(from);to.setDate(to.getDate()+7);result.weekly.push({from:from.getTime(),to:Math.min(to.getTime(),end.getTime()),inflowsRial:0,outflowsRial:0,netRial:0,closingCashRial:0,count:0})}
  const valid=[];
  for(const event of events){
-  if(!event||!["INFLOW","OUTFLOW"].includes(event.direction))continue;
+  if(!event)continue;
+  if(!["INFLOW","OUTFLOW"].includes(event.direction))throw new Error("جهت یکی از رویدادهای جریان نقدی معتبر نیست");
   const amount=Number(event.amountRial);if(!Number.isSafeInteger(amount)||amount<=0)throw new Error("مبلغ یکی از رویدادهای جریان نقدی معتبر نیست");
   const due=Number(event.dueDate||0),record={...event,amountRial:amount,dueDate:Number.isFinite(due)&&due>0?due:null};
   if(!record.dueDate){if(record.direction==="INFLOW")result.undatedInflowsRial+=amount;else result.undatedOutflowsRial+=amount;result.undatedCount++;continue}

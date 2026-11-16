@@ -352,7 +352,7 @@ if(currentPage==="cashFlow"){
  const movements=voucherLines.filter(x=>cashCodes.has(String(x.accountCode))).reduce((n,x)=>n+Number(x.debitRial||0)-Number(x.creditRial||0),0);
  const openingCashRial=opening+movements;
  const forecast=buildCashFlowForecast({asOf:now,horizonDays:cashFlowHorizon,openingCashRial,events});
- const upcoming=events.filter(x=>Number(x.dueDate)>=new Date(now).setHours(0,0,0,0)&&Number(x.dueDate)<now+cashFlowHorizon*86400000).sort((x,y)=>Number(x.dueDate)-Number(y.dueDate));
+ const horizonEnd=new Date(forecast.asOf);horizonEnd.setDate(horizonEnd.getDate()+cashFlowHorizon);const upcoming=events.filter(x=>Number(x.dueDate)>=forecast.asOf&&Number(x.dueDate)<horizonEnd.getTime()).sort((x,y)=>Number(x.dueDate)-Number(y.dueDate));
  const rows=upcoming.map(x=>'<tr><td>'+date(x.dueDate)+'</td><td>'+h(x.source)+'</td><td>'+h(x.partyName||"—")+'</td><td>'+h(x.reference||"—")+'</td><td>'+(x.currency?h(fmtForeign(Number(x.foreignAmountMinor||0)/100)+" "+x.currency):"—")+'</td><td>'+money(x.amountRial)+' '+moneyUnit()+'</td><td>'+(x.direction==="INFLOW"?"ورودی":"خروجی")+'</td></tr>');
  const weekly=forecast.weekly.map((x,i)=>'<tr><td>هفته '+fmt(i+1)+' ('+date(x.from)+')</td><td>'+money(x.inflowsRial)+' '+moneyUnit()+'</td><td>'+money(x.outflowsRial)+' '+moneyUnit()+'</td><td>'+money(x.netRial)+' '+moneyUnit()+'</td><td>'+money(x.closingCashRial)+' '+moneyUnit()+'</td></tr>');
  const horizon='<div class="toolbar">'+[30,60,90].map(n=>'<button type="button" class="btn '+(cashFlowHorizon===n?'primary':'secondary')+'" data-cash-horizon="'+n+'">'+fmt(n)+' روز</button>').join("")+'</div>';

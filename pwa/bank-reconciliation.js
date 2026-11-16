@@ -30,6 +30,7 @@ function parseBankCsv(text,defaultBank=""){
  const digits=s=>String(s).replace(/[۰-۹٠-٩]/g,ch=>{const p="۰۱۲۳۴۵۶۷۸۹",a="٠١٢٣٤٥٦٧٨٩",n=p.indexOf(ch);return n>=0?String(n):String(a.indexOf(ch))});
  const parseDate=value=>{const raw=digits(value).trim();if(/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw)){const t=new Date(raw.replace(/\//g,"-")+"T12:00:00").getTime();if(Number.isFinite(t))return t}const t=new Date(raw).getTime();if(Number.isFinite(t))return t;throw new Error("تاریخ نامعتبر در صورت‌حساب بانکی: "+value)};
  const parseAmount=value=>{const raw=digits(value).replace(/[٬،,\s]/g,"").replace(/[()]/g,"");const n=Number(raw);if(!Number.isSafeInteger(n)||n===0)throw new Error("مبلغ نامعتبر در صورت‌حساب بانکی: "+value);return String(value).includes("(")?-Math.abs(n):n};
+ const parseColumnMagnitude=value=>{const raw=digits(value||"0").replace(/[٬،,\s]/g,"").replace(/[()]/g,"");const n=raw===""?0:Number(raw);if(!Number.isSafeInteger(n)||n<0)throw new Error("مبلغ ستون برداشت/واریز نامعتبر است: "+value);return n};
  return rows.slice(1).map((cells,index)=>{
   const date=parseDate(cells[columns.date]||"");
   let signedAmount;

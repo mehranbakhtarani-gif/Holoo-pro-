@@ -30,10 +30,10 @@ test("PWA exposes the shared date selector and applies it in all persistence pat
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
  assert.match(app,/operationDateMode="AUTO"/);assert.match(app,/id="operationDateMode"/);assert.match(app,/id="operationDateValue"/);
- assert.match(app,/bindOperationDateControls\\(\\)/);assert.match(app,/stampOperationRecord/);
- assert.match(app,/function postVoucherAtomic\\(entries,voucher,lines\\)\\{const stamp=/);
- assert.match(app,/function put\\(s,v\\)\\{if\\(operationDateMode==="MANUAL"/);
- assert.match(app,/function putMany\\(entries\\)\\{if\\(operationDateMode==="MANUAL"/);
+ assert.match(app,/bindOperationDateControls\(\)/);assert.match(app,/stampOperationRecord/);
+ assert.match(app,/function postVoucherAtomic\(entries,voucher,lines\)\{const stamp=/);
+ assert.match(app,/function put\(s,v\)\{if\(operationDateMode==="MANUAL"/);
+ assert.match(app,/function putMany\(entries\)\{if\(operationDateMode==="MANUAL"/);
  assert.ok(html.indexOf("operation-date.js")<html.indexOf("app.js?v=operation-date-1"));
  assert.match(sw,/operation-date\\.js/);assert.match(sw,/holloo-pwa-v55-operation-date/);
 });

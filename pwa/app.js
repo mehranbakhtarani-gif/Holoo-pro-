@@ -616,30 +616,46 @@ if(page==="treasury"){
  await postVoucherAtomic([["parties",p],["treasury",record],["partyLedger",movement]],{number:"TV-"+now,date:now,description:(kind==="RECEIPT"?"دریافت ":"پرداخت ")+p.name,reference},journal);
 }}
 async function exportBackup(prefix="holloo-backup"){
- const records={},counts={};
- for(const store of stores){records[store]=await all(store);counts[store]=records[store].length}
+ const records=await new Promise((resolve,reject)=>{
+  const tx=db.transaction(stores,"readonly"),snapshot={};
+  for(const store of stores){
+   const request=tx.objectStore(store).getAll();
+   request.onsuccess=()=>{snapshot[store]=request.result};
+   request.onerror=()=>{try{tx.abort()}catch(_){}};
+  }
+  tx.oncomplete=()=>resolve(snapshot);
+  tx.onerror=()=>reject(tx.error||new Error("خواندن یکپارچه اطلاعات برای پشتیبان‌گیری ناموفق بود"));
+  tx.onabort=()=>reject(tx.error||new Error("تهیه نسخه پشتیبان لغو شد"));
+ });
+ const counts={};for(const store of stores)counts[store]=records[store].length;
  const data={app:"HOLLOO PRO+ PWA",version:2,schemaVersion:DB_VERSION,exportedAt:new Date().toISOString(),storeNames:[...stores],counts,records};
  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});if(blob.size>50*1024*1024)throw Error("حجم نسخه پشتیبان از سقف ۵۰ مگابایت بیشتر است؛ فایل صادر نشد");const url=URL.createObjectURL(blob),a=document.createElement("a");
- a.href=url;a.download=prefix+"-"+new Date().toISOString().slice(0,10)+".json";a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ a.href=url;a.download=String(prefix||"holloo-backup")+"-"+new Date().toISOString().slice(0,10)+".json";a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
  return {counts,total:Object.values(counts).reduce((sum,n)=>sum+n,0)};
 }
 async function restoreBackup(file){
  if(!file||!file.size||file.size>50*1024*1024)throw Error("فایل پشتیبان خالی است یا از سقف ۵۰ مگابایت بزرگ‌تر است");
  let data;try{data=JSON.parse(await file.text())}catch(_){throw Error("محتوای فایل JSON معتبر نیست")}
  if(data.app!=="HOLLOO PRO+ PWA"||![1,2].includes(Number(data.version))||!data.records||typeof data.records!=="object"||Array.isArray(data.records))throw Error("فایل پشتیبان معتبر یا سازگار نیست");
+ if(data.schemaVersion!==undefined&&Number(data.schemaVersion)!==DB_VERSION)throw Error("نسخه ساختار فایل پشتیبان با دفتر فعلی سازگار نیست؛ ابتدا نسخه همسان برنامه را باز کنید");
  const unknown=Object.keys(data.records).filter(name=>!stores.includes(name));if(unknown.length)throw Error("فایل شامل بخش ناشناخته است: "+unknown.join("، "));
+ if(data.version===2){
+  if(!Number.isSafeInteger(Number(data.schemaVersion))||Number(data.schemaVersion)!==DB_VERSION||!Array.isArray(data.storeNames)||data.storeNames.length!==stores.length||stores.some(name=>!data.storeNames.includes(name))||data.storeNames.some(name=>!stores.includes(name)))throw Error("نسخه ساختار یا فهرست بخش‌های فایل پشتیبان ناقص/ناسازگار است");
+  if(!data.counts||typeof data.counts!=="object"||Array.isArray(data.counts))throw Error("شمارنده رکوردهای فایل پشتیبان معتبر نیست");
+ }else if(stores.some(name=>!Object.prototype.hasOwnProperty.call(data.records,name)))throw Error("نسخه قدیمی پشتیبان همه بخش‌های دفتر فعلی را ندارد و قابل بازیابی ایمن نیست");
  const counts={};let total=0;
  for(const store of stores){
-  const rows=data.records[store]??[];
+  const rows=data.records[store];
   if(!Array.isArray(rows))throw Error("ساختار اطلاعات «"+store+"» در فایل پشتیبان معتبر نیست");
+  if(data.version===2&&(!Number.isSafeInteger(data.counts[store])||data.counts[store]!==rows.length))throw Error("تعداد رکوردهای بخش «"+store+"» با اطلاعات فایل پشتیبان هم‌خوانی ندارد");
   const ids=new Set();
   for(const row of rows){
    if(!row||typeof row!=="object"||Array.isArray(row)||!("id" in row)||(typeof row.id!=="string"&&(!Number.isSafeInteger(row.id)||row.id<0))||(typeof row.id==="string"&&!row.id.trim()))throw Error("شناسه یکی از رکوردهای «"+store+"» معتبر نیست");
    const key=String(row.id);if(ids.has(key))throw Error("شناسه تکراری در بخش «"+store+"»: "+key);ids.add(key);
   }
   counts[store]=rows.length;total+=rows.length;
+  if(!Number.isSafeInteger(total))throw Error("تعداد کل رکوردهای پشتیبان از محدوده مجاز خارج است");
  }
- if(data.version===2&&(!Array.isArray(data.storeNames)||stores.some(name=>!data.storeNames.includes(name))))throw Error("فایل پشتیبان نسخه جدید ناقص است");
  if(!confirm("بازیابی "+total+" رکورد از فایل پشتیبان انجام شود؟ تمام اطلاعات فعلی جایگزین می‌شود. پیش از جایگزینی، یک نسخه پشتیبان خودکار از اطلاعات فعلی دانلود خواهد شد."))return;
  await exportBackup("holloo-before-restore");
  if(!confirm("دانلود نسخه پشتیبان قبلی آغاز شد. فقط در صورتی ادامه دهید که فایل پشتیبان را در دستگاه ذخیره کرده‌اید؛ در غیر این صورت لغو کنید."))return;
@@ -648,5 +664,5 @@ async function restoreBackup(file){
  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("بازیابی ناموفق بود"));tx.onabort=()=>reject(tx.error||new Error("بازیابی لغو شد"))});
  toast("بازیابی "+total+" رکورد انجام شد؛ پشتیبان قبلی نیز دانلود شد");await render()
 }
-$("#exportBtn").onclick=exportBackup;$("#importBtn").onclick=()=>$("#restoreFile").click();$("#restoreFile").onchange=e=>{if(e.target.files[0])restoreBackup(e.target.files[0]).catch(x=>toast(x.message))};$("#unitBtn").onclick=()=>{showToman=!showToman;$("#unitBtn").textContent=moneyUnit();render()};$("#closeModal").onclick=$("#cancelModal").onclick=()=>$("#modal").hidden=true;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").hidden=true};
+$("#exportBtn").onclick=()=>exportBackup().catch(error=>toast(error.message||"پشتیبان‌گیری ناموفق بود"));$("#importBtn").onclick=()=>$("#restoreFile").click();$("#restoreFile").onchange=e=>{if(e.target.files[0])restoreBackup(e.target.files[0]).catch(x=>toast(x.message))};$("#unitBtn").onclick=()=>{showToman=!showToman;$("#unitBtn").textContent=moneyUnit();render()};$("#closeModal").onclick=$("#cancelModal").onclick=()=>$("#modal").hidden=true;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").hidden=true};
 (async()=>{const stage=s=>{window.__HOLLOO_STAGE__=s;const el=$("#main");if(el&&el.querySelector(".loading"))el.querySelector(".loading").textContent=s};stage("۱ از ۴: باز کردن پایگاه داده");db=await openDB();stage("۲ از ۴: آماده‌سازی حساب‌ها");await ensureBaseAccounts();stage("۳ از ۴: ساخت منو");nav();stage("۴ از ۴: خواندن اطلاعات و نمایش داشبورد");await render();window.__HOLLOO_READY__=true;window.__HOLLOO_STAGE__="آماده";if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=safe-backup-1").catch(()=>{})})().catch(e=>{window.__HOLLOO_STAGE__="خطا: "+(e&&e.message?e.message:String(e));const main=$("#main");if(main)main.innerHTML='<div class="card"><h2>خطا در راه‌اندازی دفتر</h2><p>'+h(e&&e.message?e.message:String(e))+'</p><p>مرحله: '+h(window.__HOLLOO_STAGE__)+'</p></div>';console.error("HOLLOO_STARTUP",e)});

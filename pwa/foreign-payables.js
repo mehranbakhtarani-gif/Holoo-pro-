@@ -30,6 +30,15 @@ function summarizeForeignPayable(input){
  const revaluedRial=Math.round(remainingMinor*rate/100),delta=revaluedRial-bookValue;
  return {...payable,remainingMinor,bookValue,revaluedRial,unrealizedFxLossRial:Math.max(0,delta),unrealizedFxGainRial:Math.max(0,-delta),realizedFxGainRial:payments.reduce((n,p)=>n+Number(p.fxGainRial||0),0),realizedFxLossRial:payments.reduce((n,p)=>n+Number(p.fxLossRial||0),0)};
 }
-const ForeignPayables={createForeignPayable,planForeignPayablePayment,summarizeForeignPayable};
+
+function planForeignPayableReversal(input){
+ const payable=input.payable,payment=input.payment,date=Number(input.date||Date.now());
+ if(!payable||!payment||payment.status==="REVERSED"||Number(payment.payableId)!==Number(payable.id))throw new Error("پرداخت برای برگشت معتبر نیست یا قبلاً برگشت خورده است");
+ if(Number(payable.paidMinor||0)<Number(payment.amountMinor)||Number(payable.bookedRialPaid||0)<Number(payment.bookedRial))throw new Error("مانده تعهد برای برگشت این پرداخت کافی نیست");
+ const updated={...payable,paidMinor:Number(payable.paidMinor)-Number(payment.amountMinor),bookedRialPaid:Number(payable.bookedRialPaid)-Number(payment.bookedRial),settlementRialPaid:Number(payable.settlementRialPaid)-Number(payment.settlementRial),realizedFxGainRial:Number(payable.realizedFxGainRial||0)-Number(payment.fxGainRial||0),realizedFxLossRial:Number(payable.realizedFxLossRial||0)-Number(payment.fxLossRial||0),status:Number(payable.paidMinor)-Number(payment.amountMinor)===0?"OPEN":"PARTIAL",lastPaymentAt:date};
+ const reversedPayment={...payment,status:"REVERSED",reversedAt:date};
+ return {updated,reversedPayment,bookedRial:Number(payment.bookedRial),settlementRial:Number(payment.settlementRial),fxGainRial:Number(payment.fxGainRial||0),fxLossRial:Number(payment.fxLossRial||0)};
+}
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable};
 if(typeof module!=="undefined")module.exports=ForeignPayables;
 if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

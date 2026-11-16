@@ -44,6 +44,7 @@ test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX ac
  assert.match(app,/foreignRateOverrides/);assert.match(app,/foreignPayablePayments/);
  assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(remaining,rate\)/);
  assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(foreignAmountMinor,Number\(s\.fx\)\)/);
+ assert.match(app,/مانده حساب تأمین‌کننده از محدوده عددی مجاز خارج است/);\n assert.match(app,/مانده حساب تأمین‌کننده برای برگشت از محدوده عددی مجاز خارج است/);
  assert.match(html,/foreign-payables\.js\?v=foreign-payables-1/);
  assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v=foreign-payables-1"));
  assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);

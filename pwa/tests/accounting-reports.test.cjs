@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,buildTrialBalanceColumns,buildLedgerRunningRows,hasOverlappingPeriodClose}=require("../accounting-reports.js");
+const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,buildTrialBalanceColumns,buildLedgerRunningRows,buildLedgerCsv,hasOverlappingPeriodClose}=require("../accounting-reports.js");
 
 const accounts=[
  {id:"1101",title:"Cash",type:"ASSET",openingDebitRial:80000,openingCreditRial:0},
@@ -99,4 +99,17 @@ test("ledger running balances filter by account and reject invalid periods or am
  assert.deepEqual(buildLedgerRunningRows({...input,accountCode:"A"}).rows.map(x=>x.accountCode),["A"]);
  assert.throws(()=>buildLedgerRunningRows({...input,fromDate:30,toDate:20}));
  assert.throws(()=>buildLedgerRunningRows({...input,rows:[{date:10,accountCode:"A",debit:-1,credit:0}]}));
+});
+
+
+test("ledger CSV exports filtered rows, opening-aware balances and escaped Persian text",()=>{
+ const csv=buildLedgerCsv({
+  accounts:[{id:"1101",openingDebitRial:1000,openingCreditRial:0}],
+  rows:[{date:100,number:"1",description:'شرح "آزمایشی"',accountCode:"1101",accountTitle:"صندوق",debit:50,credit:0},{date:200,number:"2",description:"بعدی",accountCode:"1101",accountTitle:"صندوق",debit:0,credit:20}],
+  accountCode:"1101",fromDate:100,toDate:100
+ });
+ assert.ok(csv.startsWith("\uFEFF"));
+ assert.match(csv,/شرح ""آزمایشی""/);
+ assert.match(csv,/1050/);
+ assert.doesNotMatch(csv,/بعدی/);
 });

@@ -31,6 +31,6 @@ test("endorsing a received cheque settles customer receivable and supplier payab
 
 test("voucher reference uniqueness is enforced inside the atomic transaction",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/getAll\(\);check\.onsuccess/);
+ assert.match(app,/objectStore\("vouchers"\)\.getAll\(\);\s*check\.onsuccess/);
  assert.match(app,/سندی با این شناسه مرجع قبلاً ثبت شده است/);
 });

@@ -1,3 +1,4 @@
+// Normalize both signed-amount and bank-specific debit/credit CSV layouts.
 function parseBankCsv(text,defaultBank=""){
  const source=String(text||"").replace(/^\uFEFF/,"");
  const rows=[];let row=[],field="",quoted=false;

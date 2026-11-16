@@ -234,19 +234,54 @@ async function importBankStatementCsv(file,bankName){
  return parsed.length;
 }
 async function autoReconcileBankStatementLines(){
- const [lines,treasury]=await Promise.all([all("bankStatementLines"),all("treasury")]);
- const updated=autoMatchBankLines(lines,treasury,3);
- await putMany(updated.map(line=>["bankStatementLines",line]));
- return updated.filter(x=>x.status==="MATCHED").length;
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["bankStatementLines","treasury","auditLog"],"readwrite");
+  let lines=null,treasury=null,started=false;
+  const fail=error=>{try{tx.abort()}catch(_){};reject(error)};
+  const apply=()=>{
+   if(started||!lines||!treasury)return;started=true;
+   try{
+    const updated=autoMatchBankLines(lines,treasury,3),store=tx.objectStore("bankStatementLines"),audit=tx.objectStore("auditLog");
+    for(let i=0;i<updated.length;i++){
+     const before=lines[i],after=updated[i];
+     if(before.status!==after.status||Number(before.matchedTreasuryId||0)!==Number(after.matchedTreasuryId||0)||JSON.stringify(before.candidateTreasuryIds||[])!==JSON.stringify(after.candidateTreasuryIds||[])){
+      store.put(after);audit.add({action:"تطبیق خودکار صورت‌حساب بانکی",store:"bankStatementLines",recordId:after.id,at:Date.now(),summary:"تطبیق ردیف "+after.lineNumber});
+     }
+    }
+    tx.oncomplete=()=>resolve(updated.filter(x=>x.status==="MATCHED").length);
+   }catch(error){fail(error)}
+  };
+  const lineRequest=tx.objectStore("bankStatementLines").getAll(),treasuryRequest=tx.objectStore("treasury").getAll();
+  lineRequest.onsuccess=()=>{lines=lineRequest.result;apply()};lineRequest.onerror=()=>fail(lineRequest.error||new Error("خواندن ردیف‌های صورت‌حساب ناموفق بود"));
+  treasuryRequest.onsuccess=()=>{treasury=treasuryRequest.result;apply()};treasuryRequest.onerror=()=>fail(treasuryRequest.error||new Error("خواندن گردش بانک ناموفق بود"));
+  tx.onerror=()=>reject(tx.error||new Error("تطبیق خودکار ناموفق بود"));
+  tx.onabort=()=>reject(tx.error||new Error("تطبیق خودکار لغو شد"));
+ });
 }
 async function matchBankStatementLine(lineId,treasuryId){
- const [lines,treasury]=await Promise.all([all("bankStatementLines"),all("treasury")]);
- const line=lines.find(x=>Number(x.id)===Number(lineId)),row=treasury.find(x=>Number(x.id)===Number(treasuryId));
- if(!line)throw Error("ردیف صورت‌حساب پیدا نشد");
- const matchedIds=lines.filter(x=>x.status==="MATCHED"&&Number(x.id)!==Number(line.id)).map(x=>x.matchedTreasuryId);
- validateBankManualMatch(line,row,matchedIds);
- line.status="MATCHED";line.matchedTreasuryId=row.id;line.candidateTreasuryIds=[];line.matchedAt=Date.now();
- await put("bankStatementLines",line);
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["bankStatementLines","treasury","auditLog"],"readwrite");
+  let lines=null,row=null,lineReady=false,rowReady=false,finished=false,failure=null;
+  const fail=error=>{failure=error;try{tx.abort()}catch(_){}};
+  const apply=()=>{
+   if(finished||!lineReady||!rowReady)return;finished=true;
+   try{
+    const line=lines.find(x=>Number(x.id)===Number(lineId));
+    if(!line)throw Error("ردیف صورت‌حساب پیدا نشد");
+    const matchedIds=lines.filter(x=>x.status==="MATCHED"&&Number(x.id)!==Number(line.id)).map(x=>x.matchedTreasuryId);
+    validateBankManualMatch(line,row,matchedIds);
+    line.status="MATCHED";line.matchedTreasuryId=row.id;line.candidateTreasuryIds=[];line.matchedAt=Date.now();
+    tx.objectStore("bankStatementLines").put(line);
+    tx.objectStore("auditLog").add({action:"تطبیق دستی صورت‌حساب بانکی",store:"bankStatementLines",recordId:line.id,at:Date.now(),summary:"تطبیق با گردش "+row.id});
+   }catch(error){fail(error)}
+  };
+  const linesRequest=tx.objectStore("bankStatementLines").getAll(),rowRequest=tx.objectStore("treasury").get(Number(treasuryId));
+  linesRequest.onsuccess=()=>{lines=linesRequest.result;lineReady=true;apply()};linesRequest.onerror=()=>fail(linesRequest.error||new Error("خواندن ردیف‌های صورت‌حساب ناموفق بود"));
+  rowRequest.onsuccess=()=>{row=rowRequest.result;rowReady=true;apply()};rowRequest.onerror=()=>fail(rowRequest.error||new Error("خواندن گردش بانکی ناموفق بود"));
+  tx.oncomplete=()=>resolve();
+  tx.onerror=()=>reject(failure||tx.error||new Error("تطبیق ردیف ناموفق بود"));
+  tx.onabort=()=>reject(failure||tx.error||new Error("تطبیق ردیف لغو شد"));
+ });
 }
 function bindBankReconciliation(){
  const importButton=$("#importBankCsv"),fileInput=$("#bankCsvFile"),autoButton=$("#autoMatchBank");

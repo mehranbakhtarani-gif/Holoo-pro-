@@ -50,9 +50,10 @@ test("accounting page uses the same date-scoped trial balance for all report tot
 });
 
 
-test("filtered ledger opening balance is captured before selected-period rows are applied",()=>{
+test("filtered ledger uses the tested running-balance report helper",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/const openingByAccount=new Map\(runningByAccount\);const selected=/);
- assert.match(app,/money\(Math\.abs\(openingByAccount\.get\(code\)\|\|0\)\)/);
- assert.doesNotMatch(app,/مانده ابتدای بازه:[^;]{0,180}runningByAccount\.get\(code\)/);
+ assert.match(app,/buildLedgerRunningRows\(\{rows:ledgerRows,accounts,accountCode:code,fromDate:from,toDate:to\}\)/);
+ assert.match(app,/report\.openingBalances\[code\]\|\|0/);
+ assert.match(app,/x\.runningBalance/);
+ assert.doesNotMatch(app,/const openingByAccount=new Map\(runningByAccount\)/);
 });

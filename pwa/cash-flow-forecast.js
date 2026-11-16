@@ -2,7 +2,7 @@
 function addCashSafe(a,b,label="جمع جریان نقدی"){const value=a+b;if(!Number.isSafeInteger(value))throw new Error(label+" از محدوده عددی مجاز خارج است");return value}
 function subtractCashSafe(a,b,label="خالص جریان نقدی"){const value=a-b;if(!Number.isSafeInteger(value))throw new Error(label+" از محدوده عددی مجاز خارج است");return value}
 function buildCashFlowForecast(input){
- const asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?90:input.horizonDays),opening=Number(input.openingCashRial||0),events=Array.isArray(input.events)?input.events:[];
+ const asOf=input.asOf===undefined||input.asOf===null?Date.now():Number(input.asOf),days=Number(input.horizonDays===undefined?90:input.horizonDays),opening=Number(input.openingCashRial||0),events=Array.isArray(input.events)?input.events:[];
  if(!Number.isSafeInteger(asOf)||!Number.isSafeInteger(days)||![30,60,90].includes(days)||!Number.isSafeInteger(opening))throw new Error("پارامترهای پیش‌بینی جریان نقدی معتبر نیست");
  const start=new Date(asOf);if(!Number.isFinite(start.getTime()))throw new Error("تاریخ مبنای پیش‌بینی معتبر نیست");start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days);if(!Number.isFinite(end.getTime()))throw new Error("پایان بازه پیش‌بینی معتبر نیست");
  const result={asOf:start.getTime(),horizonDays:days,openingCashRial:opening,expectedInflowsRial:0,expectedOutflowsRial:0,overdueInflowsRial:0,overdueOutflowsRial:0,undatedInflowsRial:0,undatedOutflowsRial:0,overdueCount:0,undatedCount:0,eventsCount:0,weekly:[],closingCashRial:opening,minimumProjectedCashRial:opening};
@@ -34,9 +34,9 @@ function buildCashFlowForecast(input){
  return result;
 }
 function getDailyCashFlowProjection(input){
- const asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?90:input.horizonDays),opening=Number(input.openingCashRial||0),events=Array.isArray(input.events)?input.events:[];
+ const asOf=input.asOf===undefined||input.asOf===null?Date.now():Number(input.asOf),days=Number(input.horizonDays===undefined?90:input.horizonDays),opening=Number(input.openingCashRial||0),events=Array.isArray(input.events)?input.events:[];
  if(!Number.isSafeInteger(asOf)||!Number.isSafeInteger(days)||![30,60,90].includes(days)||!Number.isSafeInteger(opening))throw new Error("پارامترهای پیش‌بینی روزانه معتبر نیست");
- const start=new Date(asOf);if(!Number.isFinite(start.getTime()))throw new Error("تاریخ مبنای پیش‌بینی روزانه معتبر نیست");start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days);if(!Number.isFinite(end.getTime()))throw new Error("پایان بازه روزانه معتبر نیست");const daily=new Map();
+ const start=new Date(asOf);if(!Number.isFinite(start.getTime()))throw new Error("تاریخ مبنای پیش‌بینی روزانه معتبر نیست");start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days);if(!Number.isFinite(end.getTime()))throw new Error("پایان بازه پیش‌بینی روزانه معتبر نیست");const daily=new Map();
  for(const event of events){if(!event||!["INFLOW","OUTFLOW"].includes(event.direction))continue;const amount=Number(event.amountRial),due=Number(event.dueDate||0);if(!Number.isSafeInteger(amount)||amount<=0||!Number.isSafeInteger(due)||due<start.getTime()||due>=end.getTime())continue;const date=new Date(due);date.setHours(0,0,0,0);const key=date.getTime(),row=daily.get(key)||{inflowsRial:0,outflowsRial:0};if(event.direction==="INFLOW")row.inflowsRial=addCashSafe(row.inflowsRial,amount,"جمع ورودی روزانه");else row.outflowsRial=addCashSafe(row.outflowsRial,amount,"جمع خروجی روزانه");daily.set(key,row)}
  const rows=[];let balance=opening;for(let cursor=new Date(start);cursor<end;cursor.setDate(cursor.getDate()+1)){const date=cursor.getTime(),totals=daily.get(date)||{inflowsRial:0,outflowsRial:0};balance=addCashSafe(balance,subtractCashSafe(totals.inflowsRial,totals.outflowsRial),"مانده نقد روزانه");rows.push({date,inflowsRial:totals.inflowsRial,outflowsRial:totals.outflowsRial,closingCashRial:balance,shortfall:balance<0})}return rows;
 }

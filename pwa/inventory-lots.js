@@ -1,4 +1,3 @@
-function addLotValue(a,b,label="جمع ارزش بچ"){const value=a+b;if(!Number.isSafeInteger(value))throw new Error(label+" از محدوده عددی مجاز خارج است");return value}
 function planLotReceipt(input){
  const qty=Number(input.quantity),cost=Number(input.totalCost),productId=Number(input.productId),warehouseId=Number(input.warehouseId);
  if(!Number.isSafeInteger(productId)||productId<=0||!Number.isSafeInteger(warehouseId)||warehouseId<=0)throw new Error("کالا و انبار برای ثبت بچ معتبر نیست");
@@ -17,12 +16,10 @@ function planLotSale(input){
  if(!Number.isSafeInteger(productId)||productId<=0||!Number.isSafeInteger(warehouseId)||warehouseId<=0||!Number.isFinite(quantity)||quantity<=0)throw new Error("اطلاعات خروج بچ معتبر نیست");
  if(!Number.isFinite(stockQty)||stockQty<0||!Number.isSafeInteger(stockValue)||stockValue<0||stockQty+1e-9<quantity)throw new Error("موجودی انبار برای خروج بچ کافی یا معتبر نیست");
  const candidates=lots.filter(x=>Number(x.productId)===productId&&Number(x.warehouseId)===warehouseId);
- for(const lot of candidates){
-  const qty=Number(lot.remainingQty),value=Number(lot.remainingValue);
-  if(!Number.isFinite(qty)||qty<0||!Number.isSafeInteger(value)||value<0||(qty<=1e-9&&value!==0))throw new Error("اطلاعات مانده یک بچ معتبر نیست");
- }
+ for(const lot of candidates){const qty=Number(lot.remainingQty),value=Number(lot.remainingValue);if(!Number.isFinite(qty)||qty<0||!Number.isSafeInteger(value)||value<0||(qty<=1e-9&&value!==0))throw new Error("اطلاعات مانده یک بچ معتبر نیست")}
  const matching=candidates.filter(x=>Number(x.remainingQty)>1e-9);
  let trackedQty=matching.reduce((n,x)=>n+Number(x.remainingQty),0),trackedValue=matching.reduce((n,x)=>n+Number(x.remainingValue),0);
+ if(!Number.isFinite(trackedQty)||!Number.isSafeInteger(trackedValue))throw new Error("جمع مقدار یا بهای بچ‌ها از محدوده عددی مجاز خارج است");
  if(trackedQty>stockQty+1e-6||trackedValue>stockValue+1)throw new Error("موجودی بچ‌ها با موجودی کل انبار مغایرت دارد؛ ابتدا مغایرت‌گیری کنید");
  const updates=[],newLots=[];
  const legacyQty=stockQty-trackedQty,legacyValue=stockValue-trackedValue;
@@ -31,7 +28,7 @@ function planLotSale(input){
   const old=matching.find(x=>x.id===legacyId)||lots.find(x=>x.id===legacyId);
   const legacy=old?{...old,remainingQty:legacyQty,remainingValue:legacyValue,originalQty:Math.max(Number(old.originalQty||0),legacyQty),originalCost:Math.max(Number(old.originalCost||0),legacyValue)}:planLotReceipt({id:legacyId,productId,productName:input.productName,warehouseId,sourceType:"LEGACY",sourceId:legacyId,sourceNumber:"موجودی افتتاحیه / قدیمی",quantity:legacyQty,totalCost:legacyValue,receivedAt:0});
   (old?updates:newLots).push(legacy);matching.push(legacy);trackedQty+=legacyQty;trackedValue+=legacyValue;
- }else if(legacyQty<-1e-6||Math.abs(legacyValue-stockValue+trackedValue)>1)throw new Error("مانده بچ‌های انبار با موجودی دفتر کل برابر نیست");
+ }else if(legacyQty<-1e-6||legacyValue>1)throw new Error("مانده بچ‌های انبار با موجودی دفتر کل برابر نیست");
  let remaining=quantity,cogs=0;const allocations=[];
  const ordered=matching.slice().sort((a,b)=>Number(a.receivedAt||0)-Number(b.receivedAt||0)||String(a.id).localeCompare(String(b.id)));
  for(const lot of ordered){
@@ -66,17 +63,15 @@ function restoreLotSale(input){
  for(const [lotId,allocation] of grouped){
   const lot=lots.find(x=>String(x.id)===lotId);
   if(!lot)throw new Error("بچ مرجع برای برگشت فروش پیدا نشد");
-  const originalQty=Number(lot.originalQty),originalCost=Number(lot.originalCost),currentQty=Number(lot.remainingQty),currentValue=Number(lot.remainingValue);
-  if(!Number.isFinite(originalQty)||originalQty<=0||!Number.isSafeInteger(originalCost)||originalCost<0||!Number.isFinite(currentQty)||currentQty<0||!Number.isSafeInteger(currentValue)||currentValue<0)throw new Error("مانده یا بهای اولیه بچ برای برگشت معتبر نیست");
-  const remainingQty=currentQty+allocation.quantity,remainingValue=addLotValue(currentValue,allocation.cogs,"ارزش برگشت بچ");
-  if(!Number.isFinite(remainingQty)||remainingQty>originalQty+1e-6||remainingValue>originalCost)throw new Error("برگشت بچ از مقدار/ارزش اولیه بیشتر می‌شود");
+  const remainingQty=Number(lot.remainingQty||0)+allocation.quantity,remainingValue=Number(lot.remainingValue||0)+allocation.cogs;
+  if(remainingQty>Number(lot.originalQty)+1e-6||remainingValue>Number(lot.originalCost)+1)throw new Error("برگشت بچ از مقدار/ارزش اولیه بیشتر می‌شود");
   updates.push({...lot,remainingQty,remainingValue,status:"OPEN",updatedAt:Number(input.date||Date.now())});
  }
  return updates;
 }
 function planLotTransfer(input){
  const sourceWarehouseId=Number(input.sourceWarehouseId),destinationWarehouseId=Number(input.destinationWarehouseId),quantity=Number(input.quantity),productId=Number(input.productId),date=Number(input.date||Date.now()),transferId=String(input.transferId||"");
- if(!transferId||!Number.isSafeInteger(sourceWarehouseId)||sourceWarehouseId<=0||!Number.isSafeInteger(destinationWarehouseId)||destinationWarehouseId<=0||sourceWarehouseId===destinationWarehouseId||!Number.isSafeInteger(date)||date<=0)throw new Error("اطلاعات انتقال بچ معتبر نیست");
+ if(!transferId||sourceWarehouseId<=0||destinationWarehouseId<=0||sourceWarehouseId===destinationWarehouseId)throw new Error("اطلاعات انتقال بچ معتبر نیست");
  const sale=planLotSale({lots:input.lots,productId,productName:input.productName,warehouseId:sourceWarehouseId,quantity,warehouseStock:input.sourceWarehouseStock,date});
  const sourceLots=[...(input.lots||[]),...sale.newLots,...sale.updates],destinationLots=sale.allocations.map((allocation,index)=>{
   const source=sourceLots.find(x=>String(x.id)===String(allocation.lotId));
@@ -94,7 +89,7 @@ function summarizeLotProfit(input){
   if(!["IMPORT_SHIPMENT","PURCHASE_INVOICE"].includes(lot.sourceType)||lot.status==="REVERSED")continue;
   const rootId=String(lot.originLotId||lot.id),root=lotById.get(rootId)||lot;
   if(!summaries.has(rootId))summaries.set(rootId,{lotId:rootId,sourceType:root.sourceType,sourceNumber:root.sourceNumber,container:root.container||"",supplierName:root.supplierName||"",productName:root.productName||"",originalQty:Number(root.originalQty),originalCost:Number(root.originalCost),remainingQty:0,remainingValue:0,soldQty:0,soldCost:0,revenue:0,grossProfit:0});
-  const row=summaries.get(rootId);row.remainingQty+=Number(lot.remainingQty||0);if(!Number.isFinite(row.remainingQty))throw new Error("جمع مانده مقداری بچ معتبر نیست");row.remainingValue=addLotValue(row.remainingValue,Number(lot.remainingValue||0),"جمع ارزش مانده بچ");
+  const row=summaries.get(rootId);row.remainingQty+=Number(lot.remainingQty||0);row.remainingValue+=Number(lot.remainingValue||0);
  }
  for(const invoice of invoices){
   if(invoice.kind!=="SALE"||invoice.status==="REVERSED")continue;
@@ -114,8 +109,9 @@ function summarizeLotProfit(input){
     const revenue=cumulativeRevenue-allocatedRevenue;
     if(!Number.isSafeInteger(revenue)||revenue<0)throw new Error("تخصیص درآمد بین بچ‌ها معتبر نیست");
     allocatedRevenue=cumulativeRevenue;
-    const lot=lotById.get(String(allocation.lotId)),rootId=String(allocation.originLotId||lot?.originLotId||lot?.id||allocation.lotId),row=summaries.get(rootId);
-    if(row){row.revenue=addLotValue(row.revenue,revenue,"جمع درآمد بچ");}
+    const lot=lotById.get(String(allocation.lotId));if(!lot)throw new Error("بچ مرجع برای تخصیص درآمد پیدا نشد");
+    const rootId=String(allocation.originLotId||lot.originLotId||lot.id),row=summaries.get(rootId);
+    if(row){row.revenue+=revenue;if(!Number.isSafeInteger(row.revenue))throw new Error("جمع درآمد محموله از محدوده عددی مجاز خارج است");}
    });
   }
  }
@@ -126,11 +122,7 @@ function summarizeLotProfit(input){
 }
 function summarizeImportShipmentProfit(input){
  const rows=summarizeLotProfit(input).filter(row=>row.sourceType==="IMPORT_SHIPMENT");
- const totals=rows.reduce((sum,row)=>{
-  for(const key of ["originalQty","soldQty","remainingQty"]){sum[key]+=Number(row[key]||0);if(!Number.isFinite(sum[key]))throw new Error("جمع مقدار سود محموله معتبر نیست");}
-  for(const key of ["originalCost","remainingValue","soldCost","revenue","grossProfit"])sum[key]=addLotValue(sum[key],Number(row[key]||0),"جمع ارزش سود محموله");
-  return sum;
- },{originalQty:0,soldQty:0,remainingQty:0,originalCost:0,remainingValue:0,soldCost:0,revenue:0,grossProfit:0});
+ const totals=rows.reduce((sum,row)=>{for(const key of ["originalQty","soldQty","remainingQty","originalCost","remainingValue","soldCost","revenue","grossProfit"]){sum[key]+=Number(row[key]||0);if(!Number.isFinite(sum[key])||(key!=="originalQty"&&key!=="soldQty"&&key!=="remainingQty"&&!Number.isSafeInteger(sum[key])))throw new Error("جمع سود و بهای محموله‌ها از محدوده عددی مجاز خارج است")}return sum;},{originalQty:0,soldQty:0,remainingQty:0,originalCost:0,remainingValue:0,soldCost:0,revenue:0,grossProfit:0});
  totals.grossMarginPercent=totals.revenue>0?totals.grossProfit/totals.revenue*100:null;totals.sellThroughPercent=totals.originalQty>0?totals.soldQty/totals.originalQty*100:0;
  return {rows,totals};
 }

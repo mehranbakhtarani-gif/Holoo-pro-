@@ -100,6 +100,6 @@ test("summarizes realized shipment profit, margin, sell-through and remaining in
  const invoices=[{kind:"SALE",status:"POSTED",lines:[{qty:40,totalQty:40,lineTotal:60000,lotAllocations:sale.allocations}]}];
  const report=summarizeImportShipmentProfit({lots,invoices});
  assert.equal(report.rows[0].soldCost,40000);assert.equal(report.rows[0].grossProfit,20000);
- assert.equal(report.rows[0].grossMarginPercent,100/3);assert.equal(report.rows[0].sellThroughPercent,40);
+ assert.ok(Math.abs(report.rows[0].grossMarginPercent-100/3)<1e-10);assert.equal(report.rows[0].sellThroughPercent,40);
  assert.equal(report.totals.remainingValue,60000);assert.ok(buildImportShipmentProfitCsv({lots,invoices}).startsWith("\uFEFF"));
 });

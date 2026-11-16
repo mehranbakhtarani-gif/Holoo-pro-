@@ -244,6 +244,19 @@ data class InvoiceSettlementEntity(
     val createdAt: Long = OperationClock.now()
 )
 
+data class InvoiceAgingRow(
+    val invoiceId: Long,
+    val invoiceNumber: String,
+    val kind: String,
+    val partyId: Long,
+    val partyName: String,
+    val dateEpoch: Long,
+    val totalRial: Long,
+    val settledRial: Long,
+    val returnedRial: Long,
+    val outstandingRial: Long
+)
+
 data class InvoiceSettlementRow(val invoiceId: Long, val paidRial: Long)
 
 data class TreasuryAllocationRow(val entryId: Long, val allocatedRial: Long)

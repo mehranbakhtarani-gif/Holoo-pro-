@@ -107,12 +107,16 @@ function reconcileForeignPayableBalances(input){
   const bucket=group.currencies[currency],remaining=Number(payable.amountMinor)-Number(payable.paidMinor||0),bookValue=Number(payable.bookedRial)-Number(payable.bookedRialPaid||0);
   if(!Number.isSafeInteger(remaining)||remaining<0||!Number.isSafeInteger(bookValue)||bookValue<0)throw new Error("مانده تعهد ارزی برای تطبیق معتبر نیست");
   bucket.outstandingMinor+=remaining;bucket.bookValueRial+=bookValue;bucket.payableCount++;
+  const receiptReference="IMPORT-RECEIPT:"+String(payable.sourceNumber||"");
+  const payablePayments=payments.filter(x=>Number(x.payableId)===Number(payable.id));
   group.payables.push({payableId:payable.id,sourceNumber:payable.sourceNumber,currency,remainingMinor:remaining,bookValueRial:bookValue});
-  group.references.add("IMPORT-RECEIPT:"+String(payable.sourceNumber||""));
-  for(const payment of payments.filter(x=>Number(x.payableId)===Number(payable.id))){
+  group.references.add(receiptReference);
+  for(const payment of payablePayments){
    if(payment.reference)group.references.add(String(payment.reference));
    if(payment.status==="REVERSED")group.references.add("FXPAY-REV:"+payment.id);
   }
+  group.trace=group.trace||[];
+  group.trace.push({payableId:payable.id,sourceNumber:String(payable.sourceNumber||"—"),currency,remainingMinor:remaining,bookValueRial:bookValue,receiptReference,payments:payablePayments.map(payment=>({id:payment.id,reference:String(payment.reference||""),status:payment.status==="REVERSED"?"برگشت‌شده":"فعال",amountMinor:Number(payment.amountMinor||0),bookedRial:Number(payment.bookedRial||0),settlementRial:Number(payment.settlementRial||0),reversalReference:payment.status==="REVERSED"?"FXPAY-REV:"+payment.id:null}))});
  }
  const rows=[...groups.values()].map(group=>{
   const refs=group.references,ledgerRows=partyLedger.filter(x=>refs.has(String(x.referenceId||""))&&Number(x.partyId)===group.supplierId);
@@ -123,7 +127,7 @@ function reconcileForeignPayableBalances(input){
   const bookValueRial=Object.values(group.currencies).reduce((n,x)=>n+x.bookValueRial,0);
   const ledgerDeltaRial=partyLedgerBalanceRial-bookValueRial,generalLedgerDeltaRial=generalLedgerBalanceRial-bookValueRial,subledgerDeltaRial=partyLedgerBalanceRial-generalLedgerBalanceRial;
   const issues=[];if(ledgerDeltaRial!==0)issues.push("مانده تفصیلی با ارزش دفتری تعهدها برابر نیست");if(generalLedgerDeltaRial!==0)issues.push("حساب کل ۲۱۰۱ مرتبط با محموله‌ها با ارزش دفتری برابر نیست");if(subledgerDeltaRial!==0)issues.push("دفتر تفصیلی تأمین‌کننده با حساب کل مرتبط برابر نیست");
-  return {supplierId:group.supplierId,supplierName:group.supplierName,currencies:group.currencies,payableCount:group.payables.length,payables:group.payables,bookValueRial,partyLedgerBalanceRial,generalLedgerBalanceRial,ledgerDeltaRial,generalLedgerDeltaRial,subledgerDeltaRial,ok:issues.length===0,issues,referenceCount:refs.size,references:[...refs]};
+  const trace=group.trace.map(item=>{const refsFor=[item.receiptReference,...item.payments.flatMap(p=>[p.reference,p.reversalReference].filter(Boolean))];const relatedVouchers=vouchers.filter(v=>refsFor.includes(String(v.reference||"")));return {...item,partyLedgerRows:partyLedger.filter(x=>refsFor.includes(String(x.referenceId||""))&&Number(x.partyId)===group.supplierId).length,vouchers:relatedVouchers.map(v=>({number:String(v.number||v.voucherNumber||v.id),reference:String(v.reference||""),id:v.id,lines:voucherLines.filter(line=>Number(line.voucherId)===Number(v.id)).length}))}});return {supplierId:group.supplierId,supplierName:group.supplierName,currencies:group.currencies,payableCount:group.payables.length,payables:group.payables,trace,bookValueRial,partyLedgerBalanceRial,generalLedgerBalanceRial,ledgerDeltaRial,generalLedgerDeltaRial,subledgerDeltaRial,ok:issues.length===0,issues,referenceCount:refs.size,references:[...refs]};
  });
  return {total:rows.length,matched:rows.filter(x=>x.ok).length,withIssues:rows.filter(x=>!x.ok).length,rows};
 }

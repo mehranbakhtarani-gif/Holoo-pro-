@@ -24,4 +24,22 @@ class InvoiceAgingTest {
         assertEquals(3, InvoiceAging.bucket(91L))
         assertEquals(3, InvoiceAging.bucket(Long.MAX_VALUE))
     }
+    @Test fun sumsReceivablesAndPayablesSafely() {
+        val rows = listOf(
+            InvoiceAgingRow(1L, "S-1", "SALE", 1L, "Customer", 1L, 100L, 0L, 0L, 100L),
+            InvoiceAgingRow(2L, "P-1", "PURCHASE", 2L, "Supplier", 1L, 200L, 0L, 0L, 200L),
+            InvoiceAgingRow(3L, "S-2", "SALE", 1L, "Customer", 1L, 300L, 0L, 0L, 300L)
+        )
+        assertEquals(400L, InvoiceAging.sumOutstanding(rows, "SALE"))
+        assertEquals(200L, InvoiceAging.sumOutstanding(rows, "PURCHASE"))
+    }
+
+    @Test fun returnsNullInsteadOfWrappingWhenAgingTotalsOverflow() {
+        val rows = listOf(
+            InvoiceAgingRow(1L, "S-1", "SALE", 1L, "Customer", 1L, Long.MAX_VALUE, 0L, 0L, Long.MAX_VALUE),
+            InvoiceAgingRow(2L, "S-2", "SALE", 1L, "Customer", 1L, 1L, 0L, 0L, 1L)
+        )
+        assertEquals(null, InvoiceAging.sumOutstanding(rows, "SALE"))
+    }
+
 }

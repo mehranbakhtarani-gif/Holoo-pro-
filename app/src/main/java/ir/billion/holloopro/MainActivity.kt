@@ -1159,11 +1159,15 @@ private fun InventoryScreen(
     var valuationProduct by remember { mutableStateOf<ProductWithStock?>(null) }
     var adjustmentProduct by remember { mutableStateOf<ProductWithStock?>(null) }
     var editing by remember { mutableStateOf<ProductEntity?>(null) }
+    var searchText by remember { mutableStateOf("") }
+    val visibleProducts = remember(products, searchText) { filterProducts(products, searchText) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("کالا و انبار", "تعریف، ویرایش و کنترل موجودی کالاهای نخ") { editing = null; dialog = true }
+        FormField("جست‌وجوی کد، نام، گروه، نوع نخ، دنیر یا رنگ", searchText) { searchText = it }
         if (products.isEmpty()) EmptyState("هنوز کالایی ثبت نشده است", "برای شروع، کالای نخ جدید اضافه کن")
+        else if (visibleProducts.isEmpty()) EmptyState("کالایی پیدا نشد", "عبارت جست‌وجو را تغییر بده یا پاک کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
-            items(products, key = { it.product.id }) { item ->
+            items(visibleProducts, key = { it.product.id }) { item ->
                 GlassCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {

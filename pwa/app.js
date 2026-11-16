@@ -597,11 +597,13 @@ const exportFinance=$("#exportFinanceCsv");if(exportFinance)exportFinance.onclic
 document.querySelectorAll("[data-check-status]").forEach(b=>b.onclick=async()=>{
  const currentChecks=await all("checks"),c=currentChecks.find(x=>String(x.id)===String(b.dataset.checkId));if(!c||c.status!=="OPEN")return;
  const next=b.dataset.checkStatus;if(!["CLEARED","BOUNCED","CANCELLED","ENDORSED"].includes(next))return;
+ const checkSnapshot={...c};
  const label=next==="CLEARED"?(c.kind==="RECEIVED"?"وصول":"پرداخت"):next==="BOUNCED"?"برگشت":next==="ENDORSED"?"ظهرنویسی":"ابطال";
  if(!confirm("وضعیت چک "+c.number+" به «"+label+"» تغییر کند؟"))return;
  try{
   const parties=await all("parties"),party=parties.find(x=>Number(x.id)===Number(c.partyId));
   if(!party)throw Error("طرف حساب چک پیدا نشد");
+  const partySnapshot={...party};
   const amount=Number(c.amount);if(!Number.isSafeInteger(amount)||amount<=0)throw Error("مبلغ چک معتبر نیست");
   if(next==="CLEARED"){
    if(c.kind==="RECEIVED"&&party.kind==="SUPPLIER")throw Error("چک دریافتی از تأمین‌کننده از این مسیر قابل وصول نیست");
@@ -621,12 +623,17 @@ document.querySelectorAll("[data-check-status]").forEach(b=>b.onclick=async()=>{
    const treasuryRecord={kind,method:"بانک",partyId:party.id,partyName:party.name,amount,currency:"IRR",foreignAmountMinor:null,fxRateRialPerUnit:1,date:now,note:"تسویه چک "+c.number,reference,checkId:c.id};
    c.status="CLEARED";c.clearedAt=now;c.voucherNumber="CH-"+now;
    await ensureBaseAccounts();
-   await postVoucherAtomic([["checks",c],["parties",party],["treasury",treasuryRecord],["partyLedger",ledger]],{number:c.voucherNumber,date:now,description:(kind==="RECEIPT"?"وصول چک ":"پرداخت چک ")+c.number,reference},journal);
+   await postVoucherAtomic([["checks",c],["parties",party],["treasury",treasuryRecord],["partyLedger",ledger]],{number:c.voucherNumber,date:now,description:(kind==="RECEIPT"?"وصول چک ":"پرداخت چک ")+c.number,reference},journal,[
+    {store:"checks",key:c.id,expected:checkSnapshot},
+    {store:"parties",key:party.id,expected:partySnapshot},
+    {store:"treasury",match:{reference},expected:null}
+   ]);
   }else if(next==="ENDORSED"){
    if(c.kind!=="RECEIVED")throw Error("فقط چک دریافتی قابل ظهرنویسی است");
    if(party.kind==="SUPPLIER")throw Error("طرف حساب صادرکننده چک باید مشتری باشد");
    const target=parties.find(x=>Number(x.id)===Number(c.endorseToPartyId));
    if(!target||target.id===party.id||target.kind==="CUSTOMER")throw Error("ذی‌نفع ظهرنویسی را در فرم چک انتخاب کنید");
+   const targetSnapshot={...target};
    const now=Date.now(),reference="CHECK:ENDORSE:"+c.id,vouchers=await all("vouchers");
    if(vouchers.some(v=>v.reference===reference))throw Error("برای این چک قبلاً سند ظهرنویسی ثبت شده است");
    party.balance=Number(party.balance||0)-amount;target.balance=Number(target.balance||0)+amount;
@@ -635,7 +642,11 @@ document.querySelectorAll("[data-check-status]").forEach(b=>b.onclick=async()=>{
    const journal=[{accountCode:"2101",debitRial:amount,creditRial:0,description:"تسویه بدهی به "+target.name+" با چک ظهرنویسی‌شده"},{accountCode:"1103",debitRial:0,creditRial:amount,description:"کاهش مطالبات از "+party.name}];
    c.status="ENDORSED";c.endorsedAt=now;c.endorsedToPartyName=target.name;c.voucherNumber="END-"+now;
    await ensureBaseAccounts();
-   await postVoucherAtomic([["checks",c],["parties",party],["parties",target],["partyLedger",sourceLedger],["partyLedger",targetLedger]],{number:c.voucherNumber,date:now,description:"ظهرنویسی چک "+c.number,reference},journal);
+   await postVoucherAtomic([["checks",c],["parties",party],["parties",target],["partyLedger",sourceLedger],["partyLedger",targetLedger]],{number:c.voucherNumber,date:now,description:"ظهرنویسی چک "+c.number,reference},journal,[
+    {store:"checks",key:c.id,expected:checkSnapshot},
+    {store:"parties",key:party.id,expected:partySnapshot},
+    {store:"parties",key:target.id,expected:targetSnapshot}
+   ]);
   }else{
    c.status=next;c.statusChangedAt=Date.now();await put("checks",c);
   }

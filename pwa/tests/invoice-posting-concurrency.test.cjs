@@ -24,3 +24,11 @@ test("invoice posting revalidates complete party, product, warehouse, lot and or
   "},journal,guards)"
  ])assert.ok(body.includes(expected),"Missing invoice posting guard: "+expected);
 });
+
+ 
+test("invoice posting rejects unsafe party and commission balance arithmetic before ledger commit",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const nextCommissionBalance=Number\(commissionParty\.balance\|\|0\)-commissionAmount;if\(!Number\.isSafeInteger\(nextCommissionBalance\)\)/);
+ assert.match(app,/const nextPartyBalance=Number\(p\.balance\|\|0\)\+\(kind==="SALE"\?total:-total\);if\(!Number\.isSafeInteger\(nextPartyBalance\)\)/);
+ assert.match(app,/if\(!Number\.isSafeInteger\(commissionAmount\)\|\|commissionAmount<0\)/);
+});

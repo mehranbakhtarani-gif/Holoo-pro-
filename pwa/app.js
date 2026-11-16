@@ -140,7 +140,7 @@ async function loadDemoData(){
  await putMany([...products.map(p=>["products",{...p,date:now}]),...parties.map(p=>["parties",{...p,date:now}]),...accountRows.map(a=>["accounts",a])]);
  toast("داده‌های آزمایشی اضافه شد؛ سه کالا، سه شخص و مانده‌های افتتاحیه آماده‌اند");await render();
 }
-async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["2104","حقوق پرداختنی","LIABILITY"],["2105","کسورات حقوق پرداختنی","LIABILITY"],["1502","استهلاک انباشته دارایی","ASSET"],["3101","سرمایه","EQUITY"],["3201","سود و زیان انباشته","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["4301","سود تسعیر ارز","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"],["5202","اختلاف بهای برگشت خرید","EXPENSE"],["5203","هزینه پورسانت فروش","EXPENSE"],["5301","هزینه حقوق و دستمزد","EXPENSE"],["5401","هزینه استهلاک","EXPENSE"],["5501","زیان تسعیر ارز","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title:byId.get(id)?.title||title,type:byId.get(id)?.type||type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
+async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["2104","حقوق پرداختنی","LIABILITY"],["2105","کسورات حقوق پرداختنی","LIABILITY"],["1502","استهلاک انباشته دارایی","ASSET"],["3101","سرمایه","EQUITY"],["3102","مانده افتتاحیه اشخاص","EQUITY"],["3201","سود و زیان انباشته","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["4301","سود تسعیر ارز","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"],["5202","اختلاف بهای برگشت خرید","EXPENSE"],["5203","هزینه پورسانت فروش","EXPENSE"],["5301","هزینه حقوق و دستمزد","EXPENSE"],["5401","هزینه استهلاک","EXPENSE"],["5501","زیان تسعیر ارز","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title:byId.get(id)?.title||title,type:byId.get(id)?.type||type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
 function sameGuardValue(a,b){
  if(Object.is(a,b))return true;
  if(a===null||b===null||typeof a!=="object"||typeof b!=="object")return false;
@@ -200,6 +200,35 @@ function postVoucherAtomic(entries,voucher,lines,guards=[]){
   tx.oncomplete=()=>res();
   tx.onerror=()=>rej(tx.error||new Error("ثبت سند حسابداری ناموفق بود"));
   tx.onabort=()=>rej(staleState?new Error("اطلاعات انبار یا سند هم‌زمان در زبانه دیگری تغییر کرده است؛ صفحه را تازه‌سازی و عملیات را دوباره بررسی کنید"):duplicateReference?new Error("سندی با این شناسه مرجع قبلاً ثبت شده است"):overlappingClose?new Error("این بازه با یک دوره مالی بسته‌شده هم‌پوشانی دارد؛ ثبت سند انجام نشد"):tx.error||new Error("ثبت عملیات لغو شد"));
+ });
+}
+async function createPartyWithOpeningBalance(record,plan){
+ const stamp=globalThis.HolooOperationDate?.stampOperationRecord;
+ if(typeof stamp!=="function")throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");
+ const now=Date.now(),mode=operationDateMode,manualValue=operationManualDate;
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["parties","partyLedger","vouchers","voucherLines","auditLog"],"readwrite");
+  let partyId=null;
+  const partyRecord=stamp({store:"parties",record:{...record},mode,manualValue});
+  const addParty=tx.objectStore("parties").add(partyRecord);
+  addParty.onsuccess=()=>{
+   partyId=addParty.result;
+   const movement=stamp({store:"partyLedger",record:{partyId,date:now,debitRial:plan.debitRial,creditRial:plan.creditRial,description:"مانده افتتاحیه",referenceId:"OPENING:PARTY:"+partyId},mode,manualValue});
+   tx.objectStore("partyLedger").add(movement);
+   const voucher=stamp({store:"vouchers",record:{number:"OPEN-"+partyId+"-"+now,date:now,description:"مانده افتتاحیه "+record.name,reference:"OPENING:PARTY:"+partyId},mode,manualValue});
+   const addVoucher=tx.objectStore("vouchers").add(voucher);
+   addVoucher.onsuccess=()=>{
+    for(const line of plan.journal)tx.objectStore("voucherLines").add({...line,voucherId:addVoucher.result});
+    tx.objectStore("auditLog").add({action:"ثبت سند مالی",store:"vouchers",recordId:addVoucher.result,at:Date.now(),summary:voucher.description});
+   };
+   addVoucher.onerror=()=>{try{tx.abort()}catch(_){}};
+   tx.objectStore("auditLog").add({action:"ثبت طرف حساب",store:"parties",recordId:partyId,at:Date.now(),summary:"ایجاد "+record.name});
+   tx.objectStore("auditLog").add({action:"ثبت مانده افتتاحیه",store:"partyLedger",recordId:partyId,at:Date.now(),summary:record.name});
+  };
+  addParty.onerror=()=>{try{tx.abort()}catch(_){}};
+  tx.oncomplete=()=>resolve(partyId);
+  tx.onerror=()=>reject(tx.error||new Error("ثبت طرف حساب و مانده افتتاحیه ناموفق بود"));
+  tx.onabort=()=>reject(tx.error||new Error("ثبت طرف حساب و مانده افتتاحیه لغو شد"));
  });
 }
 function all(s){return new Promise((res,rej)=>{const q=db.transaction(s).objectStore(s).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
@@ -774,7 +803,7 @@ async function removeRow(s,id){
  await del(s,id);toast("حذف شد");render()
 }
 async function saveForm(page,d,item){const num=k=>Number(d[k]||0);if(page==="accounts"){const code=String(d.code||item?.id||"").trim(),title=String(d.title||"").trim(),type={"دارایی":"ASSET","بدهی":"LIABILITY","حقوق مالکانه":"EQUITY","درآمد":"REVENUE","هزینه":"EXPENSE"}[d.type];if(!/^\d{3,12}$/.test(code)||!title||!type)throw Error("کد، عنوان و گروه حساب معتبر الزامی است");const old=await all("accounts");if(!item&&old.some(a=>String(a.id)===code))throw Error("این کد حساب قبلاً ثبت شده است");await put("accounts",{...(item||{}),id:code,title,type,openingDebitRial:Number(item?.openingDebitRial||0),openingCreditRial:Number(item?.openingCreditRial||0)});return}if(page==="products"){const prices=Array.from({length:10},(_,i)=>num("price"+(i+1)));if(prices.some(x=>!Number.isSafeInteger(x)||x<0))throw Error("قیمت‌های فروش باید عدد صحیح و غیرمنفی باشند");const minStock=num("minStock"),barcode=String(d.barcode||"").trim();if(!Number.isFinite(minStock)||minStock<0)throw Error("حداقل موجودی باید صفر یا بیشتر باشد");const v={id:item?.id,sku:d.sku.trim(),barcode,name:d.name.trim(),group:d.group,yarn:d.yarn,color:d.color,denier:num("denier"),twisted:d.twisted==="تاب‌دار",minStock,notes:d.notes,prices,stock:item?.stock||0,value:item?.value||0,avg:item?.avg||0};prices.forEach((price,i)=>v["price"+(i+1)]=price);if(!v.sku||!v.name||v.denier<=0)throw Error("کد، نام و دنیر معتبر الزامی است");const a=await all("products");if(a.some(x=>x.sku===v.sku&&x.id!==v.id))throw Error("کد کالا تکراری است");if(v.barcode&&a.some(x=>x.barcode===v.barcode&&x.id!==v.id))throw Error("بارکد تکراری است");await put("products",v)}
-if(page==="parties"){const kind={"مشتری":"CUSTOMER","تأمین‌کننده":"SUPPLIER","هر دو":"BOTH"}[d.kind];if(!kind)throw Error("نوع طرف حساب معتبر نیست");if(item){const [invoices,treasury,checks,ledger,imports,orders,payables,payments]=await Promise.all([all("invoices"),all("treasury"),all("checks"),all("partyLedger"),all("imports"),all("salesOrders"),all("foreignPayables"),all("foreignPayablePayments")]);const hasHistory=invoices.some(x=>Number(x.partyId)===Number(item.id))||treasury.some(x=>Number(x.partyId)===Number(item.id))||checks.some(x=>Number(x.partyId)===Number(item.id))||ledger.some(x=>Number(x.partyId)===Number(item.id))||imports.some(x=>Number(x.supplierId)===Number(item.id))||orders.some(x=>Number(x.partyId)===Number(item.id))||payables.some(x=>Number(x.supplierId)===Number(item.id))||payments.some(x=>Number(x.supplierId)===Number(item.id));if(hasHistory&&kind!==item.kind)throw Error("نوع طرف حساب دارای سابقه مالی قابل تغییر نیست");}await put("parties",{id:item?.id,name:d.name.trim(),kind,phone:d.phone,address:d.address,balance:item?Number(item.balance||0):num("balance")})}
+if(page==="parties"){const kind={"مشتری":"CUSTOMER","تأمین‌کننده":"SUPPLIER","هر دو":"BOTH"}[d.kind];if(!kind)throw Error("نوع طرف حساب معتبر نیست");if(item){const [invoices,treasury,checks,ledger,imports,orders,payables,payments]=await Promise.all([all("invoices"),all("treasury"),all("checks"),all("partyLedger"),all("imports"),all("salesOrders"),all("foreignPayables"),all("foreignPayablePayments")]);const hasHistory=invoices.some(x=>Number(x.partyId)===Number(item.id))||treasury.some(x=>Number(x.partyId)===Number(item.id))||checks.some(x=>Number(x.partyId)===Number(item.id))||ledger.some(x=>Number(x.partyId)===Number(item.id))||imports.some(x=>Number(x.supplierId)===Number(item.id))||orders.some(x=>Number(x.partyId)===Number(item.id))||payables.some(x=>Number(x.supplierId)===Number(item.id))||payments.some(x=>Number(x.supplierId)===Number(item.id));if(hasHistory&&kind!==item.kind)throw Error("نوع طرف حساب دارای سابقه مالی قابل تغییر نیست");}const balance=item?Number(item.balance||0):num("balance");if(!Number.isSafeInteger(balance))throw Error("مانده افتتاحیه باید عدد صحیح ریالی باشد");const partyRecord={id:item?.id,name:d.name.trim(),kind,phone:d.phone,address:d.address,balance};if(item||balance===0)await put("parties",partyRecord);else{await ensureBaseAccounts();const plan=HolooPartyOpeningBalance.planPartyOpeningBalance({partyKind:kind,balance});await createPartyWithOpeningBalance(partyRecord,plan)}}
 if(page==="salesOrders"){
  if(item&&item.status!=="DRAFT")throw Error("فقط پیش‌نویس قابل ویرایش است");
  const [ps,warehouses,products]=await Promise.all([all("parties"),all("warehouses"),all("products")]);

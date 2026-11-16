@@ -91,3 +91,15 @@ test("aggregates repeated allocations to the same lot before restoring a multi-l
  assert.equal(restored[0].remainingQty,100);
  assert.equal(restored[0].remainingValue,125000);
 });
+
+test("summarizes realized shipment profit, margin, sell-through and remaining inventory value",()=>{
+ const {summarizeImportShipmentProfit,buildImportShipmentProfitCsv}=require("../inventory-lots.js");
+ const lot=receipt("CN-PROFIT",100,100000,100);
+ const sale=planLotSale({productId:1,productName:"FDY",warehouseId:2,quantity:40,warehouseStock:{stock:100,value:100000},lots:[lot],date:200});
+ const lots=[...sale.newLots,...sale.updates];
+ const invoices=[{kind:"SALE",status:"POSTED",lines:[{qty:40,totalQty:40,lineTotal:60000,lotAllocations:sale.allocations}]}];
+ const report=summarizeImportShipmentProfit({lots,invoices});
+ assert.equal(report.rows[0].soldCost,40000);assert.equal(report.rows[0].grossProfit,20000);
+ assert.equal(report.rows[0].grossMarginPercent,100/3);assert.equal(report.rows[0].sellThroughPercent,40);
+ assert.equal(report.totals.remainingValue,60000);assert.ok(buildImportShipmentProfitCsv({lots,invoices}).startsWith("\uFEFF"));
+});

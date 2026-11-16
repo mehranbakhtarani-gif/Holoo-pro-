@@ -90,6 +90,7 @@ function summarizeLotProfit(input){
   if(invoice.kind!=="SALE"||invoice.status==="REVERSED")continue;
   for(const line of Array.isArray(invoice.lines)?invoice.lines:[]){
    const allocations=Array.isArray(line.lotAllocations)?line.lotAllocations:[];
+   if(!allocations.length)continue;
    const qtyBase=Number(line.totalQty||line.qty||0),lineRevenue=Number(line.lineTotal||0);
    if(!Number.isFinite(qtyBase)||qtyBase<=0||!Number.isSafeInteger(lineRevenue)||lineRevenue<0)continue;
    const allocationQty=allocations.reduce((sum,allocation)=>sum+Number(allocation.quantity),0);

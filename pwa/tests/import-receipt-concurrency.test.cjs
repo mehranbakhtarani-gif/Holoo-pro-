@@ -30,3 +30,13 @@ test("import receipt rejects supplier balance overflow before posting stock and 
  assert.match(app,/const nextPartyBalance=Number\(party\.balance\|\|0\)-costs\.goodsRial;if\(!Number\.isSafeInteger\(nextPartyBalance\)\)/);
  assert.match(app,/store:"parties",key:Number\(party\.id\),expected:expectedPartyState/);
 });
+
+ 
+test("import shipment creation and edits atomically enforce unique numbers and containers and lock linked payable fields",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putImportShipmentUnique\(record\)/);
+ assert.match(app,/db\.transaction\(\["importShipments","foreignPayables","auditLog"\],"readwrite"\)/);
+ assert.match(app,/row\.number===record\.number\|\|String\(row\.container\|\|"\)\.trim\(\)\.toLowerCase\(\)===String\(record\.container\|\|"\)\.trim\(\)\.toLowerCase\(\)/);
+ assert.match(app,/const linked=current&&payables\.find\(row=>Number\(row\.sourceShipmentId\)===Number\(current\.id\)\)/);
+ assert.match(app,/await putImportShipmentUnique\(shipmentRecord\)/);
+});

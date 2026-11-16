@@ -70,7 +70,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v154-load-active-print-template/);
+ assert.match(sw,/holloo-pwa-v155-multiline-custom-fields/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -278,12 +278,12 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v154-load-active-print-template/);
+ assert.match(sw,/holloo-pwa-v155-multiline-custom-fields/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
 test("user-defined fields are validated and never evaluated as executable code",()=>{
- assert.match(custom,/allowed=new Set\(\["text","number","date","select","checkbox"\]\)/);
+ assert.match(custom,/allowed=new Set\(\["text","number","date","select","checkbox","textarea"\]\)/);
  assert.match(custom,/\^\[a-zA-Z\]\[a-zA-Z0-9_\]/);
  assert.doesNotMatch(custom,/eval\s*\(|new Function\s*\(/);
 });

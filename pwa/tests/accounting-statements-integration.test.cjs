@@ -81,7 +81,7 @@ test("party statement provides a print action and prints the party ledger with o
  assert.match(app,/class="ghost party-statement-print"/);
  assert.match(app,/data-party-statement=/);
  assert.match(app,/صورتحساب طرف حساب/);
- assert.match(app,/const opening=Number\(party\.balance\|\|0\)-movement/);
+ assert.match(app,/opening=Number\(party\.balance\|\|0\)-movement/);
  assert.match(app,/const debit=rows\.reduce/);
  assert.match(app,/const credit=rows\.reduce/);
 });

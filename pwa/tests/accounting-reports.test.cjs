@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,buildTrialBalanceColumns,hasOverlappingPeriodClose}=require("../accounting-reports.js");
+const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,buildTrialBalanceColumns,buildLedgerRunningRows,hasOverlappingPeriodClose}=require("../accounting-reports.js");
 
 const accounts=[
  {id:"1101",title:"Cash",type:"ASSET",openingDebitRial:80000,openingCreditRial:0},
@@ -77,4 +77,26 @@ test("trial balance renders two, four, six and eight numeric column modes",()=>{
  assert.throws(()=>buildTrialBalanceColumns(rows,3));
  assert.throws(()=>buildTrialBalanceColumns([{...rows[0],debit:-1}],8));
  assert.throws(()=>buildTrialBalanceColumns([{...rows[0],openingDebit:Number.MAX_SAFE_INTEGER,debit:1}],8));
+});
+
+
+test("ledger running balances include opening balances and prior movements before the selected date",()=>{
+ const result=buildLedgerRunningRows({
+  accounts:[{id:"1101",openingDebitRial:1000,openingCreditRial:200}],
+  rows:[
+   {date:300,number:"3",accountCode:"1101",debit:0,credit:50},
+   {date:100,number:"1",accountCode:"1101",debit:100,credit:0},
+   {date:200,number:"2",accountCode:"1101",debit:0,credit:25},
+   {date:250,number:"4",accountCode:"2101",debit:500,credit:0}
+  ],
+  accountCode:"1101",fromDate:200,toDate:300
+ });
+ assert.deepEqual(result.rows.map(x=>[x.number,x.runningBalance]),[["2",875],["3",825]]);
+ assert.equal(result.openingBalances["1101"],900);
+});
+test("ledger running balances filter by account and reject invalid periods or amounts",()=>{
+ const input={accounts:[],rows:[{date:10,number:"1",accountCode:"A",debit:10,credit:0},{date:11,number:"2",accountCode:"B",debit:5,credit:0}],fromDate:0,toDate:20};
+ assert.deepEqual(buildLedgerRunningRows({...input,accountCode:"A"}).rows.map(x=>x.accountCode),["A"]);
+ assert.throws(()=>buildLedgerRunningRows({...input,fromDate:30,toDate:20}));
+ assert.throws(()=>buildLedgerRunningRows({...input,rows:[{date:10,accountCode:"A",debit:-1,credit:0}]}));
 });

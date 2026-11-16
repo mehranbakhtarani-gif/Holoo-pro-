@@ -87,6 +87,28 @@ function buildPeriodClosingJournal(input){
  if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==credit)throw new Error("سند اختتامیه متوازن نیست");
  return {lines,revenue,expense,netProfit,debit,credit};
 }
+function buildLedgerRunningRows(input){
+ const rows=input.rows||[],accounts=input.accounts||[],accountCode=input.accountCode?String(input.accountCode):"";
+ const fromDate=input.fromDate==null?0:Number(input.fromDate),toDate=input.toDate==null?Number.MAX_SAFE_INTEGER:Number(input.toDate);
+ if(!Number.isFinite(fromDate)||!Number.isFinite(toDate)||fromDate>toDate)throw new Error("بازه تاریخ دفتر معتبر نیست");
+ const balances=new Map(accounts.map(a=>[String(a.id),Number(a.openingDebitRial||0)-Number(a.openingCreditRial||0)]));
+ for(const value of balances.values())if(!Number.isSafeInteger(value))throw new Error("مانده افتتاحیه حساب معتبر نیست");
+ const selected=(rows||[]).filter(row=>!accountCode||String(row.accountCode)===accountCode).slice().sort((a,b)=>Number(a.date||0)-Number(b.date||0)||String(a.number||"").localeCompare(String(b.number||"")));
+ const result=[];
+ for(const row of selected){
+  const date=Number(row.date||0),debit=Number(row.debit||0),credit=Number(row.credit||0),key=String(row.accountCode);
+  if(!Number.isFinite(date)||!Number.isSafeInteger(debit)||debit<0||!Number.isSafeInteger(credit)||credit<0)throw new Error("ردیف دفتر کل معتبر نیست");
+  const next=(balances.get(key)||0)+debit-credit;
+  if(!Number.isSafeInteger(next))throw new Error("مانده تجمعی حساب از محدوده عددی مجاز خارج است");
+  balances.set(key,next);
+  if(date>=fromDate&&date<=toDate)result.push({...row,runningBalance:next});
+ }
+ const openingBalances={};for(const [key,value] of balances)openingBalances[key]=value;
+ // Recompute opening balances at the start of the requested period.
+ for(const [key] of balances)openingBalances[key]=Number((accounts.find(a=>String(a.id)===key)||{}).openingDebitRial||0)-Number((accounts.find(a=>String(a.id)===key)||{}).openingCreditRial||0);
+ for(const row of selected){if(Number(row.date||0)>=fromDate)break;const key=String(row.accountCode);openingBalances[key]=(openingBalances[key]||0)+Number(row.debit||0)-Number(row.credit||0);}
+ return {rows:result,openingBalances};
+}
 function buildTrialBalanceColumns(trialRows,columnCount){
  const count=Number(columnCount);
  const columns={
@@ -130,6 +152,6 @@ function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
   return Number.isSafeInteger(oldFrom)&&Number.isSafeInteger(oldTo)&&oldFrom<=oldTo&&fromDate<=oldTo&&toDate>=oldFrom;
  });
 }
-const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
+const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildLedgerRunningRows,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
 if(typeof module!=="undefined"&&module.exports)module.exports=accountingReportsApi;
 if(typeof globalThis!=="undefined")globalThis.HolooAccountingReports=accountingReportsApi;

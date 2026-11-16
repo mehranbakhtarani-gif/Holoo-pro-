@@ -182,6 +182,7 @@ function actButtons(s,id){return '<button class="ghost" data-edit="'+s+':'+id+'"
 async function adjustStockPwa(id){
  const products=await all("products"),product=products.find(x=>x.id===Number(id));
  if(!product)throw Error("کالا پیدا نشد");
+ const expectedProductState={stock:product.stock,value:product.value};
  const raw=prompt("مقدار اصلاح به کیلوگرم را وارد کنید. عدد مثبت = افزایش، عدد منفی = کاهش", "10");
  if(raw===null)return;
  const delta=Number(String(raw).replace(",","."));
@@ -197,6 +198,7 @@ async function adjustStockPwa(id){
   if(!warehouse)throw Error("انبار انتخاب‌شده معتبر نیست");
  }
  const warehouseRows=allStockRows.filter(x=>Number(x.productId)===Number(product.id));
+ const expectedWarehouseRow=warehouseRows.find(x=>Number(x.warehouseId)===Number(warehouse.id));
  const qty=Math.abs(delta),number="ADJ-"+Date.now(),now=Date.now();
  let adjustmentValue=0,debitCode="",creditCode="",movement,lotEntries=[];
  if(delta>0){
@@ -235,6 +237,9 @@ async function adjustStockPwa(id){
  await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["stockAdjustments",adjustment],...lotEntries],{number,date:now,description:"اصلاح موجودی "+product.name+" در انبار "+warehouse.name,reference:"STOCK_ADJUSTMENT:"+product.id+":"+now},[
   {accountCode:debitCode,debitRial:adjustmentValue,creditRial:0,description:"اصلاح موجودی"},
   {accountCode:creditCode,debitRial:0,creditRial:adjustmentValue,description:"اصلاح موجودی"}
+ ],[
+  {store:"products",key:Number(product.id),expected:expectedProductState},
+  {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:expectedWarehouseRow?{stock:expectedWarehouseRow.stock,value:expectedWarehouseRow.value}:null}
  ]);
  toast("اصلاح موجودی، انبار، بچ FIFO و سند حسابداری ثبت شد");await render();
 }

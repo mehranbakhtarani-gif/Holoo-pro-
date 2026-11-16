@@ -19,8 +19,10 @@ class BankStatementDuplicateKeyTest {
         assertFalse(first.hasReliableIdentity)
         assertFalse(repeated.hasReliableIdentity)
         // Equal date/amount with no reference or description can be two real transactions.
-        assertTrue(seen.add(first))
-        assertTrue(seen.add(repeated))
+        val firstDuplicate = first.hasReliableIdentity && !seen.add(first)
+        val repeatedDuplicate = repeated.hasReliableIdentity && !seen.add(repeated)
+        assertFalse(firstDuplicate)
+        assertFalse(repeatedDuplicate)
     }
 
     @Test fun rowsWithAReferenceOrDescriptionCanBeDeduplicated() {

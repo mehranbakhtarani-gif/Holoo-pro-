@@ -50,3 +50,14 @@ test("approval requests must reference an existing document and support explicit
  assert.match(app,/برای این سند و مرحله قبلاً درخواست تأیید ثبت شده است/);
  assert.match(app,/data-approval-status=/);
 });
+
+
+test("all enabled pages are generated into desktop and mobile navigation and have render branches",()=>{
+ const match=app.match(/const titles=\{([\s\S]*?)\};/);
+ assert.ok(match,"page title registry exists");
+ const keys=[...match[1].matchAll(/([A-Za-z][A-Za-z0-9]*):\[/g)].map(x=>x[1]);
+ for(const key of keys)assert.ok(app.includes('if(currentPage==="' + key + '")'),"missing page renderer: "+key);
+ assert.match(app,/Object\.keys\(titles\)\.filter\(k=>k!=="foreignPayablePayments"\)/);
+ assert.match(app,/\$\("#sidebar"\)\.innerHTML=items/);
+ assert.match(app,/\$\("#mobileNav"\)\.innerHTML=items/);
+});

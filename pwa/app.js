@@ -149,12 +149,20 @@ function postVoucherAtomic(entries,voucher,lines,guards=[]){
  if(linkedOrder)guards=[...guards,{store:"salesOrders",key:Number(linkedOrder[1].id),expected:{status:"APPROVED"}}];
  return new Promise((res,rej)=>{
   const names=[...new Set([...entries.map(x=>x[0]),...guards.map(x=>x.store),"vouchers","voucherLines","auditLog"])],tx=db.transaction(names,"readwrite");
-  let duplicateReference=false,staleState=false;
+  let duplicateReference=false,staleState=false,overlappingClose=false;
   const writeEntriesAndVoucher=()=>{
    for(const [store,value] of entries)tx.objectStore(store).put(value);
    const check=tx.objectStore("vouchers").getAll();
    check.onsuccess=()=>{
     if(voucher.reference&&check.result.some(v=>v.reference===voucher.reference)){duplicateReference=true;try{tx.abort()}catch(_){}return}
+    const closeMatch=/^YEAR_END_CLOSE:(\d+):(\d+)$/.exec(String(voucher.reference||""));
+    if(closeMatch){
+     const from=Number(closeMatch[1]),to=Number(closeMatch[2]);
+     const overlap=globalThis.HolooAccountingReports?.hasOverlappingPeriodClose;
+     if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||typeof overlap!=="function"||overlap(check.result,from,to)){
+      overlappingClose=true;try{tx.abort()}catch(_){}return;
+     }
+    }
     const request=tx.objectStore("vouchers").add(voucher);
     request.onsuccess=()=>{
      const voucherId=request.result;
@@ -183,7 +191,7 @@ function postVoucherAtomic(entries,voucher,lines,guards=[]){
   validateGuards();
   tx.oncomplete=()=>res();
   tx.onerror=()=>rej(tx.error||new Error("ثبت سند حسابداری ناموفق بود"));
-  tx.onabort=()=>rej(staleState?new Error("اطلاعات انبار یا سند هم‌زمان در زبانه دیگری تغییر کرده است؛ صفحه را تازه‌سازی و عملیات را دوباره بررسی کنید"):duplicateReference?new Error("سندی با این شناسه مرجع قبلاً ثبت شده است"):tx.error||new Error("ثبت عملیات لغو شد"));
+  tx.onabort=()=>rej(staleState?new Error("اطلاعات انبار یا سند هم‌زمان در زبانه دیگری تغییر کرده است؛ صفحه را تازه‌سازی و عملیات را دوباره بررسی کنید"):duplicateReference?new Error("سندی با این شناسه مرجع قبلاً ثبت شده است"):overlappingClose?new Error("این بازه با یک دوره مالی بسته‌شده هم‌پوشانی دارد؛ ثبت سند انجام نشد"):tx.error||new Error("ثبت عملیات لغو شد"));
  });
 }
 function all(s){return new Promise((res,rej)=>{const q=db.transaction(s).objectStore(s).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}

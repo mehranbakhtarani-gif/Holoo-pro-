@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {buildFinancialStatements,buildPeriodClosingJournal}=require("../accounting-reports.js");
+const {buildFinancialStatements,buildPeriodClosingJournal,hasOverlappingPeriodClose}=require("../accounting-reports.js");
 
 const accounts=[
  {id:"1101",title:"Cash",type:"ASSET",openingDebitRial:80000,openingCreditRial:0},
@@ -46,4 +46,13 @@ test("creates a balanced closing journal transferring profit to retained earning
 test("closing journal rejects invalid period or missing retained earnings account",()=>{
  assert.throws(()=>buildPeriodClosingJournal({accounts,vouchers,voucherLines,fromDate:300,toDate:0}));
  assert.throws(()=>buildPeriodClosingJournal({accounts:accounts.filter(x=>x.id!=="3201"),vouchers,voucherLines,fromDate:0,toDate:300}));
+});
+
+test("period close overlap detection rejects inclusive intersections and allows separate periods",()=>{
+ const closed=[{reference:"YEAR_END_CLOSE:100:199"},{reference:"YEAR_END_CLOSE:300:399"},{reference:"YEAR_END_CLOSE:bad:range"}];
+ assert.equal(hasOverlappingPeriodClose(closed,150,250),true);
+ assert.equal(hasOverlappingPeriodClose(closed,200,299),false);
+ assert.equal(hasOverlappingPeriodClose(closed,250,300),true);
+ assert.equal(hasOverlappingPeriodClose(closed,400,500),false);
+ assert.throws(()=>hasOverlappingPeriodClose(closed,500,400));
 });

@@ -27,6 +27,7 @@ function stampOperationRecord({store,record,mode="AUTO",manualValue="",now=Date.
   const eventFields={
    invoices:["createdAt","reversedAt"],foreignPayablePayments:["reversedAt"],importShipments:["receivedAt","statusChangedAt"],inventoryLots:["receivedAt","transferredAt"],
    checks:["createdAt","statusChangedAt","clearedAt","endorsedAt","bouncedAt","cancelledAt"],
+   treasury:["reversedAt"],
    treasuryAllocations:["reversedAt"],
    salesOrders:["createdAt"],foreignPayables:["createdAt"],payroll:["createdAt","paidAt"]
   }[store]||[];

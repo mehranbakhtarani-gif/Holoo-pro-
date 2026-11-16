@@ -42,7 +42,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v146-carton-conversion/);
+ assert.match(sw,/holloo-pwa-v147-print-templates/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });

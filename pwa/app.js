@@ -775,7 +775,7 @@ document.querySelectorAll("[data-check-status]").forEach(b=>b.onclick=async()=>{
     {store:"parties",key:target.id,expected:targetSnapshot}
    ]);
   }else{
-   c.status=next;c.statusChangedAt=Date.now();await put("checks",c);
+   c.status=next;c.statusChangedAt=Date.now();if(next==="BOUNCED")c.bouncedAt=c.statusChangedAt;if(next==="CANCELLED")c.cancelledAt=c.statusChangedAt;await put("checks",c);
   }
   toast("وضعیت چک و سوابق مالی به‌روزرسانی شد");render();
  }catch(err){toast(err.message||"تغییر وضعیت چک انجام نشد")}

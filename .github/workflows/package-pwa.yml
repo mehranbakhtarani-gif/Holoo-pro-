@@ -7,7 +7,7 @@ on:
       - 'pwa/**'
       - '.github/workflows/package-pwa.yml'
   pull_request:
-    branches: [main, feature/invoice-printing]
+    branches: [main, feature/invoice-printing, feature/import-shipment-analytics]
     paths:
       - 'pwa/**'
       - '.github/workflows/package-pwa.yml'

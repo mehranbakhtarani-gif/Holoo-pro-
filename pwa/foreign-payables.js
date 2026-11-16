@@ -30,4 +30,6 @@ function summarizeForeignPayable(input){
  const revaluedRial=Math.round(remainingMinor*rate/100),delta=revaluedRial-bookValue;
  return {...payable,remainingMinor,bookValue,revaluedRial,unrealizedFxLossRial:Math.max(0,delta),unrealizedFxGainRial:Math.max(0,-delta),realizedFxGainRial:payments.reduce((n,p)=>n+Number(p.fxGainRial||0),0),realizedFxLossRial:payments.reduce((n,p)=>n+Number(p.fxLossRial||0),0)};
 }
-if(typeof module!=="undefined")module.exports={createForeignPayable,planForeignPayablePayment,summarizeForeignPayable};
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,summarizeForeignPayable};
+if(typeof module!=="undefined")module.exports=ForeignPayables;
+if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

@@ -28,3 +28,10 @@ test("warehouse and transfer history lists can be searched",()=>{
  assert.match(app,/جست‌وجوی نام انبار، نشانی یا مسئول/);
  assert.match(app,/جست‌وجوی کالا، انبار مبدأ یا مقصد/);
 });
+
+ 
+test("warehouse page exposes per-product stock, average cost and inventory value",()=>{
+ assert.match(app,/ریز موجودی کالاها در/);
+ assert.match(app,/بهای میانگین هر kg/);
+ assert.match(app,/money\(x\.average\|\|0\)/);
+});

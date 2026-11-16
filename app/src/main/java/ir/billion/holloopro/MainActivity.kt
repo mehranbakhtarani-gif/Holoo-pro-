@@ -120,6 +120,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        vm.setOperationDate(null)
         exportBackupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             if (uri != null) lifecycleScope.launch {
                 runCatching { DatabaseBackup.export(this@MainActivity, (application as HolooApplication).database, uri) }

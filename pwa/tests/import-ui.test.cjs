@@ -36,3 +36,11 @@ test("shipment settlement status follows payable payment and reversal",()=>{
  assert.match(app,/sourceShipment\.status=plan\.updated\.status==="PAID"\?"تسویه‌شده":"رسید انبار شده"/);
  assert.match(app,/statusChangedAt=now/);
 });
+test("legacy import order report separates foreign goods, Rial goods value, ancillary costs and landed cost",()=>{
+ assert.match(app,/بهای ریالی کالا/);
+ assert.match(app,/هزینه‌های جانبی/);
+ assert.match(app,/جمع بهای تمام‌شده/);
+ assert.match(app,/ancillaryCost=freight\+customs\+other,totalCost=goodsRial\+ancillaryCost/);
+ assert.match(app,/goodsRial,ancillaryCost,totalCost,extra:totalCost/);
+});
+

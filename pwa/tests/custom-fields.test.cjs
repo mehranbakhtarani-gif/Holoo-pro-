@@ -42,7 +42,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v139-column-controls/);
+ assert.match(sw,/holloo-pwa-v140-column-controls/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -132,4 +132,14 @@ test("custom fields support independent list visibility and bounded column width
 test("print and export custom fields are restricted to matching document scope",()=>{
  assert.match(app,/getDefinitions\("invoices"\)/);
  assert.match(app,/getDefinitions\("salesOrders"\)/);
+});
+
+test("settings expose warehouse and import shipment field scopes",()=>{
+ assert.match(custom,/value="warehouses">انبار/);
+ assert.match(custom,/value="importShipments">محموله وارداتی/);
+});
+test("custom field list settings expose scope, visibility and column width",()=>{
+ assert.match(custom,/data-cf-list/);
+ assert.match(custom,/data-cf-width/);
+ assert.match(custom,/columnWidth\+"px"/);
 });

@@ -57,7 +57,8 @@ test("treasury allocation creation and reversal use invoice and settlement versi
  assert.ok(app.includes('store:"treasury",key:Number(tr.id),expected:transactionSnapshot'));
  assert.ok(app.includes('store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot'));
  assert.ok(app.includes('allocationVersion:invoice.allocationVersion'));
- assert.ok(app.includes('allocationVersion:original.allocationVersion'));
+ assert.ok(app.includes("treasurySnapshot={...original}"));
+ assert.ok(app.includes("originalSnapshot={...original}"));
  assert.ok(app.includes('await putManyGuarded([["treasury",tr],["invoices",invoice],["treasuryAllocations",allocation]]'));
 });
 

@@ -729,7 +729,7 @@ if(page==="foreignPayablePayments"){
  if(plan.fxGainRial>0)journal.push({accountCode:"4301",debitRial:0,creditRial:plan.fxGainRial,description:"سود تحقق‌یافته تسعیر بدهی "+payable.sourceNumber});
  if(plan.fxLossRial>0)journal.push({accountCode:"5501",debitRial:plan.fxLossRial,creditRial:0,description:"زیان تحقق‌یافته تسعیر بدهی "+payable.sourceNumber});
  if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند پرداخت ارزی تراز نیست");
- party.balance=Number(party.balance||0)+plan.bookedRial;
+ const nextPartyBalance=Number(party.balance||0)+plan.bookedRial;if(!Number.isSafeInteger(nextPartyBalance))throw Error("مانده حساب تأمین‌کننده از محدوده عددی مجاز خارج است");party.balance=nextPartyBalance;
  const movement={partyId:party.id,date:dateValue,debitRial:plan.bookedRial,creditRial:0,description:"پرداخت تعهد ارزی محموله "+payable.sourceNumber,referenceId:reference};
  const treasuryRecord={kind:"PAYMENT",method:d.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payable.currency,foreignAmountMinor:amountMinor,fxRateRialPerUnit:fxRate,date:dateValue,note:d.note||("تسویه تعهد "+payable.sourceNumber),reference,foreignPayableId:payable.id};
  await ensureBaseAccounts();
@@ -790,7 +790,7 @@ async function reverseForeignPayablePaymentPwa(id){
  const cashAccount=payment.method==="بانک"?"1102":"1101",journal=[{accountCode:cashAccount,debitRial:plan.settlementRial,creditRial:0,description:"برگشت وجه پرداخت ارزی "+payment.sourceNumber},{accountCode:"2101",debitRial:0,creditRial:plan.bookedRial,description:"برگشت بدهی ارزی "+payment.sourceNumber}];
  if(plan.fxGainRial>0)journal.push({accountCode:"4301",debitRial:plan.fxGainRial,creditRial:0,description:"برگشت سود تسعیر پرداخت "+payment.sourceNumber});
  if(plan.fxLossRial>0)journal.push({accountCode:"5501",debitRial:0,creditRial:plan.fxLossRial,description:"برگشت زیان تسعیر پرداخت "+payment.sourceNumber});
- party.balance=Number(party.balance||0)-plan.bookedRial;
+ const nextPartyBalance=Number(party.balance||0)-plan.bookedRial;if(!Number.isSafeInteger(nextPartyBalance))throw Error("مانده حساب تأمین‌کننده برای برگشت از محدوده عددی مجاز خارج است");party.balance=nextPartyBalance;
  const originalTreasuryUpdated={...originalTreasury,status:"REVERSED",reversedAt:now};
  const reversalTreasury={kind:"RECEIPT",method:payment.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payment.currency,foreignAmountMinor:payment.amountMinor,fxRateRialPerUnit:payment.fxRateRialPerUnit,date:now,note:"برگشت پرداخت ارزی "+payment.sourceNumber,reference,foreignPayableId:payable.id,reversalOf:payment.reference};
  const movement={partyId:party.id,date:now,debitRial:0,creditRial:plan.bookedRial,description:"برگشت پرداخت تعهد ارزی "+payment.sourceNumber,referenceId:reference};

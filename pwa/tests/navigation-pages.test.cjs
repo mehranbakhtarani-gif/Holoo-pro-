@@ -32,7 +32,7 @@ test("depreciation posting uses a stale-state guard and protects posted assets f
 test("paid payroll posts a matching treasury payment while calculated payroll remains payable",()=>{
  assert.ok(app.includes('["paymentAccountCode","حساب صندوق / بانک در صورت پرداخت","select"]'));
  assert.match(app,/status==="پرداخت‌شده"&&net>0\)entries\.push\(\["treasury",\{kind:"PAYMENT"/);
- assert.match(app,/paymentMethod==="صندوق"\?"1101":"1102"/);
+ assert.match(app,/\{accountCode,debitRial:0,creditRial:net/);\n assert.match(app,/accountCode:account,accountName:account\.title/);
 });
 
  

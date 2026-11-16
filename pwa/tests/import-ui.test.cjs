@@ -30,3 +30,9 @@ test("shipment search covers container, supplier and product and deletion protec
 test("shipment finance fields are locked after a foreign payable is created",()=>{
  assert.match(app,/برای این محموله تعهد ارزی ثبت شده است؛ اطلاعات مالی، کالا و تأمین‌کننده قفل شده‌اند/);
 });
+
+ 
+test("shipment settlement status follows payable payment and reversal",()=>{
+ assert.match(app,/sourceShipment\.status=plan\.updated\.status==="PAID"\?"تسویه‌شده":"رسید انبار شده"/);
+ assert.match(app,/statusChangedAt=now/);
+});

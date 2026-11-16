@@ -5,8 +5,9 @@ const path=require("node:path");
 const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
 
 test("cheque page supports search, due-date summaries and lifecycle actions",()=>{
- assert.match(app,/جست‌وجوی شماره، طرف حساب، بانک یا وضعیت/);
+ assert.match(app,/جست‌وجوی شماره، طرف حساب، بانک، مبلغ، تاریخ یا وضعیت/);
  assert.match(app,/سررسید گذشته/);
+ assert.match(app,/x\.amount,fmt\(x\.amount\|\|0\),date\(x\.issue\),date\(x\.due\),x\.endorseToPartyName/);
  assert.match(app,/data-check-print/);
  assert.match(app,/data-check-status="BOUNCED"/);
  assert.match(app,/data-check-status="CANCELLED"/);

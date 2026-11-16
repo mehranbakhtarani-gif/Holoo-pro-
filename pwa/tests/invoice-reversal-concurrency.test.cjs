@@ -10,7 +10,7 @@ test("invoice reversal revalidates all affected ledger and inventory snapshots a
  assert.ok(start>=0&&end>start,"invoice reversal function must exist");
  const body=app.slice(start,end);
  for(const expected of [
-  "const invoiceSnapshot={...invoice}",
+  "const invoiceSnapshot={status:invoice.status,reversedAt:invoice.reversedAt}",
   "new Map(products.map(row=>[Number(row.id),{...row}]))",
   "new Map(parties.map(row=>[Number(row.id),{...row}]))",
   "new Map(warehouseStockRows.map(row=>[Number(row.productId)+\":\"+Number(row.warehouseId),{...row}]))",

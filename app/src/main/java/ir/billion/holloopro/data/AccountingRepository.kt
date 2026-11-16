@@ -956,7 +956,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 }
                 val key = BankStatementDuplicateKey.from(normalizedBank, row)
                 // Track file-local duplicates explicitly; do not depend on database read visibility.
-                val hasReliableIdentity = key.bankReference.isNotBlank() || key.description.isNotBlank()
+                val hasReliableIdentity = key.hasReliableIdentity
                 val duplicateInFile = hasReliableIdentity && !seenInFile.add(key)
                 val duplicateInDatabase = hasReliableIdentity && db.bankStatementDao().countDuplicate(
                     key.bankName, key.transactionDateEpoch, key.signedAmountRial, key.bankReference, key.description

@@ -15,3 +15,11 @@ test("dashboard quick links are bound after the page content is rendered",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/\$\("#main"\)\.querySelectorAll\("\[data-page\]"\)\.forEach\(b=>b\.onclick=\(\)=>go\(b\.dataset\.page\)\)/,"quick navigation buttons inside rendered pages must navigate");
 });
+
+
+test("dashboard import shortcut and count use the complete shipment workflow",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/\[\x27importShipments\x27,\x27سفارش واردات\x27\]/);
+ assert.match(app,/all\("importShipments"\)\]\);/);
+ assert.match(app,/محموله‌های وارداتی",fmt\(importShipmentRows\.length\)/);
+});

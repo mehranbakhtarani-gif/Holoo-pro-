@@ -32,6 +32,12 @@ test("sales-order list and print paths include custom line fields",()=>{
  assert.match(app,/customFields:globalThis\.HolooCustomFields\?\.normalizeLineValues/);
  assert.match(app,/customDefs\.map\(d=>'<th>'\+h\(d\.label\)/);
 });
+test("backup restore refreshes custom field and report definitions from IndexedDB",()=>{
+ assert.match(app,/HolooCustomFields\?\.reloadConfig\?\.\(\)/);
+ assert.ok(app.includes('"auditLog"'));
+ assert.ok(custom.includes("async function reloadConfig()"));
+});
+
 test("invoice and order row restoration explicitly rehydrates custom line controls",()=>{
  assert.ok(app.includes("hydrateRow(row,line.customFields||{})"));
  assert.ok(custom.includes("function hydrateRow(row,values)"));
@@ -48,7 +54,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v148-custom-field-hydration/);
+ assert.match(sw,/holloo-pwa-v149-restore-config-refresh/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });

@@ -227,13 +227,24 @@ test("custom report saves print template header footer paper and orientation",()
  assert.match(custom,/@page\{size:/);
 });
 
+
+test("invoice print designer stores reusable templates and exposes safe print settings",()=>{
  assert.ok(custom.includes("PRINT_TEMPLATE_ID"));
  assert.ok(custom.includes("async function addPrintTemplate()"));
  assert.ok(custom.includes("async function savePrintTemplate()"));
+ assert.ok(custom.includes('id="ptSelect"'));
  assert.ok(custom.includes("data-pt-row"));
  assert.ok(custom.includes("getInvoicePrintTemplate"));
 });
-
+test("invoice print template API supplies a safe default layout",()=>{
+ const api=loadCustom();
+ const template=api.getInvoicePrintTemplate();
+ assert.equal(template.paper,"A4");
+ assert.equal(template.orientation,"portrait");
+ assert.ok(Array.isArray(template.sections));
+ assert.ok(template.sections.includes("items"));
+});
+ 
 test("custom fields IndexedDB connection closes on version change and settles blocked opens once",()=>{
  assert.ok(custom.includes("connection.onversionchange=()=>connection.close()"));
  assert.ok(custom.includes("let settled=false"));

@@ -1,11 +1,39 @@
 
+async function reverseTreasuryAllocationPwa(id){
+ const [allocations,parties,vouchers,voucherLines]=await Promise.all([all("treasuryAllocations"),all("parties"),all("vouchers"),all("voucherLines")]);
+ const allocation=allocations.find(row=>Number(row.id)===Number(id));
+ if(!allocation||allocation.status==="REVERSED")throw Error("تخصیص فعال پیدا نشد");
+ const gain=Number(allocation.fxGainRial||0),loss=Number(allocation.fxLossRial||0);
+ if(gain<=0&&loss<=0){await del("treasuryAllocations",allocation.id);return}
+ if(gain>0&&loss>0)throw Error("سود و زیان تسعیر هم‌زمان برای این تخصیص معتبر نیست");
+ const prefix="FX-SETTLEMENT:"+allocation.invoiceNumber+":";
+ let original=allocation.fxVoucherReference?vouchers.find(v=>v.reference===allocation.fxVoucherReference):null;
+ if(!original){
+  const candidates=vouchers.filter(v=>String(v.reference||"").startsWith(prefix)).map(v=>({voucher:v,lines:voucherLines.filter(line=>Number(line.voucherId)===Number(v.id))})).filter(x=>x.lines.length>=2&&x.lines.reduce((n,line)=>n+Number(line.debitRial||0),0)===gain+loss&&x.lines.reduce((n,line)=>n+Number(line.creditRial||0),0)===gain+loss).sort((a,b)=>Math.abs(Number(a.voucher.date||0)-Number(allocation.date||0))-Math.abs(Number(b.voucher.date||0)-Number(allocation.date||0)));
+  if(!candidates.length)throw Error("سند تسعیر اصلی این تخصیص پیدا نشد؛ برگشت امن ممکن نیست");
+  if(candidates.length>1&&Math.abs(Number(candidates[0].voucher.date||0)-Number(allocation.date||0))===Math.abs(Number(candidates[1].voucher.date||0)-Number(allocation.date||0)))throw Error("چند سند تسعیر مشابه پیدا شد؛ تخصیص نیاز به بررسی دستی دارد");
+  original=candidates[0].voucher;
+ }
+ const oldLines=voucherLines.filter(line=>Number(line.voucherId)===Number(original.id));
+ const debit=oldLines.reduce((n,line)=>n+Number(line.debitRial||0),0),credit=oldLines.reduce((n,line)=>n+Number(line.creditRial||0),0);
+ if(oldLines.length<2||debit!==credit||debit!==gain+loss)throw Error("سند تسعیر اصلی با مبلغ تخصیص مطابقت ندارد");
+ const party=parties.find(row=>Number(row.id)===Number(allocation.partyId));
+ if(!party)throw Error("طرف حساب تخصیص پیدا نشد");
+ const partySnapshot={balance:party.balance},allocationSnapshot={status:allocation.status,fxGainRial:allocation.fxGainRial,fxLossRial:allocation.fxLossRial};
+ const now=Date.now(),reference="FX-SETTLEMENT-REV:"+allocation.id;
+ party.balance=Number(party.balance||0)-gain+loss;
+ allocation.status="REVERSED";allocation.reversedAt=now;
+ const ledger={partyId:party.id,date:now,debitRial:loss,creditRial:gain,description:"برگشت تسعیر تخصیص "+allocation.invoiceNumber,referenceId:reference};
+ const reversalLines=oldLines.map(line=>({accountCode:line.accountCode,debitRial:Number(line.creditRial||0),creditRial:Number(line.debitRial||0),description:"برگشت تسعیر تخصیص "+allocation.invoiceNumber}));
+ await postVoucherAtomic([["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FXR-"+now,date:now,description:"برگشت تسعیر تخصیص "+allocation.invoiceNumber,reference},reversalLines,[{store:"treasuryAllocations",key:Number(allocation.id),expected:allocationSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot}]);
+}
 async function reversePwaInvoice(number){
  const invoices=await all("invoices"),invoice=invoices.find(x=>x.number===number);
  if(!invoice||(invoice.status&&invoice.status!=="POSTED"))throw Error("فقط فاکتور ثبت‌شده قابل برگشت است");
  const lines=Array.isArray(invoice.lines)?invoice.lines:[];
  if(!lines.length)throw Error("ردیف‌های فاکتور برای برگشت پیدا نشد");
  const [products,parties,vouchers,voucherLines,warehouseStockRows,inventoryLots,allocations]=await Promise.all([all("products"),all("parties"),all("vouchers"),all("voucherLines"),all("warehouseStock"),all("inventoryLots"),all("treasuryAllocations")]);
- const invoiceAllocations=allocations.filter(row=>row.invoiceNumber===invoice.number);if(invoiceAllocations.length){if(invoiceAllocations.some(row=>Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0))throw Error("تخصیص این فاکتور سود یا زیان تحقق‌یافته دارد؛ برگشت امن تخصیص هنوز در دسترس نیست و برگشت فاکتور متوقف شد");throw Error("ابتدا تخصیص‌های دریافت یا پرداخت این فاکتور را حذف کنید؛ سپس برگشت فاکتور را انجام دهید");}
+ const invoiceAllocations=allocations.filter(row=>row.invoiceNumber===invoice.number&&row.status!=="REVERSED");if(invoiceAllocations.length){if(invoiceAllocations.some(row=>Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0))throw Error("تخصیص این فاکتور سود یا زیان تحقق‌یافته دارد؛ برگشت امن تخصیص هنوز در دسترس نیست و برگشت فاکتور متوقف شد");throw Error("ابتدا تخصیص‌های دریافت یا پرداخت این فاکتور را حذف کنید؛ سپس برگشت فاکتور را انجام دهید");}
  const party=parties.find(x=>Number(x.id)===Number(invoice.partyId));
  if(!party)throw Error("طرف حساب فاکتور پیدا نشد");
  const original=vouchers.find(v=>v.reference===invoice.number);
@@ -590,7 +618,7 @@ if(currentPage==="employees"){const rows=await all("employees"),payrollRows=awai
 if(currentPage==="payroll"){const rows=await all("payroll");html=head("payroll","ثبت حقوق دوره")+table(["دوره","کارمند","حقوق ناخالص","کسورات","خالص پرداختی","وضعیت","تاریخ ثبت"],rows.slice().reverse().map(x=>'<tr><td>'+h(x.period)+'</td><td>'+h(x.employeeName)+'</td><td>'+money(x.gross)+' '+moneyUnit()+'</td><td>'+money(x.deductions)+' '+moneyUnit()+'</td><td>'+money(x.net)+' '+moneyUnit()+'</td><td><span class="pill">'+h(x.status)+'</span></td><td>'+date(x.createdAt)+'</td></tr>'))}
 if(currentPage==="fixedAssets"){const rows=await all("fixedAssets"),depreciations=await all("assetDepreciations");html=head("fixedAssets","ثبت دارایی ثابت")+table(["نام دارایی","گروه","بهای خرید","ارزش اسقاط","عمر مفید (ماه)","استهلاک انباشته","ارزش دفتری","تاریخ خرید","عملیات"],rows.map(x=>{const accumulated=Number(x.accumulatedDepreciation||0),book=Number(x.netBookValue??(Number(x.cost||0)-accumulated)),linked=depreciations.some(d=>Number(d.assetId)===Number(x.id));return '<tr><td>'+h(x.name)+'</td><td>'+h(x.category||"—")+'</td><td>'+money(x.cost||0)+' '+moneyUnit()+'</td><td>'+money(x.residual||0)+' '+moneyUnit()+'</td><td>'+fmt(x.lifeMonths||0)+'</td><td>'+money(accumulated)+' '+moneyUnit()+'</td><td>'+money(book)+' '+moneyUnit()+'</td><td>'+date(x.acquired)+'</td><td>'+(linked?'<span class="hint">دارای سند استهلاک</span>':actButtons("fixedAssets",x.id))+'</td></tr>'}))}
 if(currentPage==="depreciations"){const [rows,assets]=await Promise.all([all("assetDepreciations"),all("fixedAssets")]);const assetMap=new Map(assets.map(x=>[Number(x.id),x.name]));html=head("depreciations","ثبت استهلاک دوره")+table(["دارایی","دوره","مبلغ استهلاک","تاریخ ثبت"],rows.slice().reverse().map(x=>'<tr><td>'+h(x.assetName||assetMap.get(Number(x.assetId))||"—")+'</td><td>'+h(x.period)+'</td><td>'+money(x.amount)+' '+moneyUnit()+'</td><td>'+date(x.date)+'</td></tr>'))}
-if(currentPage==="allocations"){const [rows,transactions,invoices]=await Promise.all([all("treasuryAllocations"),all("treasury"),all("invoices")]);const transactionMap=new Map(transactions.map(x=>[Number(x.id),x]));const invoiceMap=new Map(invoices.map(x=>[x.number,x]));html=head("allocations","تخصیص دریافت / پرداخت")+table(["تاریخ","تراکنش خزانه","فاکتور","طرف حساب","مبلغ تخصیص","سود تسعیر","زیان تسعیر","وضعیت","عملیات"],rows.slice().reverse().map(x=>{const tr=transactionMap.get(Number(x.treasuryId)),invoice=invoiceMap.get(x.invoiceNumber),fx=Number(x.fxGainRial||0)>0||Number(x.fxLossRial||0)>0;return '<tr><td>'+date(x.date)+'</td><td>'+h(tr?(tr.kind==="RECEIPT"?"دریافت ":"پرداخت ")+tr.partyName:"تراکنش حذف‌شده")+'</td><td>'+h(x.invoiceNumber)+'</td><td>'+h(x.partyName||invoice?.partyName||"—")+'</td><td>'+money(x.amount)+' '+moneyUnit()+'</td><td>'+money(x.fxGainRial||0)+' '+moneyUnit()+'</td><td>'+money(x.fxLossRial||0)+' '+moneyUnit()+'</td><td><span class="pill">'+(x.status==="REVERSED"?"برگشت‌شده":"فعال")+'</span></td><td>'+(x.status==="REVERSED"?"—":fx?'<span class="hint">سند تسعیر؛ برگشت جداگانه لازم است</span>':actButtons("treasuryAllocations",x.id))+'</td></tr>'}))}
+if(currentPage==="allocations"){const [rows,transactions,invoices]=await Promise.all([all("treasuryAllocations"),all("treasury"),all("invoices")]);const transactionMap=new Map(transactions.map(x=>[Number(x.id),x]));const invoiceMap=new Map(invoices.map(x=>[x.number,x]));html=head("allocations","تخصیص دریافت / پرداخت")+table(["تاریخ","تراکنش خزانه","فاکتور","طرف حساب","مبلغ تخصیص","سود تسعیر","زیان تسعیر","وضعیت","عملیات"],rows.slice().reverse().map(x=>{const tr=transactionMap.get(Number(x.treasuryId)),invoice=invoiceMap.get(x.invoiceNumber),fx=Number(x.fxGainRial||0)>0||Number(x.fxLossRial||0)>0;return '<tr><td>'+date(x.date)+'</td><td>'+h(tr?(tr.kind==="RECEIPT"?"دریافت ":"پرداخت ")+tr.partyName:"تراکنش حذف‌شده")+'</td><td>'+h(x.invoiceNumber)+'</td><td>'+h(x.partyName||invoice?.partyName||"—")+'</td><td>'+money(x.amount)+' '+moneyUnit()+'</td><td>'+money(x.fxGainRial||0)+' '+moneyUnit()+'</td><td>'+money(x.fxLossRial||0)+' '+moneyUnit()+'</td><td><span class="pill">'+(x.status==="REVERSED"?"برگشت‌شده":"فعال")+'</span></td><td>'+(x.status==="REVERSED"?"—":fx?'<button type="button" class="ghost danger" data-allocation-reverse="'+x.id+'">برگشت تخصیص و تسعیر</button>':'<button type="button" class="ghost danger" data-del="treasuryAllocations:'+x.id+'">حذف تخصیص</button>')+'</td></tr>'}))}
 if(currentPage==="foreignPayables"){
  const [payables,payments]=await Promise.all([all("foreignPayables"),all("foreignPayablePayments")]);
  const summaries=payables.map(p=>HolooForeignPayables.summarizeForeignPayable({payable:p,payments:payments.filter(x=>Number(x.payableId)===Number(p.id)&&x.status!=="REVERSED"),currentFxRateRialPerUnit:foreignRateOverrides[p.currency]||p.bookedFxRateRialPerUnit}));
@@ -936,7 +964,7 @@ if(page==="allocations"){
   }
  }
  if(fxJournal.length){
-  const now=Date.now(),reference="FX-SETTLEMENT:"+invoice.number+":"+now;
+  const now=Date.now(),reference="FX-SETTLEMENT:"+invoice.number+":"+now;allocation.fxVoucherReference=reference;
   party.balance=Number(party.balance||0)+Number(allocation.fxGainRial||0)-Number(allocation.fxLossRial||0);const ledger={partyId:party.id,date:now,debitRial:Number(allocation.fxGainRial||0),creditRial:Number(allocation.fxLossRial||0),description:"تعدیل ارزی تسویه "+invoice.number,referenceId:reference};await postVoucherAtomic([["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FX-"+now,date:now,description:"تسعیر تسویه "+invoice.number,reference},fxJournal);
  }else await put("treasuryAllocations",allocation);
  return

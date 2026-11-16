@@ -22,6 +22,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val suppliers = db.partyDao().observeSuppliers()
     val invoices = db.invoiceDao().observeAll()
     val invoiceSettlements = db.invoiceDao().observeSettlementTotals()
+    val invoiceAging = db.invoiceDao().observeAging()
     val returnableInvoiceLines = db.invoiceReturnDao().observeReturnableLines()
     val invoiceReturnTotals = db.invoiceReturnDao().observeTotals()
     val settlementDetails = db.invoiceSettlementDao().observeDetails()

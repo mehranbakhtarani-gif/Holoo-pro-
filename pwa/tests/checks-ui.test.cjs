@@ -28,3 +28,11 @@ test("cleared cheques can be reversed with ledger and treasury corrections",()=>
  assert.match(app,/check\.bouncedAfterClearing=true/);
  assert.match(app,/treasuryAllocations",match:\{treasuryId:Number\(original\.id\)\},expected:null/);
 });
+
+test("check register exports all lifecycle fields to CSV",()=>{
+ assert.match(app,/id="exportChecksCsv"/);
+ assert.match(app,/holloo-checks\.csv/);
+ assert.match(app,/تاریخ صدور/);
+ assert.match(app,/ظهرنویسی به نفع/);
+ assert.match(app,/check\.status==="BOUNCED"/);
+});

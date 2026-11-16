@@ -35,3 +35,10 @@ test("ledger rows preserve voucher reference so manual vouchers expose reversal 
  assert.match(app,/reference:voucher\.reference\|\|""/);
  assert.match(app,/String\(x\.reference\|\|''\)\.startsWith\('MANUAL:'\)/);
 });
+
+test("ledger calculates running balances independently for each account when no account filter is selected",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/const runningByAccount=new Map\(accounts\.map/);
+ assert.match(app,/runningByAccount\.set\(String\(x\.accountCode\)/);
+ assert.match(app,/مانده ابتدای بازه برای هر حساب جداگانه/);
+});

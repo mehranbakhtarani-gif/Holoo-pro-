@@ -488,7 +488,7 @@ private fun HolooApp(
                 }
             }
             when (screen) {
-                Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, onLoadDemoData)
+                Screen.HOME -> HomeScreen(productCount, partyCount, invoiceCount, voucherCount, importCount, showToman, products.sumOf { it.inventoryValueRial }, profitLoss, checks.count { it.status == "OPEN" && it.dueDateEpoch < System.currentTimeMillis() }, onLoadDemoData)
                 Screen.WAREHOUSES -> WarehouseScreen(warehouses, warehouseStocks, warehouseKardex, products, showToman, onCreateWarehouse, onTransferStock)
                 Screen.INVENTORY -> InventoryScreen(warehouses, warehouseStocks, products, showToman, onSaveProduct, onDeleteProduct, onSetOpeningValuation, onAdjustStock)
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
@@ -932,6 +932,7 @@ private fun CheckDialog(
 @Composable
 private fun HomeScreen(
     productCount: Int, partyCount: Int, invoiceCount: Int, voucherCount: Int, importCount: Int, showToman: Boolean,
+    inventoryValueRial: Long, profitLoss: ir.billion.holloopro.data.ProfitLossRow, overdueChecks: Int,
     onLoadDemoData: () -> Unit
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -963,6 +964,18 @@ private fun HomeScreen(
             }
         }
         item { StatCard("سفارش‌های واردات", importCount.toString(), "▣", Modifier.fillMaxWidth()) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatCard("ارزش موجودی", formatMoney(inventoryValueRial, showToman), "▦", Modifier.weight(1f))
+                StatCard("فروش ثبت‌شده", formatMoney(profitLoss.salesRial, showToman), "↗", Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatCard("سود ناخالص", formatMoney(profitLoss.salesRial - profitLoss.costOfGoodsSoldRial, showToman), "٪", Modifier.weight(1f))
+                StatCard("چک سررسیدگذشته", overdueChecks.toString(), "◷", Modifier.weight(1f))
+            }
+        }
         item { OutlinedButton(onClick = onLoadDemoData, modifier = Modifier.fillMaxWidth()) { Text("بارگذاری داده‌های آزمایشی") } }
         item {
             GlassCard {

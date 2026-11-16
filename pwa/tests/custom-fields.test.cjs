@@ -99,7 +99,7 @@ test("date validation uses a real YYYY-MM-DD calendar date",()=>{
 });
 
 test("invoice table columns ignore entity-only custom definitions",()=>{
- assert.match(custom,/definitions\.filter\(x=>x\.enabled&&\(x\.scope\|\|"invoice_line"\)==="invoice_line"\)/);
+ assert.match(custom,/definitions\.filter\(x=>x\.enabled&&\(x\.scope\|\|"invoice_line"\)==="invoice_line"&&x\.showInList!==false\)/);
 });
 test("disabled entity field values survive editing",()=>{
  assert.match(app,/\.\.\.\(item\?\.customFields\|\|\{\}\),\.\.\.JSON\.parse\(d\.__entityCustomFields/);

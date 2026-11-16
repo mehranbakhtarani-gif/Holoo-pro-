@@ -20,7 +20,8 @@ function planForeignPayablePayment(input){
  const settlementRial=Math.round(amountMinor*rate/100);
  if(!Number.isSafeInteger(bookedRial)||bookedRial<=0||!Number.isSafeInteger(settlementRial)||settlementRial<=0)throw new Error("معادل ریالی پرداخت معتبر نیست");
  const fxGainRial=Math.max(0,bookedRial-settlementRial),fxLossRial=Math.max(0,settlementRial-bookedRial);
- const planAllocations=allocateForeignPayablePaymentToInstallments(payable,amountMinor);\n const payment={payableId:payable.id,sourceNumber:payable.sourceNumber,supplierId:payable.supplierId,supplierName:payable.supplierName,currency:payable.currency,amountMinor,fxRateRialPerUnit:rate,bookedRial,settlementRial,fxGainRial,fxLossRial,date,reference:String(input.reference||("FXPAY:"+payable.sourceNumber+":"+date)),method:input.method||"بانک",note:String(input.note||""),planAllocations,unplannedAmountMinor:amountMinor-planAllocations.reduce((n,x)=>n+x.amountMinor,0)};
+ const planAllocations=allocateForeignPayablePaymentToInstallments(payable,amountMinor);
+ const payment={payableId:payable.id,sourceNumber:payable.sourceNumber,supplierId:payable.supplierId,supplierName:payable.supplierName,currency:payable.currency,amountMinor,fxRateRialPerUnit:rate,bookedRial,settlementRial,fxGainRial,fxLossRial,date,reference:String(input.reference||("FXPAY:"+payable.sourceNumber+":"+date)),method:input.method||"بانک",note:String(input.note||""),planAllocations,unplannedAmountMinor:amountMinor-planAllocations.reduce((n,x)=>n+x.amountMinor,0)};
  const updated={...payable,paidMinor:nextPaid,bookedRialPaid:nextBookedPaid,settlementRialPaid:Number(payable.settlementRialPaid||0)+settlementRial,realizedFxGainRial:Number(payable.realizedFxGainRial||0)+fxGainRial,realizedFxLossRial:Number(payable.realizedFxLossRial||0)+fxLossRial,status:nextPaid===Number(payable.amountMinor)?"PAID":"PARTIAL",lastPaymentAt:date};
  return {payment,updated,bookedRial,settlementRial,fxGainRial,fxLossRial,remainingMinor:Number(updated.amountMinor)-nextPaid};
 }
@@ -56,7 +57,12 @@ function getRemainingForeignPayableInstallments(payable){
  for(const item of plan){const amount=toSafeMinor(item.amountMinor,"مبلغ قسط");const used=Math.min(amount,consumed);consumed-=used;if(amount>used)remaining.push({...item,amountMinor:amount-used})}
  return remaining;
 }
-function allocateForeignPayablePaymentToInstallments(payable,paymentAmountMinor){\n const amount=toSafeMinor(paymentAmountMinor,"مبلغ پرداخت ارزی");let remaining=amount;const allocations=[];\n for(const item of getRemainingForeignPayableInstallments(payable)){if(!remaining)break;const allocated=Math.min(remaining,item.amountMinor);if(allocated>0){allocations.push({dueDate:Number(item.dueDate),amountMinor:allocated,note:String(item.note||"")});remaining-=allocated}}\n return allocations;\n}\nfunction clearForeignPayableInstallmentPlan(payable){
+function allocateForeignPayablePaymentToInstallments(payable,paymentAmountMinor){
+ const amount=toSafeMinor(paymentAmountMinor,"مبلغ پرداخت ارزی");let remaining=amount;const allocations=[];
+ for(const item of getRemainingForeignPayableInstallments(payable)){if(!remaining)break;const allocated=Math.min(remaining,item.amountMinor);if(allocated>0){allocations.push({dueDate:Number(item.dueDate),amountMinor:allocated,note:String(item.note||"")});remaining-=allocated}}
+ return allocations;
+}
+function clearForeignPayableInstallmentPlan(payable){
  if(!payable||!Array.isArray(payable.paymentPlan)||!payable.paymentPlan.length)throw new Error("برنامه پرداختی برای حذف وجود ندارد");
  return {...payable,paymentPlan:[],paymentPlanUpdatedAt:Date.now()};
 }

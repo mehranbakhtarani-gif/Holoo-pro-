@@ -105,7 +105,7 @@ async function reversePwaInvoice(number){
  if(vouchers.some(v=>v.reference==="REVERSAL:INVOICE:"+invoice.number))throw Error("این فاکتور قبلاً برگشت داده شده است");
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(original.id));
  if(oldLines.length<2)throw Error("ردیف‌های سند اصلی ناقص است");
- const invoiceSnapshot={status:invoice.status,reversedAt:invoice.reversedAt};
+ const invoiceSnapshot={status:invoice.status,reversedAt:invoice.reversedAt,allocationVersion:invoice.allocationVersion};
  const productSnapshots=new Map(products.map(row=>[Number(row.id),{...row}]));
  const partySnapshots=new Map(parties.map(row=>[Number(row.id),{...row}]));
  const warehouseStockSnapshots=new Map(warehouseStockRows.map(row=>[Number(row.productId)+":"+Number(row.warehouseId),{...row}]));
@@ -1238,7 +1238,7 @@ if(page==="allocations"){
   const foreignAmountMinor=Math.round(amount*tr.foreignAmountMinor/Number(tr.amount));
   if(!Number.isSafeInteger(foreignAmountMinor)||foreignAmountMinor<=0)throw Error("مبلغ ارزی تخصیص معتبر نیست");
   const previouslyAllocated=allocs.filter(x=>x.invoiceNumber===invoice.number&&x.id!==item?.id).reduce((n,x)=>n+Number(x.foreignAmountMinor||0),0);
-  if(previouslyAllocated+foreignAmountMinor>invoice.foreignTotalMinor)throw Error("مبلغ ارزی تخصیص از مانده فاکتور بیشتر است");
+  if(!Number.isSafeInteger(previouslyAllocated)||!Number.isSafeInteger(previouslyAllocated+foreignAmountMinor))throw Error("جمع تخصیص ارزی از محدوده عددی مجاز خارج است");if(previouslyAllocated+foreignAmountMinor>invoice.foreignTotalMinor)throw Error("مبلغ ارزی تخصیص از مانده فاکتور بیشتر است");
   const fx=calculateRealizedForeignExchange({kind:invoice.kind,currency:invoiceCurrency,invoiceAmountMinor:invoice.foreignTotalMinor,settledAmountMinor:foreignAmountMinor,invoiceFxRateRialPerUnit:invoice.fxRateRialPerUnit,settlementFxRateRialPerUnit:tr.fxRateRialPerUnit});
   allocation.foreignAmountMinor=foreignAmountMinor;allocation.currency=invoiceCurrency;allocation.fxGainRial=fx.gainRial;allocation.fxLossRial=fx.lossRial;allocation.bookedRial=fx.bookedRial;allocation.settlementRial=fx.settlementRial;
   if(fx.gainRial>0){
@@ -1248,8 +1248,8 @@ if(page==="allocations"){
   }
  }
  if(fxJournal.length){
-  const now=Date.now(),reference="FX-SETTLEMENT:"+invoice.number+":"+now;allocation.fxVoucherReference=reference;
-  applyPartyBalanceDelta(party,Number(allocation.fxGainRial||0)-Number(allocation.fxLossRial||0));const ledger={partyId:party.id,date:now,debitRial:Number(allocation.fxGainRial||0),creditRial:Number(allocation.fxLossRial||0),description:"تعدیل ارزی تسویه "+invoice.number,referenceId:reference};await postVoucherAtomic([["treasury",tr],["invoices",invoice],["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FX-"+now,date:now,description:"تسعیر تسویه "+invoice.number,reference},fxJournal,[{store:"treasury",key:Number(tr.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot}]);
+  const partySnapshot={...party},now=Date.now(),reference="FX-SETTLEMENT:"+invoice.number+":"+now;allocation.fxVoucherReference=reference;
+  applyPartyBalanceDelta(party,Number(allocation.fxGainRial||0)-Number(allocation.fxLossRial||0));const ledger={partyId:party.id,date:now,debitRial:Number(allocation.fxGainRial||0),creditRial:Number(allocation.fxLossRial||0),description:"تعدیل ارزی تسویه "+invoice.number,referenceId:reference};await postVoucherAtomic([["treasury",tr],["invoices",invoice],["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FX-"+now,date:now,description:"تسعیر تسویه "+invoice.number,reference},fxJournal,[{store:"treasury",key:Number(tr.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot}]);
  }else await putManyGuarded([["treasury",tr],["invoices",invoice],["treasuryAllocations",allocation]],[{store:"treasury",key:Number(tr.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot}]);
  return
 }

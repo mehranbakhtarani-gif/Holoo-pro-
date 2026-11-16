@@ -41,3 +41,12 @@ test("import shipment creation and edits atomically enforce unique numbers and c
  assert.match(app,/const linked=current&&payables\.find\(row=>Number\(row\.sourceShipmentId\)===Number\(current\.id\)\)/);
  assert.match(app,/await putImportShipmentUnique\(shipmentRecord\)/);
 });
+
+ 
+test("import shipment deletion is atomic with payable and receipt checks",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function deleteImportShipmentGuarded\(id\)/);
+ assert.match(app,/db\.transaction\(\["importShipments","foreignPayables","foreignPayablePayments","auditLog"\],"readwrite"\)/);
+ assert.ok(app.includes('if(s==="importShipments"){await deleteImportShipmentGuarded(id)'));
+ assert.ok(app.includes('if(s==="treasuryAllocations")throw Error("تخصیص‌ها را از دکمه'));
+});

@@ -87,4 +87,15 @@ function buildPeriodClosingJournal(input){
  if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==credit)throw new Error("سند اختتامیه متوازن نیست");
  return {lines,revenue,expense,netProfit,debit,credit};
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={buildFinancialStatements,buildPeriodClosingJournal};
+function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
+ if(!Number.isSafeInteger(fromDate)||!Number.isSafeInteger(toDate)||fromDate>toDate)throw new Error("بازه بستن دوره معتبر نیست");
+ return (vouchers||[]).some(v=>{
+  const match=/^YEAR_END_CLOSE:(\\d+):(\\d+)$/.exec(String(v.reference||""));
+  if(!match)return false;
+  const oldFrom=Number(match[1]),oldTo=Number(match[2]);
+  return Number.isSafeInteger(oldFrom)&&Number.isSafeInteger(oldTo)&&oldFrom<=oldTo&&fromDate<=oldTo&&toDate>=oldFrom;
+ });
+}
+const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,hasOverlappingPeriodClose};
+if(typeof module!=="undefined"&&module.exports)module.exports=accountingReportsApi;
+if(typeof globalThis!=="undefined")globalThis.HolooAccountingReports=accountingReportsApi;

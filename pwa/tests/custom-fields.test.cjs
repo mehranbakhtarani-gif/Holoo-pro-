@@ -48,3 +48,15 @@ test("user-defined fields are validated and never evaluated as executable code",
  assert.match(custom,/\^\[a-zA-Z\]\[a-zA-Z0-9_\]/);
  assert.doesNotMatch(custom,/eval\s*\(|new Function\s*\(/);
 });
+
+test("required checkbox accepts an explicit false value",()=>{
+ assert.match(custom,/if\(d\.required&&\(v===""\|\|v===null\|\|v===undefined\)\)/);
+ assert.doesNotMatch(custom,/d\.required&&\(v===""\|\|v===false\)/);
+});
+test("custom date fields reject malformed and impossible calendar dates",()=>{
+ assert.match(custom,/d\.type==="date"&&v!==""/);
+ assert.match(custom,/new Date\(Number\(m\[1\]\),Number\(m\[2\]\)-1,Number\(m\[3\]\)\)\.toISOString\(\)\.slice\(0,10\)!==v/);
+});
+test("customization config records are not shown as user audit events",()=>{
+ assert.match(app,/filter\(x=>x\.id!=="__HOLLOO_CUSTOM_FIELDS_V1__"&&x\.action!=="CUSTOMIZATION_CONFIG"\)/);
+});

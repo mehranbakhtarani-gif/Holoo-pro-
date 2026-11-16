@@ -12,4 +12,12 @@ object InvoiceAging {
         in 61L..90L -> 2
         else -> 3
     }
+
+    fun sumOutstanding(rows: Iterable<InvoiceAgingRow>, kind: String): Long? = try {
+        rows.filter { it.kind == kind }.fold(0L) { total, row ->
+            Math.addExact(total, row.outstandingRial)
+        }
+    } catch (_: ArithmeticException) {
+        null
+    }
 }

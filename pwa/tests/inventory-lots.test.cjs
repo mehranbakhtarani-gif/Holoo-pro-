@@ -38,3 +38,15 @@ test("rejects aggregate-to-lot discrepancies and missing sale allocations on ret
  assert.throws(()=>planLotSale({productId:1,warehouseId:2,quantity:1,warehouseStock:{stock:90,value:110000},lots:[lot]}),/مغایرت/);
  assert.throws(()=>restoreLotSale({lots:[lot],allocations:[]}),/موجود نیست/);
 });
+
+test("PWA integrates FIFO lots with database, shipment receipt, invoice sales and reversals",()=>{
+ const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
+ assert.match(app,/DB_VERSION=10/);assert.match(app,/"inventoryLots"/);
+ assert.match(html,/inventory-lots\.js\?v=inventory-lots-1/);
+ assert.ok(html.indexOf("inventory-lots.js")<html.indexOf("app.js?v=inventory-lots-1"));
+ assert.match(sw,/\.\/inventory-lots\.js/);assert.match(sw,/inventory-lots\\.js/);
+ assert.match(app,/sourceType:"IMPORT_SHIPMENT"/);assert.match(app,/sourceType:"PURCHASE_INVOICE"/);
+ assert.match(app,/planLotSale\(/);assert.match(app,/lotAllocations/);assert.match(app,/restoreLotSale\(/);
+ assert.match(app,/summarizeLotProfit\(/);assert.match(app,/سود ناخالص کانتینرها/);
+});

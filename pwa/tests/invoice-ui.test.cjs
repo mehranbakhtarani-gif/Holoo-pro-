@@ -27,7 +27,7 @@ test("invoice notes are saved and included on the printed invoice",()=>{
  
 test("invoice reversal is blocked until settlement allocations are safely removed",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/const invoiceAllocations=allocations\.filter\(row=>row\.invoiceNumber===invoice\.number\)/);
+ assert.match(app,/const invoiceAllocations=allocations\.filter\(row=>row\.invoiceNumber===invoice\.number&&row\.status!=="REVERSED"\)/);
  assert.match(app,/ابتدا تخصیص‌های دریافت یا پرداخت این فاکتور را حذف کنید/);
  assert.match(app,/برگشت امن تخصیص هنوز در دسترس نیست/);
 });

@@ -128,3 +128,11 @@ test("dashboard demo data action is bound and refuses to overwrite a non-empty l
  assert.match(app,/vouchersNow\.length\|\|ledgerNow\.length\|\|treasuryNow\.length/);
  assert.match(app,/داده آزمایشی فقط در دفتر کاملاً خالی قابل بارگذاری است/);
 });
+
+ 
+test("demo seeding uses transactional empty-ledger guards to prevent multi-tab duplicate or overwrite races",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const emptyStores=\["products","parties","vouchers","partyLedger","treasury","invoices","checks","imports","importShipments","stockAdjustments"\]/);
+ assert.match(app,/emptyStores\.map\(store=>\(\{store,match:\{\},expected:null\}\)\)/);
+ assert.match(app,/await putManyGuarded\(entries,guards\)/);
+});

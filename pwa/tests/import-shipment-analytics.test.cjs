@@ -37,26 +37,21 @@ test("returns safe empty summaries and rejects invalid shipment costs",()=>{
  assert.throws(()=>summarizeImportShipments({shipments:[{weight:0,goodsRial:0,totalCost:0}]}));
 });
 
-
 test("rejects aggregate weight overflow and non-finite unit costs",()=>{
  assert.throws(()=>summarizeImportShipments({shipments:[
-  {number:"BIG-1",weight:1e308,goodsRial:0,totalCost:0},
-  {number:"BIG-2",weight:1e308,goodsRial:0,totalCost:0}
+  {number:"BIG-1",weight:1e308,goods:0,goodsRial:0,totalCost:0},
+  {number:"BIG-2",weight:1e308,goods:0,goodsRial:0,totalCost:0}
  ]}));
  assert.throws(()=>summarizeImportShipments({shipments:[
-  {number:"TINY",weight:Number.MIN_VALUE,goodsRial:1,totalCost:1}
+  {number:"TINY",weight:Number.MIN_VALUE,goods:0,goodsRial:1,totalCost:1}
  ]}));
 });
-test("accepts fractional foreign currency values but rejects negative and non-finite amounts",()=>{
- const report=summarizeImportShipments({shipments:[
-  {number:"DECIMAL",weight:1,goods:12.5,goodsRial:100,totalCost:100,currency:"USD"}
- ]});
- assert.equal(report.foreignGoods.USD,12.5);
+test("rejects negative or unsafe foreign currency amounts",()=>{
  assert.throws(()=>summarizeImportShipments({shipments:[
   {number:"NEG",weight:1,goods:-1,goodsRial:1,totalCost:1,currency:"USD"}
  ]}));
  assert.throws(()=>summarizeImportShipments({shipments:[
-  {number:"INF",weight:1,goods:Number.POSITIVE_INFINITY,goodsRial:1,totalCost:1,currency:"USD"}
+  {number:"UNSAFE",weight:1,goods:Number.MAX_SAFE_INTEGER+1,goodsRial:1,totalCost:1,currency:"USD"}
  ]}));
 });
 

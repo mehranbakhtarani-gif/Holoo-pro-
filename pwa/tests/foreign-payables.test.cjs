@@ -41,7 +41,9 @@ test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX ac
  assert.match(app,/DB_VERSION=11/);assert.match(app,/"foreignPayables","foreignPayablePayments"/);
  assert.match(app,/createForeignPayable\(/);assert.match(app,/summarizeForeignPayablesForecast\(/);assert.match(app,/planForeignPayablePayment\(/);assert.match(app,/reverseForeignPayablePaymentPwa\(/);assert.match(app,/data-fx-payment-reverse/);
  assert.match(app,/sourceNumber/);assert.match(app,/sourceShipment\?\.receivedAt/);assert.match(app,/shipmentReceivedAt/);assert.match(app,/fxGainRial/);assert.match(app,/fxLossRial/);
- assert.match(app,/foreignRateOverrides/);assert.match(app,/foreignPayablePayments/);\n assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(remaining,rate\)/);\n assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(foreignAmountMinor,Number\(s\.fx\)\)/);
+ assert.match(app,/foreignRateOverrides/);assert.match(app,/foreignPayablePayments/);
+ assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(remaining,rate\)/);
+ assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(foreignAmountMinor,Number\(s\.fx\)\)/);
  assert.match(html,/foreign-payables\.js\?v=foreign-payables-1/);
  assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v=foreign-payables-1"));
  assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);

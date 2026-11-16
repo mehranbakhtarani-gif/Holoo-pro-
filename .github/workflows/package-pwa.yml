@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check JavaScript syntax
-        run: node --check pwa/app.js && node --check pwa/sw.js && node --check pwa/import-cost.js && node --check pwa/settlement.js && node --check pwa/warehouse-stock.js && node --check pwa/warehouse-transfer.js && node --check pwa/foreign-currency.js && node --check pwa/accounting-reports.js && node --check pwa/receivables-aging.js && node --check pwa/import-shipment-analytics.js && node --check pwa/bank-reconciliation.js && node --test pwa/tests/*.test.cjs && node -e "JSON.parse(require('fs').readFileSync('pwa/manifest.webmanifest', 'utf8'))"
+        run: node --check pwa/app.js && node --check pwa/sw.js && node --check pwa/import-cost.js && node --check pwa/settlement.js && node --check pwa/warehouse-stock.js && node --check pwa/warehouse-transfer.js && node --check pwa/foreign-currency.js && node --check pwa/accounting-reports.js && node --check pwa/receivables-aging.js && node --check pwa/import-shipment-analytics.js && node --check pwa/inventory-lots.js && node --check pwa/bank-reconciliation.js && node --test pwa/tests/*.test.cjs && node -e "JSON.parse(require('fs').readFileSync('pwa/manifest.webmanifest', 'utf8'))"
       - name: Package PWA
         run: zip -qr HOLLOO-PRO-PLUS-PWA.zip pwa
       - name: Upload PWA package

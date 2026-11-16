@@ -10,3 +10,13 @@ test("sales orders page has one authoritative renderer and keeps operation-date 
  assert.ok(app.includes("bindOperationDateControls()"));
  assert.ok(app.includes("operation-date-bar"));
 });
+
+
+test("sales orders expose working print and CSV export actions",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/data-order-print=/);
+ assert.match(app,/printSalesOrderDocument\(button\.dataset\.orderPrint\)/);
+ assert.match(app,/id="exportSalesOrdersCsv"/);
+ assert.match(app,/holloo-sales-orders\.csv/);
+ assert.match(app,/order\.currency==="IRR"\?money\(line\.price\):fmtForeign\(line\.price\)/);
+});

@@ -87,7 +87,7 @@ test("entity custom fields are scoped to product and party forms and rows",()=>{
  assert.match(custom,/function enhanceEntityForm\(\)/);
  assert.match(custom,/function enhanceEntityTable\(\)/);
  assert.match(custom,/scope===page/);
- assert.match(app,/customFields:\(\(\)=>\{try\{return JSON\.parse\(d\.__entityCustomFields\|\|"\{\}"\)\}/);
+ assert.match(app,/customFields:\(\(\)=>\{try\{return \{\.\.\.\(item\?\.customFields\|\|\{\}\),\.\.\.JSON\.parse\(d\.__entityCustomFields\|\|"\{\}"\)\}\}/);
 });
 test("invoice and order line definitions are separated by document context",()=>{
  assert.match(custom,/getLineDefinitions:page=>definitions\.filter/);

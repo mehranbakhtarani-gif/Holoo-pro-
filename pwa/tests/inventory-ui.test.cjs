@@ -12,8 +12,8 @@ test("inventory search covers product identifiers, yarn attributes and denier",(
 
 test("inventory price labels follow the selected display unit and show average cost",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/بهای میانگین هر کیلو \("\+moneyUnit\(\)\)/);
- assert.match(app,/قیمت سطح ۱ \("\+moneyUnit\(\)\)/);
+ assert.ok(app.includes('بهای میانگین هر کیلو ("+moneyUnit()+")'));
+ assert.ok(app.includes('قیمت سطح ۱ ("+moneyUnit()+")'));
  assert.match(app,/money\(x\.avg\|\|0\)/);
 });
 

@@ -31,3 +31,9 @@ test("print actions use popup synchronously from click and open browser print di
  assert.match(app,/popup\.print\(\)/);
  assert.match(app,/setTimeout\(\(\)=>popup\.print\(\),700\)/);
 });
+
+ 
+test("check receipt printing has one authoritative implementation",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.equal(app.split("async function printCheckDocument(id)").length-1,1);
+});

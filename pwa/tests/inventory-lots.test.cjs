@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {planLotReceipt,planLotSale,restoreLotSale,summarizeLotProfit}=require("../inventory-lots.js");
+const {planLotReceipt,planLotSale,planLotTransfer,restoreLotSale,summarizeLotProfit}=require("../inventory-lots.js");
 const receipt=(id,qty,cost,date,sourceType="IMPORT_SHIPMENT")=>planLotReceipt({productId:1,productName:"FDY سفید 60D",warehouseId:2,sourceType,sourceId:id,sourceNumber:id,container:"C-"+id,supplierName:"Supplier",quantity:qty,totalCost:cost,receivedAt:date});
 test("creates immutable source metadata and full-cost lot for an inbound shipment",()=>{
  const lot=receipt("CN-1",100,125000,100);
@@ -39,7 +39,28 @@ test("rejects aggregate-to-lot discrepancies and missing sale allocations on ret
  assert.throws(()=>restoreLotSale({lots:[lot],allocations:[]}),/موجود نیست/);
 });
 
-test("PWA integrates FIFO lots with database, shipment receipt, invoice sales and reversals",()=>{
+
+test("moves FIFO lots between warehouses without losing original shipment identity",()=>{
+ const first=receipt("CN-1",100,125000,100),second=receipt("CN-2",100,160000,200);
+ const transfer=planLotTransfer({lots:[first,second],productId:1,productName:"FDY سفید 60D",sourceWarehouseId:2,destinationWarehouseId:3,quantity:120,sourceWarehouseStock:{stock:200,value:285000},transferId:"WT-1",date:300});
+ assert.equal(transfer.transferValue,157000);assert.equal(transfer.sourceRemainingStock,80);assert.equal(transfer.sourceRemainingValue,128000);
+ assert.equal(transfer.destinationLots.length,2);
+ assert.equal(transfer.destinationLots[0].sourceNumber,"CN-1");assert.equal(transfer.destinationLots[0].originLotId,first.id);
+ assert.equal(transfer.destinationLots[0].warehouseId,3);
+});
+test("shipment profitability consolidates transferred stock and FIFO sales under the original container",()=>{
+ const first=receipt("CN-1",100,125000,100),second=receipt("CN-2",100,160000,200);
+ const transfer=planLotTransfer({lots:[first,second],productId:1,productName:"FDY سفید 60D",sourceWarehouseId:2,destinationWarehouseId:3,quantity:120,sourceWarehouseStock:{stock:200,value:285000},transferId:"WT-2",date:300});
+ const destLots=transfer.destinationLots;
+ const sale=planLotSale({productId:1,productName:"FDY سفید 60D",warehouseId:3,quantity:10,warehouseStock:{stock:120,value:157000},lots:destLots,date:400});
+ const allLots=[...transfer.sourceLotUpdates,...destLots,...sale.newLots,...sale.updates];
+ const rows=summarizeLotProfit({lots:allLots,invoices:[{kind:"SALE",status:"POSTED",lines:[{qty:10,totalQty:10,lineTotal:20000,lotAllocations:sale.allocations}]}]});
+ const cn1=rows.find(x=>x.sourceNumber==="CN-1"),cn2=rows.find(x=>x.sourceNumber==="CN-2");
+ assert.equal(rows.length,2);assert.equal(cn1.soldQty,10);assert.equal(cn1.remainingQty,90);assert.equal(cn1.soldCost,12500);assert.equal(cn1.revenue,20000);assert.equal(cn1.grossProfit,7500);
+ assert.equal(cn2.soldQty,0);assert.equal(cn2.remainingQty,100);assert.equal(cn2.revenue,0);
+});
+
+test("PWA integrates FIFO lots with database, shipment receipt, invoice sales, transfers and reversals",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
  assert.match(app,/DB_VERSION=10/);assert.match(app,/"inventoryLots"/);

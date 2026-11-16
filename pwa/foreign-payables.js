@@ -39,6 +39,19 @@ function planForeignPayableReversal(input){
  const reversedPayment={...payment,status:"REVERSED",reversedAt:date};
  return {updated,reversedPayment,bookedRial:Number(payment.bookedRial),settlementRial:Number(payment.settlementRial),fxGainRial:Number(payment.fxGainRial||0),fxLossRial:Number(payment.fxLossRial||0)};
 }
+function planForeignPayableInstallment(input){
+ const payable=input.payable,amountMinor=toSafeMinor(input.amountMinor,"مبلغ قسط"),dueDate=Number(input.dueDate);
+ if(!payable||payable.status==="CANCELLED"||payable.status==="PAID"||!Number.isSafeInteger(dueDate)||dueDate<=0||amountMinor<=0)throw new Error("اطلاعات قسط معتبر نیست");
+ const outstanding=Number(payable.amountMinor)-Number(payable.paidMinor||0),existing=Array.isArray(payable.paymentPlan)?payable.paymentPlan:[];
+ const planned=existing.reduce((n,x)=>n+toSafeMinor(x.amountMinor,"مبلغ قسط برنامه‌ریزی‌شده"),0);
+ if(planned+amountMinor>outstanding)throw new Error("جمع اقساط برنامه‌ریزی‌شده از مانده تعهد بیشتر است");
+ const installment={amountMinor,dueDate,note:String(input.note||""),createdAt:Number(input.createdAt||Date.now())};
+ return {...payable,paymentPlan:[...existing,installment],paymentPlanUpdatedAt:Number(input.createdAt||Date.now())};
+}
+function clearForeignPayableInstallmentPlan(payable){
+ if(!payable||!Array.isArray(payable.paymentPlan)||!payable.paymentPlan.length)throw new Error("برنامه پرداختی برای حذف وجود ندارد");
+ return {...payable,paymentPlan:[],paymentPlanUpdatedAt:Date.now()};
+}
 function summarizeForeignPayablesForecast(input){
  const rows=Array.isArray(input.payables)?input.payables:[],asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?30:input.horizonDays);
  if(!Number.isFinite(asOf)||!Number.isSafeInteger(days)||days<0||days>366)throw new Error("بازه پیش‌بینی سررسید معتبر نیست");
@@ -58,6 +71,6 @@ function summarizeForeignPayablesForecast(input){
  }
  return result;
 }
-const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable,summarizeForeignPayablesForecast};
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast};
 if(typeof module!=="undefined")module.exports=ForeignPayables;
 if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

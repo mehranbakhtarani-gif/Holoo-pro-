@@ -42,7 +42,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v138-entity-validation/);
+ assert.match(sw,/holloo-pwa-v139-column-controls/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -121,4 +121,15 @@ test("entity custom values are validated before form submission",()=>{
 test("runtime: required entity fields reject empty values",()=>{
  const api=loadCustom();
  assert.throws(()=>api.normalizeLineValues({serial:""},[{key:"serial",label:"شناسه",type:"text",required:true,enabled:true}]),/الزامی/);
+});
+
+test("custom fields support independent list visibility and bounded column width",()=>{
+ assert.match(custom,/showInList:d\.showInList!==false/);
+ assert.match(custom,/columnWidth:Math\.max\(80,Math\.min\(400/);
+ assert.match(custom,/data-cf-list/);
+ assert.match(custom,/data-cf-width/);
+});
+test("print and export custom fields are restricted to matching document scope",()=>{
+ assert.match(app,/getDefinitions\("invoices"\)/);
+ assert.match(app,/getDefinitions\("salesOrders"\)/);
 });

@@ -29,3 +29,9 @@ test("financial statement module loads before app and is cached by service worke
  assert.ok(html.indexOf("accounting-reports.js")<html.indexOf("app.js"));
  assert.match(sw,/\.\/accounting-reports\.js/);
 });
+
+test("ledger rows preserve voucher reference so manual vouchers expose reversal action",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/reference:voucher\.reference\|\|""/);
+ assert.match(app,/String\(x\.reference\|\|''\)\.startsWith\('MANUAL:'\)/);
+});

@@ -6,7 +6,7 @@ const root=path.resolve(__dirname,"..");
 
 test("sales orders page has one authoritative renderer and keeps operation-date controls",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.equal((app.match(/if\\(currentPage===\"salesOrders\"\\)/g)||[]).length,1);
- assert.match(app,/bindOperationDateControls\\(\\)/);
- assert.match(app,/operation-date-bar/);
+ assert.equal(app.split('if(currentPage==="salesOrders")').length-1,1);
+ assert.ok(app.includes("bindOperationDateControls()"));
+ assert.ok(app.includes("operation-date-bar"));
 });

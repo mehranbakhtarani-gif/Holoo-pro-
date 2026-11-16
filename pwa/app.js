@@ -1245,7 +1245,7 @@ if(page==="foreignPayables"){
  const existing=await all("foreignPayables");if(existing.some(x=>Number(x.sourceShipmentId)===Number(shipment.id)))throw Error("برای این محموله قبلاً تعهد ارزی ثبت شده است");
  const amountMinor=Math.round(Number(shipment.goods)*100),dueDate=d.dueDate?new Date(d.dueDate+"T12:00:00").getTime():Number(shipment.dueDate||0);
  const payable=HolooForeignPayables.createForeignPayable({sourceType:"IMPORT_SHIPMENT",sourceShipmentId:shipment.id,sourceNumber:shipment.number,container:shipment.container,supplierId:shipment.supplierId,supplierName:shipment.supplierName,currency:shipment.currency,amountMinor,bookedFxRateRialPerUnit:Number(shipment.fx),dueDate:dueDate||null,shipmentReceivedAt:shipment.receivedAt||null});
- await put("foreignPayables",payable);return
+ await putManyGuarded([["foreignPayables",payable]],[{store:"foreignPayables",match:{sourceShipmentId:Number(shipment.id)},expected:null}]);return
 }
 if(page==="foreignPayablePayments"){
  if(item)throw Error("پرداخت ثبت‌شده قابل ویرایش نیست؛ برای اصلاح سند معکوس ثبت کنید");

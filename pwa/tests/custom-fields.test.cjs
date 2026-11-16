@@ -42,7 +42,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v136-entity-fields/);
+ assert.match(sw,/holloo-pwa-v137-more-entity-scopes/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -106,4 +106,10 @@ test("disabled entity field values survive editing",()=>{
 });
 test("entity table enhancement prevents duplicate async column injection",()=>{
  assert.match(custom,/customEntityLoading/);
+});
+
+test("custom fields can target warehouses and import shipments",()=>{
+ assert.match(custom,/warehouses.*importShipments/);
+ assert.match(custom,/\["products","parties","warehouses","importShipments"\]/);
+ assert.match(app,/dataset\.currentPage=currentPage/);
 });

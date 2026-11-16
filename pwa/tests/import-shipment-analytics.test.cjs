@@ -46,3 +46,10 @@ test("PWA loads and precaches the shipment analytics helper before app code",()=
  assert.match(sw,/import-shipment-analytics\\.js/);
  assert.match(app,/summarizeImportShipments\(\{shipments:rows\}\)/);
 });
+
+ 
+test("fully paid shipments remain counted as received inventory",()=>{
+ const report=summarizeImportShipments({shipments:[{number:"CN-PAID",container:"P",supplierId:1,supplierName:"S",productId:1,productName:"Yarn",currency:"USD",goods:100,goodsRial:5000,weight:100,freight:100,customs:0,other:0,totalCost:5100,status:"تسویه‌شده"}]});
+ assert.equal(report.receivedWeight,100);
+ assert.equal(report.inTransitWeight,0);
+});

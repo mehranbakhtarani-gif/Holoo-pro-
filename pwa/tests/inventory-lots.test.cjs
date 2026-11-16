@@ -60,6 +60,15 @@ test("shipment profitability consolidates transferred stock and FIFO sales under
  assert.equal(cn2.soldQty,0);assert.equal(cn2.remainingQty,100);assert.equal(cn2.revenue,0);
 });
 
+
+test("does not assign legacy-stock revenue to a tracked container in mixed-source sales",()=>{
+ const imported=receipt("CN-3",5,5000,100);
+ const legacy=planLotReceipt({productId:1,productName:"FDY",warehouseId:2,sourceType:"LEGACY",sourceId:"legacy-1",sourceNumber:"موجودی قدیمی",quantity:5,totalCost:4000,receivedAt:0});
+ const sale=planLotSale({productId:1,productName:"FDY",warehouseId:2,quantity:10,warehouseStock:{stock:10,value:9000},lots:[legacy,imported]});
+ const rows=summarizeLotProfit({lots:[legacy,imported,...sale.updates],invoices:[{kind:"SALE",status:"POSTED",lines:[{qty:10,totalQty:10,lineTotal:20000,lotAllocations:sale.allocations}]}]});
+ assert.equal(rows.length,1);assert.equal(rows[0].sourceNumber,"CN-3");assert.equal(rows[0].revenue,10000);assert.equal(rows[0].grossProfit,5000);
+});
+
 test("PWA integrates FIFO lots with database, shipment receipt, invoice sales, transfers and reversals",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");

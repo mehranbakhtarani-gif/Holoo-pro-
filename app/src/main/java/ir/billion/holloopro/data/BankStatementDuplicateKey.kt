@@ -7,6 +7,9 @@ data class BankStatementDuplicateKey(
     val bankReference: String,
     val description: String
 ) {
+    val hasReliableIdentity: Boolean
+        get() = bankReference.isNotBlank() || description.isNotBlank()
+
     companion object {
         fun from(bankName: String, row: BankStatementCsvRow, defaultDescription: String = "") =
             BankStatementDuplicateKey(

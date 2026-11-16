@@ -69,7 +69,7 @@ test("master-data edits preserve live stock valuation and party balance inside t
  assert.match(app,/const tx=db\.transaction\(\[store,"auditLog"\],"readwrite"\),objectStore=tx\.objectStore\(store\)/);
  assert.match(app,/const read=objectStore\.get\(record\.id\)/);
  assert.match(app,/for\(const field of fields\)merged\[field\]=read\.result\[field\]/);
- assert.match(app,/putPreservingFields\("products",v,\["stock","value","avg"\]\)/);
+ assert.match(app,/await putProductUnique\(v\)/);
  assert.match(app,/putPreservingFields\("parties",partyRecord,\["balance"\]\)/);
 });
  

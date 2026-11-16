@@ -13,12 +13,12 @@ test("manual mode requires a valid local date and time",()=>{
  assert.throws(()=>parseOperationDate("2026-11-16"),/تاریخ و ساعت/);
 });
 test("stamps transaction dates but preserves audit timestamps and unrelated master data",()=>{
- const at=parseOperationDate("2026-11-16T09:30");
- const invoice=stampOperationRecord({store:"invoices",record:{date:1,number:"A",createdAt:2},mode:"MANUAL",manualValue:"2026-11-16T09:30"});
- assert.equal(invoice.date,at);assert.equal(invoice.createdAt,2);
- const shipment=stampOperationRecord({store:"importShipments",record:{updatedAt:1,receivedAt:2,dueDate:3},mode:"MANUAL",manualValue:"2026-11-16T09:30"});
+ const manualValue="2026-11-16T09:30",at=parseOperationDate(manualValue),now=Date.now();
+ const invoice=stampOperationRecord({store:"invoices",record:{date:now,number:"A",createdAt:now},mode:"MANUAL",manualValue,now});
+ assert.equal(invoice.date,at);assert.equal(invoice.createdAt,at);
+ const shipment=stampOperationRecord({store:"importShipments",record:{updatedAt:now,receivedAt:now,dueDate:3},mode:"MANUAL",manualValue,now});
  assert.equal(shipment.updatedAt,at);assert.equal(shipment.receivedAt,at);assert.equal(shipment.dueDate,3);
- const audit=stampOperationRecord({store:"auditLog",record:{at:1},mode:"MANUAL",manualValue:"2026-11-16T09:30"});
+ const audit=stampOperationRecord({store:"auditLog",record:{at:1},mode:"MANUAL",manualValue,now});
  assert.equal(audit.at,1);
  const product={date:1};assert.equal(stampOperationRecord({store:"products",record:product,mode:"MANUAL",manualValue:"2026-11-16T09:30"}),product);
 });
@@ -36,4 +36,16 @@ test("PWA exposes the shared date selector and applies it in all persistence pat
  assert.match(app,/function putMany\(entries\)\{if\(operationDateMode==="MANUAL"/);
  assert.ok(html.indexOf("operation-date.js")<html.indexOf("app.js?v=operation-date-1"));
  assert.match(sw,/operation-date\.js/);assert.match(sw,/holloo-pwa-v55-operation-date/);
+});
+
+test("manual edits preserve historical document dates but stamp new reversal events",()=>{
+ const now=Date.now(),old=now-86400000,manualValue="2026-11-15T10:00",at=parseOperationDate(manualValue);
+ const reversed=stampOperationRecord({store:"invoices",record:{date:old,status:"REVERSED",reversedAt:now},mode:"MANUAL",manualValue,now});
+ assert.equal(reversed.date,old);assert.equal(reversed.reversedAt,at);
+ const cleared=stampOperationRecord({store:"checks",record:{date:old,status:"CLEARED",statusChangedAt:now,createdAt:old},mode:"MANUAL",manualValue,now});
+ assert.equal(cleared.date,old);assert.equal(cleared.createdAt,old);assert.equal(cleared.statusChangedAt,at);
+});
+test("automatic mode supplies a date when a transaction record has no date yet",()=>{
+ const x=stampOperationRecord({store:"imports",record:{supplierId:1},mode:"AUTO",now:456});
+ assert.equal(x.date,456);
 });

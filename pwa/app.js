@@ -119,7 +119,43 @@ async function loadDemoData(){
  toast("داده‌های آزمایشی اضافه شد؛ سه کالا، سه شخص و مانده‌های افتتاحیه آماده‌اند");await render();
 }
 async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["2104","حقوق پرداختنی","LIABILITY"],["2105","کسورات حقوق پرداختنی","LIABILITY"],["1502","استهلاک انباشته دارایی","ASSET"],["3101","سرمایه","EQUITY"],["3201","سود و زیان انباشته","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["4301","سود تسعیر ارز","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"],["5203","هزینه پورسانت فروش","EXPENSE"],["5301","هزینه حقوق و دستمزد","EXPENSE"],["5401","هزینه استهلاک","EXPENSE"],["5501","زیان تسعیر ارز","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title:byId.get(id)?.title||title,type:byId.get(id)?.type||type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
-function postVoucherAtomic(entries,voucher,lines){const stamp=globalThis.HolooOperationDate?.stampOperationRecord;if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");entries=entries.map(([store,value])=>[store,stamp({store,record:value,mode:operationDateMode,manualValue:operationManualDate})]);voucher=stamp({store:"vouchers",record:voucher,mode:operationDateMode,manualValue:operationManualDate});return new Promise((res,rej)=>{const names=[...new Set([...entries.map(x=>x[0]),"vouchers","voucherLines","auditLog"])],tx=db.transaction(names,"readwrite");let duplicateReference=false;for(const [store,value] of entries)tx.objectStore(store).put(value);const check=tx.objectStore("vouchers").getAll();check.onsuccess=()=>{if(voucher.reference&&check.result.some(v=>v.reference===voucher.reference)){duplicateReference=true;try{tx.abort()}catch(_){}return}const request=tx.objectStore("vouchers").add(voucher);request.onsuccess=()=>{const voucherId=request.result;for(const line of lines)tx.objectStore("voucherLines").add({...line,voucherId});tx.objectStore("auditLog").add({action:"ثبت سند مالی",store:"vouchers",recordId:voucherId,at:Date.now(),summary:voucher.description||voucher.number})};request.onerror=()=>{try{tx.abort()}catch(_){}}};check.onerror=()=>{try{tx.abort()}catch(_){}};tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error||new Error("ثبت سند حسابداری ناموفق بود"));tx.onabort=()=>rej(duplicateReference?new Error("سندی با این شناسه مرجع قبلاً ثبت شده است"):tx.error||new Error("ثبت عملیات لغو شد"))})}
+function postVoucherAtomic(entries,voucher,lines){
+ const stamp=globalThis.HolooOperationDate?.stampOperationRecord;
+ if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");
+ entries=entries.map(([store,value])=>[store,stamp({store,record:value,mode:operationDateMode,manualValue:operationManualDate})]);
+ voucher=stamp({store:"vouchers",record:voucher,mode:operationDateMode,manualValue:operationManualDate});
+ return new Promise((res,rej)=>{
+  const names=[...new Set([...entries.map(x=>x[0]),"vouchers","voucherLines","auditLog"])],tx=db.transaction(names,"readwrite");
+  let duplicateReference=false,staleSalesOrder=false;
+  const linkedOrder=entries.find(([store,value])=>store==="salesOrders"&&value?.status==="INVOICED");
+  const writeEntriesAndVoucher=()=>{
+   for(const [store,value] of entries)tx.objectStore(store).put(value);
+   const check=tx.objectStore("vouchers").getAll();
+   check.onsuccess=()=>{
+    if(voucher.reference&&check.result.some(v=>v.reference===voucher.reference)){duplicateReference=true;try{tx.abort()}catch(_){}return}
+    const request=tx.objectStore("vouchers").add(voucher);
+    request.onsuccess=()=>{
+     const voucherId=request.result;
+     for(const line of lines)tx.objectStore("voucherLines").add({...line,voucherId});
+     tx.objectStore("auditLog").add({action:"ثبت سند مالی",store:"vouchers",recordId:voucherId,at:Date.now(),summary:voucher.description||voucher.number});
+    };
+    request.onerror=()=>{try{tx.abort()}catch(_){}};
+   };
+   check.onerror=()=>{try{tx.abort()}catch(_){}};
+  };
+  if(linkedOrder){
+   const orderRequest=tx.objectStore("salesOrders").get(Number(linkedOrder[1].id));
+   orderRequest.onsuccess=()=>{
+    if(!orderRequest.result||orderRequest.result.status!=="APPROVED"){staleSalesOrder=true;try{tx.abort()}catch(_){};return}
+    writeEntriesAndVoucher();
+   };
+   orderRequest.onerror=()=>{try{tx.abort()}catch(_){}};
+  }else writeEntriesAndVoucher();
+  tx.oncomplete=()=>res();
+  tx.onerror=()=>rej(tx.error||new Error("ثبت سند حسابداری ناموفق بود"));
+  tx.onabort=()=>rej(staleSalesOrder?new Error("این سفارش قبلاً به فاکتور تبدیل شده یا وضعیت آن تغییر کرده است؛ اطلاعات را تازه‌سازی کنید"):duplicateReference?new Error("سندی با این شناسه مرجع قبلاً ثبت شده است"):tx.error||new Error("ثبت عملیات لغو شد"));
+ });
+}
 function all(s){return new Promise((res,rej)=>{const q=db.transaction(s).objectStore(s).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 function put(s,v){if(globalThis.HolooOperationDate?.stampOperationRecord)v=globalThis.HolooOperationDate.stampOperationRecord({store:s,record:v,mode:operationDateMode,manualValue:operationManualDate});return new Promise((res,rej)=>{const t=db.transaction([s,"auditLog"],"readwrite"),q=t.objectStore(s).put(v);let id;q.onsuccess=()=>{id=q.result;t.objectStore("auditLog").add({action:"ثبت/ویرایش",store:s,recordId:id,at:Date.now(),summary:"ذخیره رکورد در "+s})};q.onerror=()=>{try{t.abort()}catch(_){}};t.oncomplete=()=>res(id);t.onerror=()=>rej(t.error||new Error("ذخیره‌سازی ناموفق بود"));t.onabort=()=>rej(t.error||new Error("ذخیره‌سازی لغو شد"))})}
 function putMany(entries){const stamp=globalThis.HolooOperationDate?.stampOperationRecord;if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");entries=entries.map(([store,value])=>[store,stamp({store,record:value,mode:operationDateMode,manualValue:operationManualDate})]);return new Promise((res,rej)=>{const names=[...new Set([...entries.map(x=>x[0]),"auditLog"])],t=db.transaction(names,"readwrite");for(const [store,value] of entries){const q=t.objectStore(store).put(value);q.onsuccess=()=>t.objectStore("auditLog").add({action:"ثبت گروهی",store,recordId:q.result,at:Date.now(),summary:"ذخیره گروهی در "+store})}t.oncomplete=()=>res();t.onerror=()=>rej(t.error||new Error("ذخیره‌سازی ناموفق بود"));t.onabort=()=>rej(t.error||new Error("ذخیره‌سازی لغو شد"))})}

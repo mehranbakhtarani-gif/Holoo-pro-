@@ -16,3 +16,9 @@ test("inventory price labels follow the selected display unit and show average c
  assert.match(app,/قیمت سطح ۱ \("\+moneyUnit\(\)\)/);
  assert.match(app,/money\(x\.avg\|\|0\)/);
 });
+
+
+test("live search rerender preserves keyboard focus and caret position",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const start=s\.selectionStart,end=s\.selectionEnd;render\(\)\.then\(\(\)=>\{const next=\$\("#search"\);if\(next\)\{next\.focus\(\);if\(start!==null&&end!==null\)next\.setSelectionRange\(start,end\)\}\}\)/);
+});

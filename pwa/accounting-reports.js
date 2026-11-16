@@ -109,6 +109,11 @@ function buildLedgerRunningRows(input){
  for(const row of selected){if(Number(row.date||0)>=fromDate)break;const key=String(row.accountCode);openingBalances[key]=(openingBalances[key]||0)+Number(row.debit||0)-Number(row.credit||0);}
  return {rows:result,openingBalances};
 }
+function buildLedgerCsv(input){
+ const report=buildLedgerRunningRows(input);
+ const values=[["تاریخ","شماره سند","شرح","کد حساب","عنوان حساب","بدهکار (ریال)","بستانکار (ریال)","مانده","ماهیت مانده"],...report.rows.map(row=>[new Date(Number(row.date||0)).toISOString(),row.number||"",row.description||"",row.accountCode||"",row.accountTitle||"",row.debit||0,row.credit||0,Math.abs(row.runningBalance),row.runningBalance>=0?"بدهکار":"بستانکار"])];
+ return "\uFEFF"+values.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+}
 function buildTrialBalanceColumns(trialRows,columnCount){
  const count=Number(columnCount);
  const columns={
@@ -152,6 +157,6 @@ function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
   return Number.isSafeInteger(oldFrom)&&Number.isSafeInteger(oldTo)&&oldFrom<=oldTo&&fromDate<=oldTo&&toDate>=oldFrom;
  });
 }
-const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildLedgerRunningRows,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
+const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildLedgerRunningRows,buildLedgerCsv,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
 if(typeof module!=="undefined"&&module.exports)module.exports=accountingReportsApi;
 if(typeof globalThis!=="undefined")globalThis.HolooAccountingReports=accountingReportsApi;

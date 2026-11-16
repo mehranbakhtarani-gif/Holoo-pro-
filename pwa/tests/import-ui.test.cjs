@@ -44,3 +44,11 @@ test("legacy import order report separates foreign goods, Rial goods value, anci
  assert.match(app,/goodsRial,ancillaryCost,totalCost,extra:totalCost/);
 });
 
+test("import shipment CSV exports container, supplier, itemized direct costs and receipt trace",()=>{
+ assert.match(app,/id="exportImportShipmentsCsv"/);
+ assert.match(app,/holloo-import-shipments\.csv/);
+ assert.match(app,/هزینه جانبی کل/);
+ assert.match(app,/شماره سند رسید/);
+ assert.match(app,/receivedVoucherNumber/);
+});
+

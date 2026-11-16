@@ -24,7 +24,7 @@ function createForeignPayable(input){
 }
 function planForeignPayablePayment(input){
  const payable=input.payable,amountMinor=toSafeMinor(input.amountMinor,"مبلغ پرداخت ارزی"),rate=Number(input.fxRateRialPerUnit),date=Number(input.date||Date.now());
- if(!payable||payable.status==="CANCELLED"||!Number.isSafeInteger(rate)||rate<=0||amountMinor<=0)throw new Error("اطلاعات پرداخت ارزی معتبر نیست");
+ if(!payable||payable.status==="CANCELLED"||!Number.isSafeInteger(rate)||rate<=0||!Number.isSafeInteger(date)||date<=0||amountMinor<=0)throw new Error("اطلاعات پرداخت ارزی معتبر نیست");
  const totalMinor=toSafeMinor(payable.amountMinor,"کل تعهد ارزی"),paidMinor=toSafeMinor(payable.paidMinor||0,"مبلغ پرداخت‌شده ارزی");
  const totalBookedRial=toSafeMinor(payable.bookedRial,"ارزش دفتری تعهد"),bookedPaidRial=toSafeMinor(payable.bookedRialPaid||0,"ارزش دفتری تسویه‌شده");
  const settlementPaidRial=toSafeMinor(payable.settlementRialPaid||0,"جمع پرداخت ریالی");
@@ -49,14 +49,15 @@ function summarizeForeignPayable(input){
  if(paidMinor>amountMinor||bookedRialPaid>bookedRialTotal||!Number.isSafeInteger(rate)||rate<=0)throw new Error("مانده یا نرخ ارزش‌گذاری تعهد معتبر نیست");
  const remainingMinor=amountMinor-paidMinor,bookValue=bookedRialTotal-bookedRialPaid;
  const revaluedRial=convertMinorAtRate(remainingMinor,rate),delta=subtractSafe(revaluedRial,bookValue,"اختلاف ارزش‌گذاری ارزی");
- const realizedFxGainRial=payments.reduce((n,p)=>addSafe(n,toSafeMinor(p.fxGainRial||0,"سود تسعیر پرداخت"),"جمع سود تسعیر پرداخت‌ها"),0);
- const realizedFxLossRial=payments.reduce((n,p)=>addSafe(n,toSafeMinor(p.fxLossRial||0,"زیان تسعیر پرداخت"),"جمع زیان تسعیر پرداخت‌ها"),0);
+ const activePayments=payments.filter(p=>p&&p.status!=="REVERSED");
+ const realizedFxGainRial=activePayments.reduce((n,p)=>addSafe(n,toSafeMinor(p.fxGainRial||0,"سود تسعیر پرداخت"),"جمع سود تسعیر پرداخت‌ها"),0);
+ const realizedFxLossRial=activePayments.reduce((n,p)=>addSafe(n,toSafeMinor(p.fxLossRial||0,"زیان تسعیر پرداخت"),"جمع زیان تسعیر پرداخت‌ها"),0);
  return {...payable,remainingMinor,bookValue,revaluedRial,unrealizedFxLossRial:Math.max(0,delta),unrealizedFxGainRial:Math.max(0,-delta),realizedFxGainRial,realizedFxLossRial};
 }
 
 function planForeignPayableReversal(input){
  const payable=input.payable,payment=input.payment,date=Number(input.date||Date.now());
- if(!payable||!payment||payment.status==="REVERSED"||Number(payment.payableId)!==Number(payable.id))throw new Error("پرداخت برای برگشت معتبر نیست یا قبلاً برگشت خورده است");
+ if(!payable||!payment||payment.status==="REVERSED"||Number(payment.payableId)!==Number(payable.id)||!Number.isSafeInteger(date)||date<=0)throw new Error("پرداخت برای برگشت معتبر نیست یا قبلاً برگشت خورده است");
  const paidMinor=toSafeMinor(payable.paidMinor||0,"مبلغ پرداخت‌شده ارزی"),amountMinor=toSafeMinor(payment.amountMinor,"مبلغ قسط ارزی");
  const bookedPaid=toSafeMinor(payable.bookedRialPaid||0,"ارزش دفتری تسویه‌شده"),bookedRial=toSafeMinor(payment.bookedRial,"ارزش دفتری قسط");
  const settlementPaid=toSafeMinor(payable.settlementRialPaid||0,"جمع پرداخت ریالی"),settlementRial=toSafeMinor(payment.settlementRial,"مبلغ ریالی قسط");
@@ -79,11 +80,11 @@ function summarizeForeignPayablesForecast(input){
   if(!amount)continue;
   const currency=String(p.currency||"");if(!["USD","CNY","EUR"].includes(currency))continue;
   if(!result.byCurrency[currency])result.byCurrency[currency]={outstandingMinor:0,overdueMinor:0,dueSoonMinor:0,overdueCount:0,dueSoonCount:0,undatedMinor:0};
-  const bucket=result.byCurrency[currency];bucket.outstandingMinor+=amount;result.openCount++;
+  const bucket=result.byCurrency[currency];bucket.outstandingMinor=addSafe(bucket.outstandingMinor,amount,"جمع مانده تعهدات ارزی");result.openCount++;
   const due=Number(p.dueDate||0);
-  if(!Number.isFinite(due)||due<=0){bucket.undatedMinor+=amount;continue}
-  if(due<start.getTime()){bucket.overdueMinor+=amount;bucket.overdueCount++;result.overdueCount++}
-  else if(due<end.getTime()){bucket.dueSoonMinor+=amount;bucket.dueSoonCount++;result.dueSoonCount++}
+  if(!Number.isFinite(due)||due<=0){bucket.undatedMinor=addSafe(bucket.undatedMinor,amount,"جمع تعهدات بدون سررسید");continue}
+  if(due<start.getTime()){bucket.overdueMinor=addSafe(bucket.overdueMinor,amount,"جمع تعهدات سررسیدگذشته");bucket.overdueCount++;result.overdueCount++}
+  else if(due<end.getTime()){bucket.dueSoonMinor=addSafe(bucket.dueSoonMinor,amount,"جمع تعهدات سررسیدشونده");bucket.dueSoonCount++;result.dueSoonCount++}
  }
  return result;
 }

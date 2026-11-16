@@ -57,3 +57,13 @@ test("detects an intrawweek cash shortfall even when the weekly closing balance 
  assert.equal(report.weekly[0].closingCashRial,300);
  assert.equal(report.minimumProjectedCashRial,-200);
 });
+
+
+test("cash flow dashboard provides print-ready A4 report for selected horizon",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
+ assert.match(app,/id="printCashFlowForecast"/);
+ assert.match(app,/printCashFlow\.onclick/);
+ assert.match(app,/گزارش جریان نقدی و پیش‌بینی نقدینگی/);
+ assert.match(app,/@page\{size:A4 landscape/);
+ assert.match(app,/const content=\$\("#main"\)\.innerHTML/);
+});

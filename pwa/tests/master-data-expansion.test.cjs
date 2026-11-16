@@ -11,10 +11,10 @@ test("product master data supports three-level groups, base units and maximum st
  assert.match(app,/\["group1","گروه اصلی","text"\]/);
  assert.match(app,/\["group2","زیرگروه","text"\]/);
  assert.match(app,/\["group3","گروه فرعی","text"\]/);
- assert.match(app,/\["unit","واحد پایه","select",1/);
+ assert.match(app,/\["unit","واحد پایه (در این نسخه)","select",1/);
  assert.match(app,/\["maxStock","حداکثر موجودی هدف \(کیلوگرم\)","number"\]/);
  assert.match(app,/group1:String\(d\.group1\|\|""\)\.trim\(\)/);
- assert.match(app,/maxStock/);
+ assert.match(app,/d\.unit&&d\.unit!=="کیلوگرم"/);\n assert.match(app,/maxStock/);
 });
 
 test("product stock thresholds reject invalid or inverted ranges without changing legacy minimum-stock records",()=>{

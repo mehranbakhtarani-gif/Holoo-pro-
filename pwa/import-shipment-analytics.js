@@ -8,11 +8,11 @@ function summarizeImportShipments(input){
   if(!Number.isSafeInteger(goodsRial)||goodsRial<0||!Number.isSafeInteger(totalCost)||totalCost<goodsRial)throw new Error("بهای ریالی محموله معتبر نیست: "+String(s.number||""));
   const ancillary=totalCost-goodsRial,weight=Number(s.weight),unitCost=totalCost/weight,status=String(s.status||"نامشخص"),currency=String(s.currency||"نامشخص");
   if(!Number.isFinite(unitCost))throw new Error("بهای هر کیلو محموله معتبر نیست: "+String(s.number||""));
-  const foreignAmount=Number(s.goods??0);if(!Number.isSafeInteger(foreignAmount)||foreignAmount<0)throw new Error("مبلغ ارزی محموله معتبر نیست: "+String(s.number||""));
+  const foreignAmount=Number(s.goods??0);if(!Number.isFinite(foreignAmount)||foreignAmount<0)throw new Error("مبلغ ارزی محموله معتبر نیست: "+String(s.number||""));
   totalWeight+=weight;totalGoodsRial+=goodsRial;totalAncillary+=ancillary;totalLanded+=totalCost;
   if(status==="رسید انبار شده"||status==="تسویه‌شده"){receivedWeight+=weight;receivedCost+=totalCost}else inTransitWeight+=weight;
   statusCounts.set(status,(statusCounts.get(status)||0)+1);
-  foreignGoods[currency]=(foreignGoods[currency]||0)+foreignAmount;
+  const nextForeignGoods=(foreignGoods[currency]||0)+foreignAmount;if(!Number.isFinite(nextForeignGoods))throw new Error("جمع مبلغ ارزی محموله‌ها معتبر نیست");foreignGoods[currency]=nextForeignGoods;
   const productKey=String(s.productId??s.productName??"unknown"),product=byProduct.get(productKey)||{productId:s.productId??null,productName:s.productName||"بدون نام",shipments:0,weight:0,landedCost:0};
   product.shipments++;product.weight+=weight;product.landedCost+=totalCost;byProduct.set(productKey,product);
   const supplierKey=String(s.supplierId??s.supplierName??"unknown"),supplier=bySupplier.get(supplierKey)||{supplierId:s.supplierId??null,supplierName:s.supplierName||"بدون نام",shipments:0,weight:0,landedCost:0};

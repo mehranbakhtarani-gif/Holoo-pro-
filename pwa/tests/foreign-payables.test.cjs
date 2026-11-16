@@ -195,3 +195,9 @@ test("foreign payable creation guards the source shipment reference inside the w
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/putManyGuarded\(\[\["foreignPayables",payable\]\],\[\{store:"foreignPayables",match:\{sourceShipmentId:Number\(shipment\.id\)\},expected:null\}\]\)/);
 });
+
+ 
+test("foreign payable creation revalidates its source shipment snapshot in the same transaction",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/store:"importShipments",key:Number\(shipment\.id\),expected:\{\.\.\.shipment\}/);
+});

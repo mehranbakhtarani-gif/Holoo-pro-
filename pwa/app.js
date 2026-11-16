@@ -351,6 +351,27 @@ async function createPartyWithOpeningBalance(record,plan){
 }
 function all(s){return new Promise((res,rej)=>{const q=db.transaction(s).objectStore(s).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 function put(s,v){if(globalThis.HolooOperationDate?.stampOperationRecord)v=globalThis.HolooOperationDate.stampOperationRecord({store:s,record:v,mode:operationDateMode,manualValue:operationManualDate});return new Promise((res,rej)=>{const t=db.transaction([s,"auditLog"],"readwrite"),q=t.objectStore(s).put(v);let id;q.onsuccess=()=>{id=q.result;t.objectStore("auditLog").add({action:"ثبت/ویرایش",store:s,recordId:id,at:Date.now(),summary:"ذخیره رکورد در "+s})};q.onerror=()=>{try{t.abort()}catch(_){}};t.oncomplete=()=>res(id);t.onerror=()=>rej(t.error||new Error("ذخیره‌سازی ناموفق بود"));t.onabort=()=>rej(t.error||new Error("ذخیره‌سازی لغو شد"))})}
+function putWarehouseUnique(record){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["warehouses","auditLog"],"readwrite"),store=tx.objectStore("warehouses"),read=store.getAll();
+  let savedId,conflict="",missing=false;
+  read.onsuccess=()=>{
+   const rows=read.result||[],current=record.id===undefined?null:rows.find(row=>Number(row.id)===Number(record.id));
+   if(record.id!==undefined&&!current){missing=true;try{tx.abort()}catch(_){};return}
+   const normalized=String(record.name||"").trim().toLocaleLowerCase("fa");
+   if(rows.some(row=>Number(row.id)!==Number(record.id)&&String(row.name||"").trim().toLocaleLowerCase("fa")===normalized))conflict="نام انبار تکراری است";
+   if(conflict){try{tx.abort()}catch(_){};return}
+   const value={...record,createdAt:current?.createdAt||record.createdAt||Date.now()};
+   const write=store.put(value);
+   write.onsuccess=()=>{savedId=write.result;tx.objectStore("auditLog").add({action:"ثبت/ویرایش",store:"warehouses",recordId:savedId,at:Date.now(),summary:"ذخیره انبار"})};
+   write.onerror=()=>{try{tx.abort()}catch(_){}};
+  };
+  read.onerror=()=>{try{tx.abort()}catch(_){}};
+  tx.oncomplete=()=>resolve(savedId);
+  tx.onerror=()=>reject(tx.error||new Error("ذخیره انبار ناموفق بود"));
+  tx.onabort=()=>reject(missing?new Error("انبار برای ویرایش پیدا نشد"):new Error(conflict||tx.error?.message||"ذخیره انبار لغو شد"));
+ });
+}
 function putImportOrderUnique(record){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(["imports","auditLog"],"readwrite"),store=tx.objectStore("imports"),read=store.getAll();
@@ -1267,7 +1288,7 @@ if(page==="warehouseTransfers"){
  const row={number:transferNumber,productId:product.id,productName:product.name,sourceWarehouseId:source.id,sourceWarehouseName:source.name,destinationWarehouseId:destination.id,destinationWarehouseName:destination.name,quantity:movement.quantity,value:lotPlan.transferValue,date:transferDate,lotAllocations:lotPlan.allocations};
  const guards=[{store:"warehouses",key:Number(source.id),expected:{...source}},{store:"warehouses",key:Number(destination.id),expected:{...destination}},{store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(source.id)},expected:sourceRow?{...sourceRow}:null},{store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(destination.id)},expected:destinationRow?{...destinationRow}:null},{store:"warehouseTransfers",match:{number:transferNumber},expected:null},...lotPlan.sourceLotUpdates.map(update=>{const original=lots.find(x=>String(x.id)===String(update.id));return {store:"inventoryLots",key:update.id,expected:original?{...original}:null}}),...lotPlan.destinationLots.map(lot=>({store:"inventoryLots",key:lot.id,expected:null}))];await putManyGuarded([["warehouseStock",movement.sourceRecord],["warehouseStock",movement.destinationRecord],["warehouseTransfers",row],...lotPlan.sourceLotUpdates.map(lot=>["inventoryLots",lot]),...lotPlan.destinationLots.map(lot=>["inventoryLots",lot])],guards);return
 }
-if(page==="warehouses"){const name=String(d.name||"").trim();if(!name)throw Error("نام انبار الزامی است");const rows=await all("warehouses");if(rows.some(x=>x.name===name&&x.id!==item?.id))throw Error("نام انبار تکراری است");await put("warehouses",{id:item?.id,name,address:d.address,manager:d.manager,customFields:(()=>{try{return {...(item?.customFields||{}),...JSON.parse(d.__entityCustomFields||"{}")}}catch(_){return item?.customFields||{}}})(),createdAt:item?.createdAt||Date.now()});return}if(page==="importShipments"){
+if(page==="warehouses"){const name=String(d.name||"").trim();if(!name)throw Error("نام انبار الزامی است");await putWarehouseUnique({id:item?.id,name,address:d.address,manager:d.manager,customFields:(()=>{try{return {...(item?.customFields||{}),...JSON.parse(d.__entityCustomFields||"{}")}}catch(_){return item?.customFields||{}}})(),createdAt:item?.createdAt||Date.now()});return}if(page==="importShipments"){
  if(item?.receivedAt)throw Error("محموله رسیدشده قابل ویرایش نیست؛ برای اصلاح سند برگشت ثبت کنید");if(item){const payables=await all("foreignPayables"),linked=payables.find(x=>Number(x.sourceShipmentId)===Number(item.id));if(linked){const due=d.dueDate?new Date(d.dueDate+"T12:00:00").getTime():null,changed=Number(d.supplierId)!==Number(item.supplierId)||String(d.currency)!==String(item.currency)||num("fx")!==Number(item.fx)||num("weight")!==Number(item.weight)||num("goods")!==Number(item.goods)||String(d.container||"").trim()!==String(item.container||"")||String(d.number||"").trim()!==String(item.number||"")||Number(d.productId)!==Number(item.productId)||Number(d.warehouseId)!==Number(item.warehouseId)||(due||0)!==Number(item.dueDate||0)||["freight","customs","insurance","port","inland","broker","storage","bank","other"].some(key=>num(key)!==Number(item[key]||0));if(changed)throw Error("برای این محموله تعهد ارزی ثبت شده است؛ اطلاعات مالی، کالا و تأمین‌کننده قفل شده‌اند و فقط وضعیت حمل قابل تغییر است");}}
  const ps=await all("parties"),products=await all("products"),warehouses=await all("warehouses");
  const p=ps.find(x=>x.id===num("supplierId")),product=products.find(x=>x.id===num("productId")),warehouse=warehouses.find(x=>x.id===num("warehouseId"));

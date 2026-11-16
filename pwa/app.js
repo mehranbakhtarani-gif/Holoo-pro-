@@ -339,13 +339,14 @@ if(currentPage==="cashFlow"){
  for(const p of payables){
   if(p.status==="PAID"||p.status==="CANCELLED"||!p.shipmentReceivedAt)continue;
   const remaining=Math.max(0,Number(p.amountMinor)-Number(p.paidMinor||0)),rate=Number(foreignRateOverrides[p.currency]||p.bookedFxRateRialPerUnit);
-  const amount=Math.round(remaining*rate/100);
+  const amount=HolooForeignPayables.convertMinorAtRate(remaining,rate);
   if(amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:p.dueDate,source:"تعهد ارزی محموله ("+p.currency+")",reference:p.sourceNumber,partyName:p.supplierName,foreignAmountMinor:remaining,currency:p.currency});
  }
  for(const s of shipments){
   if(linkedShipmentIds.has(Number(s.id))||s.status==="تسویه‌شده")continue;
-  const amount=Math.round(Number(s.goods||0)*Number(s.fx||0));
-  if(Number.isSafeInteger(amount)&&amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:s.dueDate,source:"برآورد پرداخت محموله وارداتی",reference:s.number,partyName:s.supplierName,currency:s.currency,foreignAmountMinor:Math.round(Number(s.goods||0)*100)});
+  const foreignAmountMinor=Math.round(Number(s.goods||0)*100);
+  const amount=Number.isSafeInteger(foreignAmountMinor)&&foreignAmountMinor>0?HolooForeignPayables.convertMinorAtRate(foreignAmountMinor,Number(s.fx)):0;
+  if(Number.isSafeInteger(amount)&&amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:s.dueDate,source:"برآورد پرداخت محموله وارداتی",reference:s.number,partyName:s.supplierName,currency:s.currency,foreignAmountMinor});
  }
  const cashBalance=code=>{const account=accounts.find(x=>String(x.id)===code);if(!account)return 0;return Number(account.openingDebitRial||0)-Number(account.openingCreditRial||0)+voucherLines.filter(x=>String(x.accountCode)===code).reduce((n,x)=>n+Number(x.debitRial||0)-Number(x.creditRial||0),0)};
  const cashOnHandRial=cashBalance("1101"),bankBalanceRial=cashBalance("1102"),openingCashRial=cashOnHandRial+bankBalanceRial;

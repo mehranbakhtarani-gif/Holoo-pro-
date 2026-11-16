@@ -67,3 +67,13 @@ test("cash flow dashboard provides print-ready A4 report for selected horizon",(
  assert.match(app,/@page\{size:A4 landscape/);
  assert.match(app,/const content=\$\("#main"\)\.innerHTML/);
 });
+
+
+test("cash flow dashboard exports summary and all visible forecast tables as CSV",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
+ assert.match(app,/id="exportCashFlowCsv"/);
+ assert.match(app,/exportCashFlow\.onclick/);
+ assert.match(app,/holloo-cash-flow-/);
+ assert.match(app,/textContent\.trim\(\)/);
+ assert.match(app,/text\/csv;charset=utf-8/);
+});

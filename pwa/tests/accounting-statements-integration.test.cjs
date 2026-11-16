@@ -56,3 +56,11 @@ test("filtered ledger uses the tested running-balance report helper",()=>{
  assert.match(app,/x\.runningBalance/);
  assert.doesNotMatch(app,/const openingByAccount=new Map\(runningByAccount\)/);
 });
+
+
+test("accounting page offers CSV export for the currently filtered account ledger",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/id="exportLedgerCsv"/);
+ assert.match(app,/buildLedgerCsv\(\{rows:ledgerRows,accounts,accountCode:code,fromDate:from,toDate:to\}\)/);
+ assert.match(app,/holloo-account-ledger\.csv/);
+});

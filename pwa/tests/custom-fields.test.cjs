@@ -42,7 +42,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v141-column-controls/);
+ assert.match(sw,/holloo-pwa-v142-report-builder/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -150,4 +150,21 @@ test("legacy custom field definitions receive safe default column settings",()=>
 });
 test("invoice and order custom column headers apply configured width",()=>{
  assert.ok((custom.match(/th\.style\.width=d\.columnWidth\+"px"/g)||[]).length>=3);
+});
+
+test("custom report builder saves reports, previews data and exports CSV/print",()=>{
+ assert.match(custom,/REPORT_CONFIG_ID="__HOLLOO_CUSTOM_REPORTS_V1__"/);
+ assert.match(custom,/async function saveCustomReport/);
+ assert.match(custom,/async function runCustomReport/);
+ assert.match(custom,/خروجی CSV/);
+ assert.match(custom,/چاپ گزارش/);
+});
+test("custom report columns use a fixed whitelist and safe text rendering",()=>{
+ assert.match(custom,/const reportSchemas=/);
+ assert.match(custom,/td\.textContent=value/);
+ assert.match(custom,/const safe=\/\^\[=\+\\-@\]/);
+});
+test("report configuration is stored separately in the existing audit store",()=>{
+ assert.match(custom,/db\.transaction\(STORE,"readwrite"\)/);
+ assert.match(custom,/REPORT_CONFIG_ID/);
 });

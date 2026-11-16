@@ -54,7 +54,7 @@ test("product creation rejects non-finite and non-positive denier values",()=>{
 
 test("inventory supports unique barcodes and minimum-stock alerts",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.ok(app.includes('["barcode","بارکد","text"]'));
+ assert.ok(app.includes('["barcode","بارکد اصلی","text"]'));
  assert.match(app,/جست‌وجوی کد، بارکد، نام/);
  assert.ok(app.includes('["minStock","حداقل موجودی هشدار (کیلوگرم)","number"]'));
  assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);

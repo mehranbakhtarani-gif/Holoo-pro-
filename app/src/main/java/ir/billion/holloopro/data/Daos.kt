@@ -98,6 +98,24 @@ interface InvoiceDao {
     @Query("SELECT i.id AS invoiceId, COALESCE(SUM(s.amountRial), 0) AS paidRial FROM invoices i LEFT JOIN invoice_settlements s ON s.invoiceId = i.id GROUP BY i.id")
     fun observeSettlementTotals(): Flow<List<InvoiceSettlementRow>>
 
+    @Query("""
+        SELECT i.id AS invoiceId, i.number AS invoiceNumber, i.kind AS kind,
+               i.partyId AS partyId, p.name AS partyName, i.dateEpoch AS dateEpoch,
+               i.totalRial AS totalRial,
+               COALESCE((SELECT SUM(s.amountRial) FROM invoice_settlements s WHERE s.invoiceId = i.id), 0) AS settledRial,
+               COALESCE((SELECT SUM(r.amountRial) FROM invoice_returns r WHERE r.invoiceId = i.id), 0) AS returnedRial,
+               (i.totalRial
+                 - COALESCE((SELECT SUM(s.amountRial) FROM invoice_settlements s WHERE s.invoiceId = i.id), 0)
+                 - COALESCE((SELECT SUM(r.amountRial) FROM invoice_returns r WHERE r.invoiceId = i.id), 0)) AS outstandingRial
+        FROM invoices i INNER JOIN parties p ON p.id = i.partyId
+        WHERE i.status = 'POSTED' AND i.kind IN ('SALE', 'PURCHASE')
+          AND (i.totalRial
+                 - COALESCE((SELECT SUM(s.amountRial) FROM invoice_settlements s WHERE s.invoiceId = i.id), 0)
+                 - COALESCE((SELECT SUM(r.amountRial) FROM invoice_returns r WHERE r.invoiceId = i.id), 0)) > 0
+        ORDER BY i.dateEpoch ASC, i.id ASC
+    """)
+    fun observeAging(): Flow<List<InvoiceAgingRow>>
+
     @Query("SELECT COALESCE(SUM(amountRial), 0) FROM invoice_settlements WHERE invoiceId = :invoiceId")
     suspend fun settledForInvoice(invoiceId: Long): Long
 }

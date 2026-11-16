@@ -22,6 +22,7 @@ class AccountingRepository(private val db: AppDatabase) {
     val suppliers = db.partyDao().observeSuppliers()
     val invoices = db.invoiceDao().observeAll()
     val invoiceSettlements = db.invoiceDao().observeSettlementTotals()
+    val invoiceAging = db.invoiceDao().observeAging()
     val returnableInvoiceLines = db.invoiceReturnDao().observeReturnableLines()
     val invoiceReturnTotals = db.invoiceReturnDao().observeTotals()
     val settlementDetails = db.invoiceSettlementDao().observeDetails()
@@ -949,23 +950,27 @@ class AccountingRepository(private val db: AppDatabase) {
         return db.withTransaction {
             var inserted = 0
             var skipped = 0
+            val seenInFile = mutableSetOf<BankStatementDuplicateKey>()
             rows.forEach { row ->
-                val reference = row.bankReference.trim()
-                val description = row.description.trim()
-                val duplicate = (reference.isNotBlank() || description.isNotBlank()) &&
-                    db.bankStatementDao().countDuplicate(
-                        normalizedBank, row.transactionDateEpoch, row.signedAmountRial, reference, description
-                    ) > 0
-                if (duplicate) {
+                require(row.transactionDateEpoch > 0L) { "تاریخ یکی از ردیف‌های صورت‌حساب معتبر نیست" }
+                require(row.signedAmountRial != 0L && row.signedAmountRial != Long.MIN_VALUE) {
+                    "مبلغ یکی از ردیف‌های صورت‌حساب معتبر نیست"
+                }
+                val key = BankStatementDuplicateKey.from(normalizedBank, row)
+                val duplicateInFile = !seenInFile.add(key)
+                val duplicateInDatabase = db.bankStatementDao().countDuplicate(
+                    key.bankName, key.transactionDateEpoch, key.signedAmountRial, key.bankReference, key.description
+                ) > 0
+                if (duplicateInFile || duplicateInDatabase) {
                     skipped++
                 } else {
                     db.bankStatementDao().insert(
                         BankStatementLineEntity(
-                            bankName = normalizedBank,
-                            transactionDateEpoch = row.transactionDateEpoch,
-                            signedAmountRial = row.signedAmountRial,
-                            bankReference = row.bankReference.trim(),
-                            description = row.description.trim()
+                            bankName = key.bankName,
+                            transactionDateEpoch = key.transactionDateEpoch,
+                            signedAmountRial = key.signedAmountRial,
+                            bankReference = key.bankReference,
+                            description = key.description
                         )
                     )
                     inserted++
@@ -1004,11 +1009,18 @@ class AccountingRepository(private val db: AppDatabase) {
             ensureBaseAccounts()
             val bank = db.accountDao().byCode("1102") ?: error("حساب بانک تعریف نشده است")
             val fee = db.accountDao().byCode("5203") ?: error("حساب کارمزد بانکی تعریف نشده است")
+            val normalizedBank = bankName.trim()
+            val normalizedReference = bankReference.trim()
+            val normalizedDescription = description.trim().ifBlank { "کارمزد بانکی - $normalizedBank" }
+            require(db.bankStatementDao().countDuplicate(
+                normalizedBank, transactionDateEpoch, Math.negateExact(amountRial),
+                normalizedReference, normalizedDescription
+            ) == 0) { "کارمزد بانکی مشابه قبلاً ثبت شده است" }
             val ref = "BANK_FEE:" + UUID.randomUUID().toString()
             val voucherId = db.voucherDao().insert(VoucherEntity(
                 number = "BF-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().take(6),
                 dateEpoch = transactionDateEpoch,
-                description = if (description.isBlank()) "کارمزد بانکی - $bankName" else description.trim(),
+                description = normalizedDescription,
                 reference = ref
             ))
             db.voucherLineDao().insertAll(listOf(

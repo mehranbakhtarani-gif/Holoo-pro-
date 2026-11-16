@@ -39,6 +39,32 @@ test("flags the lowest projected cash point when payments exceed available cash"
  assert.equal(report.minimumProjectedCashRial,-200);assert.equal(report.closingCashRial,300);
 });
 
+test("rejects unsafe weekly totals and projected closing balances",()=>{
+ assert.throws(()=>buildCashFlowForecast({asOf,horizonDays:30,openingCashRial:0,events:[
+  {direction:"INFLOW",amountRial:Number.MAX_SAFE_INTEGER,dueDate:asOf+day},
+  {direction:"INFLOW",amountRial:1,dueDate:asOf+2*day}
+ ]}),/محدوده/);
+ assert.throws(()=>buildCashFlowForecast({asOf,horizonDays:30,openingCashRial:Number.MAX_SAFE_INTEGER,events:[
+  {direction:"INFLOW",amountRial:1,dueDate:asOf+day}
+ ]}),/محدوده/);
+});
+test("detects intraday running-balance overflow even if the weekly net is zero",()=>{
+ assert.throws(()=>buildCashFlowForecast({asOf,horizonDays:30,openingCashRial:Number.MAX_SAFE_INTEGER,events:[
+  {direction:"INFLOW",amountRial:1,dueDate:asOf+day},
+  {direction:"OUTFLOW",amountRial:1,dueDate:asOf+2*day}
+ ]}),/محدوده/);
+});
+test("rejects fractional or invalid due-date timestamps",()=>{
+ assert.throws(()=>buildCashFlowForecast({asOf,horizonDays:30,openingCashRial:0,events:[
+  {direction:"OUTFLOW",amountRial:1,dueDate:asOf+0.5}
+ ]}),/تاریخ سررسید/);
+});
+test("daily cash projection also rejects arithmetic overflow",()=>{
+ assert.throws(()=>getDailyCashFlowProjection({asOf,horizonDays:30,openingCashRial:Number.MAX_SAFE_INTEGER,events:[
+  {direction:"INFLOW",amountRial:1,dueDate:asOf+day}
+ ]}),/محدوده/);
+});
+
 test("PWA wires the cash flow dashboard and helper into the offline build",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");

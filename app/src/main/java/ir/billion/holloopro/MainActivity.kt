@@ -186,6 +186,7 @@ class MainActivity : ComponentActivity() {
                     val partyBalances by vm.partyBalances.collectAsState()
                     val invoices by vm.invoices.collectAsState()
                     val invoiceSettlements by vm.invoiceSettlements.collectAsState()
+                    val invoiceAging by vm.invoiceAging.collectAsState()
                     val invoiceReturnTotals by vm.invoiceReturnTotals.collectAsState()
                     val returnableInvoiceLines by vm.returnableInvoiceLines.collectAsState()
                     val treasuryAllocations by vm.treasuryAllocations.collectAsState()
@@ -208,7 +209,7 @@ class MainActivity : ComponentActivity() {
                     val importCount by vm.importCount.collectAsState()
                     val message by vm.message.collectAsState()
                     HolooApp(
-                        products, warehouses, warehouseStocks, warehouseKardex, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, bankStatements, bankStatementPeriods, profitLoss, productProfitability, invoiceProfitability,
+                        products, warehouses, warehouseStocks, warehouseKardex, parties, partyBalances, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, treasuryAllocations, settlementDetails, imports, treasury, accountBalances, trialBalance, ledger, checks, bankStatements, bankStatementPeriods, profitLoss, productProfitability, invoiceProfitability, invoiceAging,
                         productCount, partyCount, invoiceCount, voucherCount, importCount,
                         message,
                         onSaveProduct = vm::saveProduct,
@@ -329,6 +330,7 @@ private fun HolooApp(
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     productProfitability: List<ProductProfitRow>,
     invoiceProfitability: List<InvoiceProfitRow>,
+    invoiceAging: List<ir.billion.holloopro.data.InvoiceAgingRow>,
     productCount: Int,
     partyCount: Int,
     invoiceCount: Int,
@@ -494,7 +496,7 @@ private fun HolooApp(
                 Screen.PARTIES -> PartiesScreen(parties, partyBalances, showToman, onSaveParty, onDeleteParty, onPartyLedger)
                 Screen.INVOICES -> InvoicesScreen(warehouses, parties, products, invoices, invoiceSettlements, invoiceReturnTotals, returnableInvoiceLines, settlementDetails, treasury, treasuryAllocations, showToman, onCreateInvoice, onEditInvoice, onShareInvoice, onReverseInvoice, onPartialInvoiceReturn, onAllocateTreasury, onRemoveInvoiceSettlement)
                 Screen.IMPORTS -> ImportsScreen(products, parties, imports, showToman, onAddImport, onEditImport, onReceiveImport)
-                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onEditTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onEditBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
+                Screen.ACCOUNTING -> AccountingScreen(voucherCount, invoices, treasury, checks, bankStatements, bankStatementPeriods, accountBalances, trialBalance, ledger, profitLoss, productProfitability, invoiceProfitability, invoiceAging, parties, showToman, onExportReports, onExportReportsPdf, onAddTreasury, onEditTreasury, onAddManualVoucher, onUpdateOpeningBalances, onSaveAccount, onReverseManualVoucher, onAddBankStatementLine, onEditBankStatementLine, onMatchBankStatementLine, onUnmatchBankStatementLine, onMatchBankStatementLineToCheck, onAddBankFee, onAddBankStatementPeriod, onImportBankCsv)
                 Screen.CHECKS -> ChecksScreen(checks, parties, showToman, onAddCheck, onEditCheck, onUpdateCheckStatus)
             }
         }
@@ -544,18 +546,27 @@ private fun BankReconciliationSection(
         if (bankStatementPeriods.isNotEmpty()) {
             Text("کنترل مانده پایان دوره", color = Turquoise, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             bankStatementPeriods.take(12).forEach { period ->
-                val movements = bankStatements.filter {
-                    it.bankName.equals(period.bankName, ignoreCase = true) &&
-                        it.transactionDateEpoch >= period.startDateEpoch && it.transactionDateEpoch <= period.endDateEpoch
-                }.sumOf { it.signedAmountRial }
-                val calculated = period.openingBalanceRial + movements
-                val difference = calculated - period.closingBalanceRial
+                val reconciliation = ir.billion.holloopro.data.BankStatementReconciliation.calculate(
+                    period.openingBalanceRial,
+                    bankStatements.filter {
+                        it.bankName.equals(period.bankName, ignoreCase = true) &&
+                            it.transactionDateEpoch >= period.startDateEpoch && it.transactionDateEpoch <= period.endDateEpoch
+                    }.map { it.signedAmountRial },
+                    period.closingBalanceRial
+                )
                 val dateFormat = java.text.SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("${period.bankName} • ${dateFormat.format(java.util.Date(period.startDateEpoch))} تا ${dateFormat.format(java.util.Date(period.endDateEpoch))}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    Text("افتتاحیه: ${formatMoney(period.openingBalanceRial, showToman)} • گردش خالص: ${formatMoney(movements, showToman)}", color = Muted, fontSize = 10.sp)
-                    Text("مانده محاسباتی: ${formatMoney(calculated, showToman)} • مانده بانک: ${formatMoney(period.closingBalanceRial, showToman)}", color = Muted, fontSize = 10.sp)
-                    Text(if (difference == 0L) "مانده‌ها برابرند؛ اختلاف صفر است." else "اختلاف مانده: ${formatMoney(difference, showToman)}", color = if (difference == 0L) Turquoise else Color(0xFFFF9D9D), fontSize = 10.sp)
+                    if (reconciliation.overflow) {
+                        Text("خطای محاسباتی: ارقام این دوره از محدوده عددی مجاز خارج شده‌اند؛ مغایرت قابل محاسبه نیست.", color = Color(0xFFFF9D9D), fontSize = 10.sp)
+                    } else {
+                        val movements = reconciliation.netMovementRial!!
+                        val calculated = reconciliation.calculatedClosingBalanceRial!!
+                        val difference = reconciliation.differenceRial!!
+                        Text("افتتاحیه: ${formatMoney(period.openingBalanceRial, showToman)} • گردش خالص: ${formatMoney(movements, showToman)}", color = Muted, fontSize = 10.sp)
+                        Text("مانده محاسباتی: ${formatMoney(calculated, showToman)} • مانده بانک: ${formatMoney(period.closingBalanceRial, showToman)}", color = Muted, fontSize = 10.sp)
+                        Text(if (difference == 0L) "مانده‌ها برابرند؛ اختلاف صفر است." else "اختلاف مانده: ${formatMoney(difference, showToman)}", color = if (difference == 0L) Turquoise else Color(0xFFFF9D9D), fontSize = 10.sp)
+                    }
                 }
                 Divider(color = CardBorder)
             }
@@ -1802,6 +1813,7 @@ private fun AccountingScreen(
     profitLoss: ir.billion.holloopro.data.ProfitLossRow,
     productProfitability: List<ProductProfitRow>,
     invoiceProfitability: List<InvoiceProfitRow>,
+    invoiceAging: List<ir.billion.holloopro.data.InvoiceAgingRow>,
     parties: List<PartyEntity>,
     showToman: Boolean,
     onExportReports: () -> Unit,
@@ -1878,6 +1890,40 @@ private fun AccountingScreen(
             }
         }
         item { StatCard("اسناد صادرشده", voucherCount.toString(), "≋", Modifier.fillMaxWidth()) }
+        item {
+            val now = System.currentTimeMillis()
+            val bucketLabels = listOf("۰ تا ۳۰ روز", "۳۱ تا ۶۰ روز", "۶۱ تا ۹۰ روز", "بیش از ۹۰ روز")
+            val buckets = bucketLabels.mapIndexed { index, label ->
+                label to invoiceAging.filter { row ->
+                    ir.billion.holloopro.data.InvoiceAging.bucket(
+                        ir.billion.holloopro.data.InvoiceAging.ageDays(now, row.dateEpoch)
+                    ) == index
+                }
+            }
+            GlassCard {
+                Text("گزارش سنی مطالبات و بدهی فاکتورها", color = Turquoise, fontWeight = FontWeight.Bold)
+                Text("مانده باز پس از کسر تسویه‌ها و برگشت‌ها؛ فروش = مطالبات، خرید = بدهی.", color = Muted, fontSize = 10.sp)
+                buckets.forEach { (label, rows) ->
+                    val receivable = ir.billion.holloopro.data.InvoiceAging.sumOutstanding(rows, "SALE")
+                    val payable = ir.billion.holloopro.data.InvoiceAging.sumOutstanding(rows, "PURCHASE")
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        if (receivable == null || payable == null) {
+                            Text("خطای محاسباتی: جمع مانده این بازه از محدوده عددی مجاز خارج شده است.", color = Color(0xFFFF9D9D), fontSize = 10.sp)
+                        } else {
+                            Text("مطالبات: ${formatMoney(receivable, showToman)} • بدهی: ${formatMoney(payable, showToman)}", color = Muted, fontSize = 10.sp)
+                        }
+                    }
+                    Divider(color = CardBorder)
+                }
+                if (invoiceAging.isEmpty()) Text("فاکتور تسویه‌نشده‌ای وجود ندارد.", color = Muted, fontSize = 11.sp)
+                invoiceAging.take(30).forEach { row ->
+                    val ageDays = ir.billion.holloopro.data.InvoiceAging.ageDays(now, row.dateEpoch)
+                    Text("${row.invoiceNumber} • ${row.partyName}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("${if (row.kind == "SALE") "مطالبه" else "بدهی"} • ${ageDays} روز • مانده: ${formatMoney(row.outstandingRial, showToman)}", color = if (row.kind == "SALE") Turquoise else Color(0xFFFFC47A), fontSize = 10.sp)
+                }
+            }
+        }
         item { SummaryCard("درآمد فروش (بدون مالیات)", profitLoss.salesRial, showToman) }
         item { SummaryCard("بهای تمام‌شده کالای فروش‌رفته", profitLoss.costOfGoodsSoldRial, showToman) }
         item { SummaryCard("سود ناخالص فاکتورها", profitLoss.salesRial - profitLoss.costOfGoodsSoldRial, showToman) }

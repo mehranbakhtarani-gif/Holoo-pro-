@@ -24,7 +24,7 @@ test("quotes and orders do not change inventory until invoice posting",()=>{
  const end=app.indexOf('if(page==="invoices"){',start);
  const save=app.slice(start,end);
  assert.ok(start>=0&&end>start);
- assert.match(save,/await put\("salesOrders"/);
+ assert.match(save,/await putSalesOrderGuarded\(\{id:item\?\.id,number/);
  assert.doesNotMatch(save,/warehouseStock|postVoucherAtomic|product\.stock/);
 });
 test("invoice conversion carries the approved order ID and exact commercial terms",()=>{

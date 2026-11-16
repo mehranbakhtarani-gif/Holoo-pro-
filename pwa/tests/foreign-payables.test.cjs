@@ -24,7 +24,7 @@ test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX ac
  assert.match(app,/sourceNumber/);assert.match(app,/sourceShipment\?\.receivedAt/);assert.match(app,/shipmentReceivedAt/);assert.match(app,/fxGainRial/);assert.match(app,/fxLossRial/);
  assert.match(app,/foreignRateOverrides/);assert.match(app,/foreignPayablePayments/);
  assert.match(html,/foreign-payables\.js\?v=foreign-payables-1/);
- assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v=audit-search-2"));
+ assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v="));
  assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);
 });
 

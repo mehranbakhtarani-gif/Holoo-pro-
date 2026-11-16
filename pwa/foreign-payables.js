@@ -95,6 +95,39 @@ function reconcileForeignPayablePayments(input){
  });
  return {total:rows.length,matched:rows.filter(x=>x.ok).length,withIssues:rows.filter(x=>!x.ok).length,rows};
 }
+
+function reconcileForeignPayableBalances(input){
+ const payables=Array.isArray(input.payables)?input.payables:[],payments=Array.isArray(input.payments)?input.payments:[],partyLedger=Array.isArray(input.partyLedger)?input.partyLedger:[],vouchers=Array.isArray(input.vouchers)?input.vouchers:[],voucherLines=Array.isArray(input.voucherLines)?input.voucherLines:[];
+ const groups=new Map();
+ for(const payable of payables){
+  if(!payable||payable.status==="CANCELLED"||!payable.shipmentReceivedAt)continue;
+  const supplierId=Number(payable.supplierId);if(!Number.isSafeInteger(supplierId)||supplierId<=0)continue;
+  let group=groups.get(supplierId);if(!group){group={supplierId,supplierName:String(payable.supplierName||"تأمین‌کننده "+supplierId),currencies:{},payables:[],references:new Set()};groups.set(supplierId,group)}
+  const currency=String(payable.currency||"");if(!group.currencies[currency])group.currencies[currency]={outstandingMinor:0,bookValueRial:0,payableCount:0};
+  const bucket=group.currencies[currency],remaining=Number(payable.amountMinor)-Number(payable.paidMinor||0),bookValue=Number(payable.bookedRial)-Number(payable.bookedRialPaid||0);
+  if(!Number.isSafeInteger(remaining)||remaining<0||!Number.isSafeInteger(bookValue)||bookValue<0)throw new Error("مانده تعهد ارزی برای تطبیق معتبر نیست");
+  bucket.outstandingMinor+=remaining;bucket.bookValueRial+=bookValue;bucket.payableCount++;
+  group.payables.push({payableId:payable.id,sourceNumber:payable.sourceNumber,currency,remainingMinor:remaining,bookValueRial:bookValue});
+  group.references.add("IMPORT-RECEIPT:"+String(payable.sourceNumber||""));
+  for(const payment of payments.filter(x=>Number(x.payableId)===Number(payable.id))){
+   if(payment.reference)group.references.add(String(payment.reference));
+   if(payment.status==="REVERSED")group.references.add("FXPAY-REV:"+payment.id);
+  }
+ }
+ const rows=[...groups.values()].map(group=>{
+  const refs=group.references,ledgerRows=partyLedger.filter(x=>refs.has(String(x.referenceId||""))&&Number(x.partyId)===group.supplierId);
+  const partyLedgerBalanceRial=ledgerRows.reduce((n,x)=>n+Number(x.creditRial||0)-Number(x.debitRial||0),0);
+  const voucherIds=new Set(vouchers.filter(x=>refs.has(String(x.reference||""))).map(x=>Number(x.id)));
+  const liabilityLines=voucherLines.filter(x=>voucherIds.has(Number(x.voucherId))&&String(x.accountCode)==="2101");
+  const generalLedgerBalanceRial=liabilityLines.reduce((n,x)=>n+Number(x.creditRial||0)-Number(x.debitRial||0),0);
+  const bookValueRial=Object.values(group.currencies).reduce((n,x)=>n+x.bookValueRial,0);
+  const ledgerDeltaRial=partyLedgerBalanceRial-bookValueRial,generalLedgerDeltaRial=generalLedgerBalanceRial-bookValueRial,subledgerDeltaRial=partyLedgerBalanceRial-generalLedgerBalanceRial;
+  const issues=[];if(ledgerDeltaRial!==0)issues.push("مانده تفصیلی با ارزش دفتری تعهدها برابر نیست");if(generalLedgerDeltaRial!==0)issues.push("حساب کل ۲۱۰۱ مرتبط با محموله‌ها با ارزش دفتری برابر نیست");if(subledgerDeltaRial!==0)issues.push("دفتر تفصیلی تأمین‌کننده با حساب کل مرتبط برابر نیست");
+  return {supplierId:group.supplierId,supplierName:group.supplierName,currencies:group.currencies,payableCount:group.payables.length,payables:group.payables,bookValueRial,partyLedgerBalanceRial,generalLedgerBalanceRial,ledgerDeltaRial,generalLedgerDeltaRial,subledgerDeltaRial,ok:issues.length===0,issues,referenceCount:refs.size};
+ });
+ return {total:rows.length,matched:rows.filter(x=>x.ok).length,withIssues:rows.filter(x=>!x.ok).length,rows};
+}
+
 function summarizeForeignPayablesForecast(input){
  const rows=Array.isArray(input.payables)?input.payables:[],asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?30:input.horizonDays);
  if(!Number.isFinite(asOf)||!Number.isSafeInteger(days)||days<0||days>366)throw new Error("بازه پیش‌بینی سررسید معتبر نیست");
@@ -114,6 +147,6 @@ function summarizeForeignPayablesForecast(input){
  }
  return result;
 }
-const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,allocateForeignPayablePaymentToInstallments,getRemainingForeignPayableInstallments,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast,reconcileForeignPayablePayments};
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,allocateForeignPayablePaymentToInstallments,getRemainingForeignPayableInstallments,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast,reconcileForeignPayablePayments,reconcileForeignPayableBalances};
 if(typeof module!=="undefined")module.exports=ForeignPayables;
 if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

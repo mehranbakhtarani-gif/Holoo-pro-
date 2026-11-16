@@ -139,3 +139,10 @@ test("cash flow dashboard reports first and worst projected shortfall dates and 
  const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
  assert.match(app,/firstShortfallDay/);assert.match(app,/worstShortfallDay/);assert.match(app,/shortfallDays/);assert.match(app,/اولین روز کسری نقد/);assert.match(app,/شدیدترین کسری نقد/);assert.match(app,/روزهای دارای کسری/);
 });
+
+test("cash flow opening balance includes every cash and bank subaccount, not only control accounts",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const cashBalanceGroup=prefix=>accounts\.filter\(x=>x\.type==="ASSET"&&String\(x\.id\)\.startsWith\(prefix\)\)/);
+ assert.match(app,/cashBalanceGroup\("1101"\),bankBalanceRial=cashBalanceGroup\("1102"\)/);
+ assert.match(app,/voucherLines\.filter\(x=>String\(x\.accountCode\)===code\)/);
+});

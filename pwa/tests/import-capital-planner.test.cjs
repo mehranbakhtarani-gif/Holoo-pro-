@@ -35,3 +35,15 @@ test("handles zero ancillary costs and zero supplier advance",()=>{
  assert.equal(p.cashNeededNow,0);assert.equal(p.futureSupplierPayable,30000000000);
  assert.equal(p.landedCostPerKg,1500000);assert.equal(p.cashGap,0);
 });
+
+test("capital planner converts USD cents exactly and rejects unsupported fractional precision",()=>{
+ const p=calculateImportCapitalPlan({...base,goodsUsdPerContainer:50000.25});
+ assert.equal(p.totalGoodsUsd,50000.25);
+ assert.equal(p.goodsRialPerContainer,30000150000);
+ assert.throws(()=>calculateImportCapitalPlan({...base,goodsUsdPerContainer:50000.123}),/معتبر/);
+});
+test("capital planner rejects overflow in landed cost, cash requirement and projected revenue",()=>{
+ assert.throws(()=>calculateImportCapitalPlan({...base,otherCostsRialPerContainer:Number.MAX_SAFE_INTEGER,containerCount:2}),/محدوده/);
+ assert.throws(()=>calculateImportCapitalPlan({...base,fxRialPerUsd:Number.MAX_SAFE_INTEGER}),/محدوده/);
+ assert.throws(()=>calculateImportCapitalPlan({...base,salePriceRialPerKg:Number.MAX_SAFE_INTEGER,grossKgPerContainer:100}),/محدوده/);
+});

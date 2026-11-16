@@ -7,7 +7,7 @@ test("inventory search covers product identifiers, yarn attributes and denier",(
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/x\\.sku,x\\.barcode,x\\.name,x\\.group,x\\.yarn,x\\.color,x\\.denier/);
  assert.match(app,/toLocaleLowerCase\("fa"\)/);
- assert.match(app,/جست‌وجوی کد، نام، گروه، نوع نخ، دنیر یا رنگ/);
+ assert.match(app,/جست‌وجوی کد، بارکد، نام، گروه، نوع نخ، دنیر یا رنگ/);
 });
 
 test("inventory price labels follow the selected display unit and show average cost",()=>{

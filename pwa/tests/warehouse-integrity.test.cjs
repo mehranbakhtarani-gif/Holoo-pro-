@@ -35,3 +35,11 @@ test("warehouse page exposes per-product stock, average cost and inventory value
  assert.match(app,/بهای میانگین هر kg/);
  assert.match(app,/money\(x\.average\|\|0\)/);
 });
+test("warehouse page exports a Persian-compatible CSV stock valuation report",()=>{
+ assert.match(app,/id="exportWarehouseStockCsv"/);
+ assert.match(app,/holloo-warehouse-stock\.csv/);
+ assert.match(app,/بهای میانگین ریال/);
+ assert.match(app,/ارزش موجودی ریال/);
+ assert.match(app,/\\\\uFEFF/);
+});
+

@@ -151,6 +151,33 @@ function summarizeForeignPayablesForecast(input){
  }
  return result;
 }
-const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,allocateForeignPayablePaymentToInstallments,getRemainingForeignPayableInstallments,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast,reconcileForeignPayablePayments,reconcileForeignPayableBalances};
+
+function filterForeignPayableBalanceRows(input){
+ const rows=Array.isArray(input.rows)?input.rows:[];
+ const supplierId=input.supplierId==null?"":String(input.supplierId),currency=input.currency==null?"":String(input.currency),status=input.status==null?"":String(input.status);
+ return rows.filter(row=>{
+  if(supplierId&&String(row.supplierId)!==supplierId)return false;
+  if(status==="MATCHED"&&!row.ok)return false;
+  if(status==="ISSUES"&&row.ok)return false;
+  if(currency&&!Object.prototype.hasOwnProperty.call(row.currencies||{},currency))return false;
+  return true;
+ });
+}
+function buildForeignPayableBalanceCsv(input){
+ const rows=filterForeignPayableBalanceRows(input),cells=[
+  ["تأمین‌کننده","شناسه تأمین‌کننده","ارز","مانده ارزی","ارزش دفتری ریالی","مانده تفصیلی ریالی","مانده کل ۲۱۰۱ ریالی","اختلاف تفصیلی","اختلاف کل","وضعیت","شماره محموله","مراجع ردیابی"]
+ ];
+ for(const row of rows){
+  const trace=Array.isArray(row.trace)?row.trace:[];
+  const currencies=Object.entries(row.currencies||{});
+  for(const [currency,balance] of currencies){
+   const shipments=trace.filter(x=>x.currency===currency);
+   cells.push([row.supplierName,row.supplierId,currency,Number(balance.outstandingMinor||0)/100,Number(balance.bookValueRial||0),Number(row.partyLedgerBalanceRial||0),Number(row.generalLedgerBalanceRial||0),Number(row.ledgerDeltaRial||0),Number(row.generalLedgerDeltaRial||0),row.ok?"منطبق":"دارای مغایرت",shipments.map(x=>x.sourceNumber).join("؛ "),shipments.flatMap(x=>[x.receiptReference,...(x.payments||[]).flatMap(p=>[p.reference,p.reversalReference].filter(Boolean))]).filter(Boolean).join("؛ ")]);
+  }
+ }
+ const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
+ return "\\uFEFF"+cells.map(row=>row.map(quote).join(",")).join("\\r\\n");
+}
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,allocateForeignPayablePaymentToInstallments,getRemainingForeignPayableInstallments,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast,reconcileForeignPayablePayments,reconcileForeignPayableBalances,filterForeignPayableBalanceRows,buildForeignPayableBalanceCsv};
 if(typeof module!=="undefined")module.exports=ForeignPayables;
 if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

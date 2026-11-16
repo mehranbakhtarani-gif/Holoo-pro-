@@ -15,3 +15,11 @@ test("unsettled invoices expose a direct allocation action that preselects the i
  assert.match(app,/data-invoice-allocate=/);
  assert.match(app,/openForm\("allocations"\).*form\.elements\.invoiceId\.value=allocateButton\.dataset\.invoiceAllocate/);
 });
+
+ 
+test("invoice notes are saved and included on the printed invoice",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/name="note" rows="3"/);
+ assert.match(app,/note:String\(d\.note\|\|""\)\.trim\(\)/);
+ assert.match(app,/h\(invoice\.note\|\|""\)/);
+});

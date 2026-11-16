@@ -158,6 +158,23 @@ function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
   return Number.isSafeInteger(oldFrom)&&Number.isSafeInteger(oldTo)&&oldFrom<=oldTo&&fromDate<=oldTo&&toDate>=oldFrom;
  });
 }
-const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildLedgerRunningRows,buildLedgerCsv,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
+function summarizePostedSales(invoices){
+ let totalSales=0,cogs=0,count=0;
+ for(const invoice of invoices||[]){
+  if(invoice.kind!=="SALE"||(invoice.status&&invoice.status!=="POSTED"))continue;
+  const total=Number(invoice.total||0),tax=Number(invoice.tax||0),discount=Number(invoice.discount||0);
+  const revenue=invoice.subtotal===undefined?total-tax:Number(invoice.subtotal)-discount;
+  const cost=Number(invoice.cogs||0);
+  if(!Number.isSafeInteger(revenue)||revenue<0||!Number.isSafeInteger(cost)||cost<0)throw new Error("مبلغ فروش خالص یا بهای تمام‌شده فاکتور معتبر نیست");
+  totalSales+=revenue;cogs+=cost;count++;
+  if(!Number.isSafeInteger(totalSales)||!Number.isSafeInteger(cogs))throw new Error("جمع فروش یا بهای تمام‌شده از محدوده مجاز خارج است");
+ }
+ return {count,totalSales,cogs,grossProfit:totalSales-cogs};
+}
+function countOverdueChecks(checks,asOf=Date.now()){
+ const timestamp=Number(asOf);if(!Number.isSafeInteger(timestamp))throw new Error("تاریخ مبنای سررسید چک معتبر نیست");
+ return (checks||[]).filter(check=>check.status==="OPEN"&&check.purpose!=="ضمانت"&&Number.isSafeInteger(Number(check.due))&&Number(check.due)>0&&Number(check.due)<timestamp).length;
+}
+const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildLedgerRunningRows,buildLedgerCsv,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose,summarizePostedSales,countOverdueChecks};
 if(typeof module!=="undefined"&&module.exports)module.exports=accountingReportsApi;
 if(typeof globalThis!=="undefined")globalThis.HolooAccountingReports=accountingReportsApi;

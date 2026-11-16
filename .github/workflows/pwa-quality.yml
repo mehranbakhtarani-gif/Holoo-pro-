@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - feature/pwa-customization-framework
+      - feature/pwa-customization-qa
     paths:
       - "pwa/**"
       - ".github/workflows/pwa-quality.yml"

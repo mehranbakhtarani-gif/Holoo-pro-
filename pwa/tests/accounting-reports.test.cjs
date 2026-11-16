@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,buildTrialBalanceColumns,buildLedgerRunningRows,buildLedgerCsv,hasOverlappingPeriodClose}=require("../accounting-reports.js");
+const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,buildTrialBalanceColumns,buildLedgerRunningRows,buildLedgerCsv,hasOverlappingPeriodClose,summarizePostedSales,countOverdueChecks}=require("../accounting-reports.js");
 
 const accounts=[
  {id:"1101",title:"Cash",type:"ASSET",openingDebitRial:80000,openingCreditRial:0},
@@ -119,4 +119,44 @@ test("ledger CSV exports filtered rows, opening-aware balances and escaped Persi
  assert.match(csv,/شرح ""آزمایشی""/);
  assert.match(csv,/1050/);
  assert.doesNotMatch(csv,/بعدی/);
+});
+
+
+test("dashboard sales summary excludes sales tax and non-posted invoices",()=>{
+ const summary=summarizePostedSales([
+  {kind:"SALE",status:"POSTED",subtotal:1000,discount:100,tax:90,total:990,cogs:400},
+  {kind:"SALE",subtotal:500,discount:0,tax:45,total:545,cogs:200},
+  {kind:"SALE",status:"DRAFT",subtotal:900,discount:0,tax:0,total:900,cogs:300},
+  {kind:"SALE",status:"REVERSED",subtotal:700,discount:0,tax:0,total:700,cogs:250},
+  {kind:"PURCHASE",status:"POSTED",subtotal:1000,discount:0,tax:0,total:1000,cogs:500}
+ ]);
+ assert.deepEqual(summary,{count:2,totalSales:1400,cogs:600,grossProfit:800});
+});
+
+test("dashboard sales summary rejects invalid and overflowing invoice totals",()=>{
+ assert.throws(()=>summarizePostedSales([{kind:"SALE",status:"POSTED",subtotal:1.5,discount:0,cogs:0}]),/معتبر/);
+ assert.throws(()=>summarizePostedSales([
+  {kind:"SALE",status:"POSTED",subtotal:Number.MAX_SAFE_INTEGER,discount:0,cogs:0},
+  {kind:"SALE",status:"POSTED",subtotal:1,discount:0,cogs:0}
+ ]),/محدوده/);
+});
+
+test("dashboard overdue check count excludes guarantees and invalid or future dates",()=>{
+ const now=1000000;
+ assert.equal(countOverdueChecks([
+  {status:"OPEN",purpose:"عادی",due:now-1},
+  {status:"OPEN",purpose:"ضمان",due:now-2},
+  {status:"OPEN",purpose:"عادی",due:now+1},
+  {status:"CLEARED",purpose:"عادی",due:now-3},
+  {status:"OPEN",purpose:"عادی",due:"invalid"},
+  {status:"OPEN",purpose:"عادی",due:0}
+ ],now),1);
+});
+
+test("dashboard and accounting summary use the tested net-sales and overdue-check helpers",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/HolooAccountingReports\.summarizePostedSales\(invoices\)/);
+ assert.match(app,/HolooAccountingReports\.countOverdueChecks\(checks,Date\.now\(\)\)/);
+ assert.match(app,/فروش خالص ثبت‌شده/);
+ assert.match(app,/بدون مالیات فروش/);
 });

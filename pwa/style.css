@@ -97,3 +97,16 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 #crPreview h3{margin:12px 0}
 #crPreview .toolbar{display:flex;gap:8px;flex-wrap:wrap}
 #crPreview table{min-width:600px}
+
+/* Dashboard first-tab refinement */
+.welcome{position:relative;overflow:hidden;isolation:isolate;padding:clamp(22px,3vw,34px);background:linear-gradient(118deg,#164b5e 0%,#14364f 58%,#10283f 100%);box-shadow:0 18px 42px #02091445}
+.welcome:after{content:"";position:absolute;z-index:-1;width:240px;height:240px;border:1px solid #7bd9d233;border-radius:50%;inset:auto -70px -150px auto;box-shadow:0 0 0 24px #7bd9d20a,0 0 0 48px #7bd9d208}
+.welcome h2{font-size:clamp(20px,2.3vw,27px);letter-spacing:-.35px}
+.welcome p{line-height:1.9;max-width:620px}
+.quick-grid{grid-template-columns:repeat(4,minmax(0,1fr));max-width:820px}
+.quick{min-height:48px;font-weight:700;transition:background .18s,border-color .18s,transform .18s}
+.quick:hover{background:#16475a;transform:translateY(-1px)}
+.main>.grid+.section-title{margin-top:30px}
+.main>.grid .stat{min-width:0;transition:border-color .18s,transform .18s}
+.main>.grid .stat:hover{border-color:#4b8796;transform:translateY(-2px)}
+@media(max-width:650px){.welcome{padding:20px 16px}.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quick{padding:12px 8px}.welcome h2{font-size:19px}}

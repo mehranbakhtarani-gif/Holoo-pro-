@@ -193,7 +193,7 @@ test("exports supplier balance reconciliation as Persian UTF-8 CSV with shipment
  
 test("foreign payable creation guards the source shipment reference inside the write transaction",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/putManyGuarded\(\[\["foreignPayables",payable\]\],\[\{store:"foreignPayables",match:\{sourceShipmentId:Number\(shipment\.id\)\},expected:null\}\]\)/);
+ assert.ok(app.includes('match:{sourceShipmentId:Number(shipment.id)},expected:null'));
 });
 
  

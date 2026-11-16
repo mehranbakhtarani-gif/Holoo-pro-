@@ -75,3 +75,9 @@ test("parties page filters by name, type, phone and address",()=>{
  assert.match(app,/جست‌وجوی نام، تلفن، نشانی یا نوع طرف حساب/);
  assert.match(app,/parties\.filter\(x=>\[x\.name,x\.kind,x\.phone,x\.address\]/);
 });
+
+ 
+test("party type changes are blocked while linked import shipments exist",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/all\("importShipments"\).*shipments\.some\(x=>Number\(x\.supplierId\)===Number\(item\.id\)\)/);
+});

@@ -77,3 +77,9 @@ test("cash flow dashboard exports summary and all visible forecast tables as CSV
  assert.match(app,/textContent\.trim\(\)/);
  assert.match(app,/text\/csv;charset=utf-8/);
 });
+
+
+test("cash flow dashboard renders an interactive monthly calendar with daily inflow and outflow totals",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8"),css=fs.readFileSync(path.join(__dirname,"..","style.css"),"utf8");
+ assert.match(app,/cashFlowCalendarOffset/);assert.match(app,/data-cash-calendar-nav/);assert.match(app,/data-cash-calendar-day/);assert.match(app,/cash-calendar-in/);assert.match(app,/cash-calendar-out/);assert.match(app,/displayEvents=cashFlowCalendarSelectedDate/);assert.match(css,/\.cash-calendar-grid/);assert.match(css,/\.cash-calendar-day/);
+});

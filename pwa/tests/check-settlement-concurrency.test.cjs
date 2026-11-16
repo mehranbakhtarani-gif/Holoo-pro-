@@ -26,8 +26,9 @@ test("cheque endorsement revalidates cheque and both party balances atomically",
  const end=app.indexOf("c.status=next",start);
  assert.ok(handler>=0&&start>handler&&end>start,"cheque endorsement branch must exist");
  const body=app.slice(start,end);
+ const checkSnapshotAt=app.lastIndexOf("const checkSnapshot={...c}",start);
+ assert.ok(checkSnapshotAt>handler,"Cheque snapshot must be captured before either settlement branch");
  for(const expected of [
-  "const checkSnapshot={...c}",
   "const partySnapshot={...party}",
   "const targetSnapshot={...target}",
   'store:"checks",key:c.id,expected:checkSnapshot',

@@ -854,11 +854,21 @@ private fun ChecksScreen(
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var editingCheck by remember { mutableStateOf<CheckEntity?>(null) }
+    var searchText by remember { mutableStateOf("") }
+    var pendingStatus by remember { mutableStateOf<Pair<CheckEntity, String>?>(null) }
+    val visibleChecks = checks.filter { item ->
+        val partyName = parties.firstOrNull { it.id == item.partyId }?.name.orEmpty()
+        item.checkNumber.contains(searchText, true) || partyName.contains(searchText, true) ||
+            item.bankName.contains(searchText, true) || item.note.contains(searchText, true) ||
+            item.status.contains(searchText, true) || item.amountRial.toString().contains(searchText)
+    }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("مدیریت چک‌ها", "چک‌های دریافتی و پرداختی، سررسید و وضعیت وصول") { editingCheck = null; showDialog = true }
+        FormField("جست‌وجوی شماره، طرف حساب، بانک، مبلغ یا وضعیت چک", searchText) { searchText = it }
         if (checks.isEmpty()) EmptyState("چکی ثبت نشده است", "چک‌های دریافتی مشتری و پرداختی تأمین‌کننده را ثبت کن")
+        else if (visibleChecks.isEmpty()) EmptyState("چکی پیدا نشد", "عبارت جست‌وجو را تغییر بده یا پاک کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
-            items(checks, key = { it.id }) { item ->
+            items(visibleChecks, key = { it.id }) { item ->
                 val party = parties.firstOrNull { it.id == item.partyId }?.name ?: "طرف حساب"
                 val dateKey = java.text.SimpleDateFormat("yyyyMMdd", Locale.US)
                 val overdue = item.status == "OPEN" && dateKey.format(java.util.Date(item.dueDateEpoch)) < dateKey.format(java.util.Date())
@@ -871,9 +881,9 @@ private fun ChecksScreen(
                         Text(when (item.status) { "CLEARED" -> "وصول/پرداخت‌شده"; "BOUNCED" -> "برگشتی"; "CANCELLED" -> "باطل‌شده"; else -> if (overdue) "سررسید گذشته" else "باز" }, color = if (overdue) Color(0xFFFF9D9D) else Turquoise, fontSize = 11.sp)
                         if (item.status == "OPEN") Row {
                             TextButton(onClick = { editingCheck = item; showDialog = true }) { Text("ویرایش", color = Turquoise) }
-                            TextButton(onClick = { onUpdateStatus(item.id, "CLEARED") }) { Text("تسویه شد", color = Turquoise) }
-                            TextButton(onClick = { onUpdateStatus(item.id, "BOUNCED") }) { Text("برگشتی", color = Color(0xFFFF9D9D)) }
-                            TextButton(onClick = { onUpdateStatus(item.id, "CANCELLED") }) { Text("باطل شد", color = Muted) }
+                            TextButton(onClick = { pendingStatus = item to "CLEARED" }) { Text(if (item.kind == "RECEIVED") "وصول شد" else "پرداخت شد", color = Turquoise) }
+                            TextButton(onClick = { pendingStatus = item to "BOUNCED" }) { Text("برگشتی", color = Color(0xFFFF9D9D)) }
+                            TextButton(onClick = { pendingStatus = item to "CANCELLED" }) { Text("باطل شد", color = Muted) }
                         }
                     }
                 }
@@ -885,6 +895,26 @@ private fun ChecksScreen(
         if (current == null) onAdd(a,b,c,d,e,f,g,h) { showDialog = false }
         else onEdit(current.id, a,b,c,d,e,f,g,h) { showDialog = false; editingCheck = null }
     })
+    pendingStatus?.let { (item, status) ->
+        val actionLabel = when (status) {
+            "CLEARED" -> if (item.kind == "RECEIVED") "وصول" else "پرداخت"
+            "BOUNCED" -> "برگشت"
+            else -> "ابطال"
+        }
+        AlertDialog(
+            onDismissRequest = { pendingStatus = null },
+            title = { Text("تأیید تغییر وضعیت چک") },
+            text = { Text("وضعیت چک ${item.checkNumber} به «$actionLabel» تغییر کند؟") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onUpdateStatus(item.id, status)
+                    pendingStatus = null
+                }) { Text("تأیید") }
+            },
+            dismissButton = { TextButton(onClick = { pendingStatus = null }) { Text("انصراف") } },
+            containerColor = Color(0xFF15324D), titleContentColor = Color.White, textContentColor = Color.White
+        )
+    }
 }
 
 @Composable

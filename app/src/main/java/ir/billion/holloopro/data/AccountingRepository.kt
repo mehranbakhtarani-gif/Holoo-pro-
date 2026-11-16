@@ -11,6 +11,7 @@ import java.util.Locale
 import java.util.UUID
 
 class AccountingRepository(private val db: AppDatabase) {
+    fun setOperationDate(epochMillis: Long?) = OperationClock.setManualDate(epochMillis)
     val products = db.productDao().observeWithStock()
     val warehouses = db.warehouseDao().observeAll()
     val warehouseStocks = db.warehouseStockDao().observeStocks()

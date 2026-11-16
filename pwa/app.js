@@ -24,7 +24,7 @@ async function reverseClearedCheckPwa(id){
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(voucher.id)),amount=Number(check.amount);
  const debit=oldLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=oldLines.reduce((n,x)=>n+Number(x.creditRial||0),0);
  if(oldLines.length<2||debit!==credit||debit!==amount)throw Error("سند وصول چک با مبلغ چک مطابقت ندارد");
- const checkSnapshot={status:check.status,clearedAt:check.clearedAt,reversalVoucherNumber:check.reversalVoucherNumber},partySnapshot={balance:party.balance},treasurySnapshot={status:original.status,amount:original.amount,kind:original.kind,allocationVersion:original.allocationVersion},now=Date.now(),reversalReference="CHECK:REV:"+check.id;
+ const checkSnapshot={status:check.status,clearedAt:check.clearedAt,reversalVoucherNumber:check.reversalVoucherNumber},partySnapshot={...party},treasurySnapshot={status:original.status,amount:original.amount,kind:original.kind,allocationVersion:original.allocationVersion},now=Date.now(),reversalReference="CHECK:REV:"+check.id;
  original.status="REVERSED";original.reversedAt=now;
  applyPartyBalanceDelta(party,original.kind==="RECEIPT"?amount:-amount);
  check.status="BOUNCED";check.bouncedAfterClearing=true;check.bouncedAt=now;check.statusChangedAt=now;check.reversalVoucherNumber="CHREV-"+now;
@@ -46,7 +46,7 @@ async function reverseTreasuryPwa(id){
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(voucher.id));
  const debit=oldLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=oldLines.reduce((n,x)=>n+Number(x.creditRial||0),0);
  if(oldLines.length<2||debit!==credit||debit!==Number(original.amount))throw Error("سند خزانه با مبلغ تراکنش مطابقت ندارد");
- const originalSnapshot={status:original.status,amount:original.amount,kind:original.kind,allocationVersion:original.allocationVersion},partySnapshot={balance:party.balance},now=Date.now(),reference="TREASURY-REV:"+original.id;
+ const originalSnapshot={status:original.status,amount:original.amount,kind:original.kind,allocationVersion:original.allocationVersion},partySnapshot={...party},now=Date.now(),reference="TREASURY-REV:"+original.id;
  original.status="REVERSED";original.reversedAt=now;
  applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));
  const reversal={kind:original.kind==="RECEIPT"?"PAYMENT":"RECEIPT",method:original.method,partyId:party.id,partyName:party.name,currency:original.currency||"IRR",amount:original.amount,foreignAmountMinor:original.foreignAmountMinor||null,fxRateRialPerUnit:original.fxRateRialPerUnit||1,date:now,note:"برگشت "+(original.kind==="RECEIPT"?"دریافت":"پرداخت")+" "+(original.note||""),reference,reversalOfId:original.id};
@@ -84,7 +84,7 @@ async function reverseTreasuryAllocationPwa(id){
  if(oldLines.length<2||debit!==credit||debit!==gain+loss)throw Error("سند تسعیر اصلی با مبلغ تخصیص مطابقت ندارد");
  const party=parties.find(row=>Number(row.id)===Number(allocation.partyId));
  if(!party)throw Error("طرف حساب تخصیص پیدا نشد");
- const partySnapshot={balance:party.balance},reference="FX-SETTLEMENT-REV:"+allocation.id;
+ const partySnapshot={...party},reference="FX-SETTLEMENT-REV:"+allocation.id;
  applyPartyBalanceDelta(party,-gain+loss);
  allocation.originalTreasuryId=allocation.treasuryId;allocation.treasuryId=null;allocation.status="REVERSED";allocation.reversedAt=now;
  const ledger={partyId:party.id,date:now,debitRial:loss,creditRial:gain,description:"برگشت تسعیر تخصیص "+allocation.invoiceNumber,referenceId:reference};

@@ -24,5 +24,5 @@ jobs:
           node --check pwa/app.js
           node --check pwa/custom-fields.js
           node --check pwa/sw.js
-      - name: PWA customization acceptance checks
-        run: node --test pwa/tests/custom-fields.test.cjs
+      - name: Full PWA regression suite
+        run: node --test pwa/tests/*.test.cjs

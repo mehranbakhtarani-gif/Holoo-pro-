@@ -46,7 +46,7 @@ test("PWA wires the cash flow dashboard and helper into the offline build",()=>{
  assert.match(app,/buildCashFlowForecast\(/);assert.match(app,/1101/);assert.match(app,/1102/);
  assert.match(app,/data-cash-horizon/);assert.match(app,/treasuryAllocations/);
  assert.match(html,/cash-flow-forecast\.js/);assert.ok(html.indexOf("cash-flow-forecast.js")<html.indexOf("app.js"));
- assert.match(sw,/cash-flow-forecast\.js/);assert.match(sw,/import-capital-planner\.js/);assert.match(sw,/holloo-pwa-v56-visual-audit/);
+ assert.match(sw,/cash-flow-forecast\.js/);assert.match(sw,/import-capital-planner\.js/);assert.match(sw,/holloo-pwa-v57-mobile-layout/);
 });
 
 test("detects an intrawweek cash shortfall even when the weekly closing balance recovers",()=>{

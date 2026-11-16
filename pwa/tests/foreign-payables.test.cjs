@@ -45,4 +45,14 @@ test("forecasts open supplier obligations by currency and due-date window withou
 });
 
 
-test("adds supplier installment plans without posting payment and prevents over-planning",()=>{\n const {planForeignPayableInstallment,clearForeignPayableInstallmentPlan}=require("../foreign-payables.js"),p=payable(),first=planForeignPayableInstallment({payable:p,amountMinor:25000,dueDate:1000,createdAt:2000}),second=planForeignPayableInstallment({payable:first,amountMinor:50000,dueDate:2000,createdAt:3000});\n assert.equal(second.paymentPlan.length,2);assert.equal(second.paidMinor,0);assert.equal(second.status,"OPEN");assert.throws(()=>planForeignPayableInstallment({payable:second,amountMinor:25001,dueDate:3000}),/بیشتر/);\n const cleared=clearForeignPayableInstallmentPlan(second);assert.deepEqual(cleared.paymentPlan,[]);assert.equal(cleared.paidMinor,0);\n assert.throws(()=>planForeignPayableInstallment({payable:p,amountMinor:100,dueDate:0}),/معتبر/);\n});\n\ntest("cash flow uses planned installments and keeps unplanned balance on contractual due date",()=>{\n const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");\n assert.match(app,/planForeignPayableInstallment/);assert.match(app,/قسط برنامه‌ریزی‌شده تعهد ارزی/);assert.match(app,/مانده برنامه‌ریزی‌نشده تعهد ارزی/);assert.match(app,/data-fx-plan-add/);assert.match(app,/data-fx-plan-clear/);\n});\n
+test("adds supplier installment plans without posting payment and prevents over-planning",()=>{
+ const {planForeignPayableInstallment,clearForeignPayableInstallmentPlan}=require("../foreign-payables.js"),p=payable(),first=planForeignPayableInstallment({payable:p,amountMinor:25000,dueDate:1000,createdAt:2000}),second=planForeignPayableInstallment({payable:first,amountMinor:50000,dueDate:2000,createdAt:3000});
+ assert.equal(second.paymentPlan.length,2);assert.equal(second.paidMinor,0);assert.equal(second.status,"OPEN");assert.throws(()=>planForeignPayableInstallment({payable:second,amountMinor:25001,dueDate:3000}),/بیشتر/);
+ const cleared=clearForeignPayableInstallmentPlan(second);assert.deepEqual(cleared.paymentPlan,[]);assert.equal(cleared.paidMinor,0);
+ assert.throws(()=>planForeignPayableInstallment({payable:p,amountMinor:100,dueDate:0}),/معتبر/);
+});
+
+test("cash flow uses planned installments and keeps unplanned balance on contractual due date",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
+ assert.match(app,/planForeignPayableInstallment/);assert.match(app,/قسط برنامه‌ریزی‌شده تعهد ارزی/);assert.match(app,/مانده برنامه‌ریزی‌نشده تعهد ارزی/);assert.match(app,/data-fx-plan-add/);assert.match(app,/data-fx-plan-clear/);
+});

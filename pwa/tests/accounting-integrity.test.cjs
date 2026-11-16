@@ -10,7 +10,7 @@ test("opening balances are locked after the first posted voucher",()=>{
 });
 
 test("manual vouchers cannot bypass cash, bank and party control ledgers",()=>{
- assert.match(app,/\["1101","1102","1103","2101"\]\.includes\(String\(x\.accountCode\)\)/);
+ assert.match(app,/\["1101","1102","1103","1301","1501","1502","2101","2102","2104","2105","3102"\]\.includes\(String\(x\.accountCode\)\)/);
 });
 
 test("system control account types cannot be changed from the chart editor",()=>{

@@ -87,10 +87,10 @@ function summarizeLotProfit(input){
    if(!Number.isFinite(qtyBase)||qtyBase<=0||!Number.isSafeInteger(lineRevenue)||lineRevenue<0)continue;
    let allocatedRevenue=0;
    allocations.forEach((allocation,index)=>{
-    const lot=lotById.get(String(allocation.lotId)),rootId=String(allocation.originLotId||lot?.originLotId||lot?.id||allocation.lotId),row=summaries.get(rootId);
-    if(!row)return;
     const revenue=index===allocations.length-1?lineRevenue-allocatedRevenue:Math.round(lineRevenue*Number(allocation.quantity)/qtyBase);
-    allocatedRevenue+=revenue;row.revenue+=revenue;
+    allocatedRevenue+=revenue;
+    const lot=lotById.get(String(allocation.lotId)),rootId=String(allocation.originLotId||lot?.originLotId||lot?.id||allocation.lotId),row=summaries.get(rootId);
+    if(row)row.revenue+=revenue;
    });
   }
  }

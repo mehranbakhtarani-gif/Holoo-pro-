@@ -34,7 +34,7 @@ test("PWA posts non-zero party opening balance atomically with party, ledger and
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
  const sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
- assert.ok(html.indexOf("party-opening-balance.js")<html.indexOf("app.js?v=operation-date-1"));
+ assert.ok(html.indexOf("party-opening-balance.js")<html.indexOf("app.js?v=audit-search-2"));
  assert.match(sw,/party-opening-balance\\.js/);
  assert.match(app,/\["3102","مانده افتتاحیه اشخاص","EQUITY"\]/);
  assert.match(app,/db\.transaction\(\["parties","partyLedger","vouchers","voucherLines","auditLog"\],"readwrite"\)/);

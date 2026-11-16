@@ -138,3 +138,19 @@ test("provides shipment-level trace from foreign balance to payment and voucher 
  assert.equal(trace.sourceNumber,"SHIP-21");assert.equal(trace.payments[0].reversalReference,"FXPAY-REV:44");
  assert.deepEqual(trace.vouchers.map(x=>x.number),["V-1","V-2","V-3"]);assert.equal(trace.partyLedgerRows,3);
 });
+
+test("filters supplier balance rows by supplier, currency and reconciliation status",()=>{
+ const {filterForeignPayableBalanceRows}=require("../foreign-payables.js");
+ const rows=[{supplierId:1,ok:true,currencies:{USD:{}}},{supplierId:2,ok:false,currencies:{CNY:{}}}];
+ assert.equal(filterForeignPayableBalanceRows({rows,supplierId:2}).length,1);
+ assert.equal(filterForeignPayableBalanceRows({rows,currency:"USD"}).length,1);
+ assert.equal(filterForeignPayableBalanceRows({rows,status:"ISSUES"})[0].supplierId,2);
+});
+test("exports supplier balance reconciliation as Persian UTF-8 CSV with shipment references",()=>{
+ const {buildForeignPayableBalanceCsv}=require("../foreign-payables.js");
+ const csv=buildForeignPayableBalanceCsv({rows:[{supplierId:3,supplierName:'شرکت "الف"',ok:false,partyLedgerBalanceRial:20,generalLedgerBalanceRial:30,ledgerDeltaRial:2,generalLedgerDeltaRial:3,currencies:{USD:{outstandingMinor:1250,bookValueRial:10}},trace:[{currency:"USD",sourceNumber:"S-1",receiptReference:"IMPORT-RECEIPT:S-1",payments:[{reference:"FXP-1",reversalReference:"FXPR-1"}]}]}]});
+ assert.ok(csv.startsWith("\\uFEFF"));
+ assert.ok(csv.includes('"شرکت ""الف"""'));
+ assert.ok(csv.includes("IMPORT-RECEIPT:S-1"));
+ assert.ok(csv.includes("FXPR-1"));
+});

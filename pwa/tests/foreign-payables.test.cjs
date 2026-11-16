@@ -188,3 +188,9 @@ test("exports supplier balance reconciliation as Persian UTF-8 CSV with shipment
  assert.ok(csv.includes("IMPORT-RECEIPT:S-1"));
  assert.ok(csv.includes("FXPR-1"));
 });
+
+ 
+test("foreign payable creation guards the source shipment reference inside the write transaction",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/putManyGuarded\(\[\["foreignPayables",payable\]\],\[\{store:"foreignPayables",match:\{sourceShipmentId:Number\(shipment\.id\)\},expected:null\}\]\)/);
+});

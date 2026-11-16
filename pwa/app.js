@@ -17,7 +17,7 @@ async function reversePwaInvoice(number){
  const partySnapshots=new Map(parties.map(row=>[Number(row.id),{...row}]));
  const warehouseStockSnapshots=new Map(warehouseStockRows.map(row=>[Number(row.productId)+":"+Number(row.warehouseId),{...row}]));
  const lotSnapshots=new Map(inventoryLots.map(row=>[String(row.id),{...row}]));
- const updated=[],warehouseUpdates=[],lotUpdates=[],lotAllocationsToRestore=[];
+ const updated=[],warehouseUpdates=[],lotUpdates=[],lotAllocationsToRestore=[];let purchaseReversalInventoryCost=0;
  for(const line of lines){
   const product=products.find(x=>Number(x.id)===Number(line.productId));
   if(!product)throw Error("کالای "+(line.productName||line.productId)+" پیدا نشد");
@@ -49,6 +49,7 @@ async function reversePwaInvoice(number){
     if(!Number.isSafeInteger(cost)||cost<0||!Number.isSafeInteger(originalCost)||cost!==originalCost)throw Error("میانگین بهای موجودی با بهای فاکتور خرید متفاوت شده است؛ برگشت خودکار امن نیست");
    }
    if(!Number.isSafeInteger(cost)||cost<0||warehouseValue<cost||productValue<cost)throw Error("ارزش موجودی برای برگشت خرید کافی نیست");
+   purchaseReversalInventoryCost+=cost;if(!Number.isSafeInteger(purchaseReversalInventoryCost))throw Error("جمع بهای برگشت خرید از محدوده عددی مجاز خارج است");
    stockRow.stock=totalQty>=warehouseStock-1e-9?0:warehouseStock-totalQty;stockRow.value=warehouseValue-cost;
    product.stock=productStock-totalQty;product.value=productValue-cost;valueChange=cost;
   }
@@ -66,6 +67,13 @@ async function reversePwaInvoice(number){
   entries.push(["parties",commissionParty],["partyLedger",{partyId:commissionParty.id,date:Date.now(),debitRial:invoice.commissionAmount,creditRial:0,description:"برگشت پورسانت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]);
  }
  const now=Date.now(),reverseVoucherLines=oldLines.map(l=>({accountCode:l.accountCode,debitRial:Number(l.creditRial||0),creditRial:Number(l.debitRial||0),description:"برگشت فاکتور "+invoice.number}));
+ if(invoice.kind==="PURCHASE"){
+  const originalInventoryDebit=oldLines.filter(line=>String(line.accountCode)==="1301").reduce((sum,line)=>sum+Number(line.debitRial||0),0);
+  if(!Number.isSafeInteger(originalInventoryDebit)||originalInventoryDebit<0)throw Error("بهای ثبت‌شده موجودی در سند خرید معتبر نیست");
+  const adjustment=globalThis.HolooAccountingReports?.buildPurchaseReversalAdjustment;
+  if(typeof adjustment!=="function")throw Error("ماژول تعدیل بهای برگشت خرید بارگذاری نشده است");
+  reverseVoucherLines.push(...adjustment({actualInventoryCostRial:purchaseReversalInventoryCost,originalInventoryDebitRial:originalInventoryDebit}));
+ }
  const debit=reverseVoucherLines.reduce((n,l)=>n+l.debitRial,0),credit=reverseVoucherLines.reduce((n,l)=>n+l.creditRial,0);
  if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==credit||debit<=0)throw Error("سند معکوس تراز نیست");
  const productIds=[...new Set(updated.map(([,row])=>Number(row.id)))];
@@ -132,7 +140,7 @@ async function loadDemoData(){
  await putMany([...products.map(p=>["products",{...p,date:now}]),...parties.map(p=>["parties",{...p,date:now}]),...accountRows.map(a=>["accounts",a])]);
  toast("داده‌های آزمایشی اضافه شد؛ سه کالا، سه شخص و مانده‌های افتتاحیه آماده‌اند");await render();
 }
-async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["2104","حقوق پرداختنی","LIABILITY"],["2105","کسورات حقوق پرداختنی","LIABILITY"],["1502","استهلاک انباشته دارایی","ASSET"],["3101","سرمایه","EQUITY"],["3201","سود و زیان انباشته","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["4301","سود تسعیر ارز","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"],["5203","هزینه پورسانت فروش","EXPENSE"],["5301","هزینه حقوق و دستمزد","EXPENSE"],["5401","هزینه استهلاک","EXPENSE"],["5501","زیان تسعیر ارز","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title:byId.get(id)?.title||title,type:byId.get(id)?.type||type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
+async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["2104","حقوق پرداختنی","LIABILITY"],["2105","کسورات حقوق پرداختنی","LIABILITY"],["1502","استهلاک انباشته دارایی","ASSET"],["3101","سرمایه","EQUITY"],["3201","سود و زیان انباشته","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["4301","سود تسعیر ارز","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"],["5202","اختلاف بهای برگشت خرید","EXPENSE"],["5203","هزینه پورسانت فروش","EXPENSE"],["5301","هزینه حقوق و دستمزد","EXPENSE"],["5401","هزینه استهلاک","EXPENSE"],["5501","زیان تسعیر ارز","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title:byId.get(id)?.title||title,type:byId.get(id)?.type||type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
 function sameGuardValue(a,b){
  if(Object.is(a,b))return true;
  if(a===null||b===null||typeof a!=="object"||typeof b!=="object")return false;

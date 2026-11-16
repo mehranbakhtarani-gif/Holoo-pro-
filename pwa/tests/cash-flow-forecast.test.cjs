@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {buildCashFlowForecast,getDailyCashFlowProjection}=require("../cash-flow-forecast.js");
+const {buildCashFlowForecast,getDailyCashFlowProjection,calculateCashOpeningBalances}=require("../cash-flow-forecast.js");
 const day=86400000,asOf=Date.UTC(2026,10,16,12);
 test("projects weekly opening and closing cash from dated inflows and outflows",()=>{
  const report=buildCashFlowForecast({asOf,horizonDays:30,openingCashRial:1000000,events:[
@@ -145,4 +145,53 @@ test("cash flow opening balance includes every cash and bank subaccount, not onl
  assert.match(app,/const cashBalanceGroup=prefix=>accounts\.filter\(x=>x\.type==="ASSET"&&String\(x\.id\)\.startsWith\(prefix\)\)/);
  assert.match(app,/cashBalanceGroup\("1101"\),bankBalanceRial=cashBalanceGroup\("1102"\)/);
  assert.match(app,/voucherLines\.filter\(x=>String\(x\.accountCode\)===code\)/);
+});
+
+
+test("cash forecast opening balance includes every asset cash and bank subaccount exactly once",()=>{
+ const accounts=[
+  {id:"1101",type:"ASSET",openingDebitRial:1000,openingCreditRial:100},
+  {id:"110101",type:"ASSET",openingDebitRial:500,openingCreditRial:0},
+  {id:"1102",type:"ASSET",openingDebitRial:2000,openingCreditRial:0},
+  {id:"110201",type:"ASSET",openingDebitRial:3000,openingCreditRial:200},
+  {id:"1103",type:"ASSET",openingDebitRial:9000,openingCreditRial:0},
+  {id:"2101",type:"LIABILITY",openingDebitRial:0,openingCreditRial:700}
+ ];
+ const voucherLines=[
+  {accountCode:"1101",debitRial:50,creditRial:25},
+  {accountCode:"110101",debitRial:0,creditRial:100},
+  {accountCode:"1102",debitRial:300,creditRial:0},
+  {accountCode:"110201",debitRial:0,creditRial:500},
+  {accountCode:"1103",debitRial:1000,creditRial:0}
+ ];
+ const result=calculateCashOpeningBalances({accounts,voucherLines});
+ assert.deepEqual(result,{cashOnHandRial:1325,bankBalanceRial:4600,openingCashRial:5925});
+});
+
+test("cash forecast opening balance excludes liabilities and unrelated asset accounts",()=>{
+ const result=calculateCashOpeningBalances({accounts:[
+  {id:"1101",type:"ASSET",openingDebitRial:0,openingCreditRial:0},
+  {id:"1102",type:"ASSET",openingDebitRial:0,openingCreditRial:0},
+  {id:"110101",type:"LIABILITY",openingDebitRial:900,openingCreditRial:0},
+  {id:"110201",type:"EXPENSE",openingDebitRial:800,openingCreditRial:0},
+  {id:"1201",type:"ASSET",openingDebitRial:700,openingCreditRial:0}
+ ],voucherLines:[]});
+ assert.deepEqual(result,{cashOnHandRial:0,bankBalanceRial:0,openingCashRial:0});
+});
+
+test("cash forecast opening balance rejects malformed and overflowing subaccount balances",()=>{
+ assert.throws(()=>calculateCashOpeningBalances({accounts:[{id:"110101",type:"ASSET",openingDebitRial:1.5}],voucherLines:[]}),/معتبر/);
+ assert.throws(()=>calculateCashOpeningBalances({accounts:[
+  {id:"110101",type:"ASSET",openingDebitRial:Number.MAX_SAFE_INTEGER},
+  {id:"110102",type:"ASSET",openingDebitRial:1}
+ ],voucherLines:[]}),/محدوده/);
+ assert.throws(()=>calculateCashOpeningBalances({accounts:[{id:"110101",type:"ASSET",openingDebitRial:Number.MAX_SAFE_INTEGER}],voucherLines:[
+  {accountCode:"110101",debitRial:1,creditRial:0}
+ ]}),/محدوده/);
+});
+
+test("cash flow dashboard delegates opening cash calculation to the tested subaccount helper",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/calculateCashOpeningBalances\(\{accounts,voucherLines\}\)/);
+ assert.doesNotMatch(app,/cashBalanceGroup\s*=\s*prefix/);
 });

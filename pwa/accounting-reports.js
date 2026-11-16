@@ -173,7 +173,7 @@ function summarizePostedSales(invoices){
 }
 function countOverdueChecks(checks,asOf=Date.now()){
  const timestamp=Number(asOf);if(!Number.isSafeInteger(timestamp))throw new Error("تاریخ مبنای سررسید چک معتبر نیست");
- return (checks||[]).filter(check=>check.status==="OPEN"&&check.purpose!=="ضمانت"&&Number.isSafeInteger(Number(check.due))&&Number(check.due)>0&&Number(check.due)<timestamp).length;
+ return (checks||[]).filter(check=>check.status==="OPEN"&&check.purpose!=="ضمان"&&Number.isSafeInteger(Number(check.due))&&Number(check.due)>0&&Number(check.due)<timestamp).length;
 }
 const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildLedgerRunningRows,buildLedgerCsv,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose,summarizePostedSales,countOverdueChecks};
 if(typeof module!=="undefined"&&module.exports)module.exports=accountingReportsApi;

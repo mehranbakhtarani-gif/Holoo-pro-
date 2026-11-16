@@ -39,3 +39,17 @@ test("manual match validates direction, amount and duplicate use",()=>{
  assert.throws(()=>validateBankManualMatch(line,{...row,kind:"RECEIPT"},[]));
  assert.throws(()=>validateBankManualMatch(line,row,[3]));
 });
+
+test("parses bank-specific debit and credit columns into signed movements",()=>{
+ const rows=parseBankCsv("تاریخ,برداشت,واریز,شرح\\n2026-11-03,۲۵۰۰۰,0,خرید کالا\\n2026-11-04,0,۷۵۰۰۰,واریز مشتری");
+ assert.equal(rows[0].signedAmount,-25000);
+ assert.equal(rows[1].signedAmount,75000);
+});
+test("rejects rows with both debit and credit or no movement",()=>{
+ assert.throws(()=>parseBankCsv("date,debit,credit\\n2026-11-03,100,200"));
+ assert.throws(()=>parseBankCsv("date,debit,credit\\n2026-11-03,0,0"));
+});
+test("supports English debit and deposit column headers",()=>{
+ const rows=parseBankCsv("date,withdrawal,deposit\\n2026-11-03,125,0\\n2026-11-04,0,900");
+ assert.deepEqual(rows.map(x=>x.signedAmount),[-125,900]);
+});

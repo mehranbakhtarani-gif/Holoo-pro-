@@ -12,6 +12,7 @@ class InvoiceAgingTest {
         assertEquals(0L, InvoiceAging.ageDays(now, now - day + 1L))
         assertEquals(1L, InvoiceAging.ageDays(now, now - day))
         assertEquals(30L, InvoiceAging.ageDays(now, now - 30L * day))
+        assertEquals(Long.MAX_VALUE, InvoiceAging.ageDays(now, Long.MIN_VALUE))
     }
 
     @Test fun bucketBoundariesAreInclusiveAndHaveNoGapsOrOverlaps() {

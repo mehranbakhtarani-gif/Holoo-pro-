@@ -27,3 +27,15 @@ test("opening balance planner rejects unsupported party kinds and fractional ria
  assert.throws(()=>planPartyOpeningBalance({partyKind:"OTHER",balance:100}),/نوع طرف حساب/);
  assert.throws(()=>planPartyOpeningBalance({partyKind:"CUSTOMER",balance:1.5}),/عدد صحیح/);
 });
+
+ 
+test("PWA posts non-zero party opening balance atomically with party, ledger and voucher",()=>{
+ const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
+ assert.ok(html.indexOf("party-opening-balance.js")<html.indexOf("app.js?v=operation-date-1"));
+ assert.match(app,/\["3102","مانده افتتاحیه اشخاص","EQUITY"\]/);
+ assert.match(app,/db\.transaction\(\["parties","partyLedger","vouchers","voucherLines","auditLog"\],"readwrite"\)/);
+ assert.match(app,/HolooPartyOpeningBalance\.planPartyOpeningBalance/);
+ assert.match(app,/OPENING:PARTY:/);
+});

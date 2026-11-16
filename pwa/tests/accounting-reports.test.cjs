@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {buildFinancialStatements,buildPeriodClosingJournal,hasOverlappingPeriodClose}=require("../accounting-reports.js");
+const {buildFinancialStatements,buildPeriodClosingJournal,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose}=require("../accounting-reports.js");
 
 const accounts=[
  {id:"1101",title:"Cash",type:"ASSET",openingDebitRial:80000,openingCreditRial:0},
@@ -55,4 +55,14 @@ test("period close overlap detection rejects inclusive intersections and allows 
  assert.equal(hasOverlappingPeriodClose(closed,250,300),true);
  assert.equal(hasOverlappingPeriodClose(closed,400,500),false);
  assert.throws(()=>hasOverlappingPeriodClose(closed,500,400));
+});
+
+
+test("purchase reversal valuation adjustment balances the difference between current inventory cost and original invoice cost",()=>{
+ const higher=buildPurchaseReversalAdjustment({actualInventoryCostRial:12500,originalInventoryDebitRial:10000});
+ assert.deepEqual(higher.map(x=>[x.accountCode,x.debitRial,x.creditRial]),[["1301",0,2500],["5202",2500,0]]);
+ const lower=buildPurchaseReversalAdjustment({actualInventoryCostRial:7500,originalInventoryDebitRial:10000});
+ assert.deepEqual(lower.map(x=>[x.accountCode,x.debitRial,x.creditRial]),[["1301",2500,0],["5202",0,2500]]);
+ assert.deepEqual(buildPurchaseReversalAdjustment({actualInventoryCostRial:10000,originalInventoryDebitRial:10000}),[]);
+ for(const input of [{actualInventoryCostRial:-1,originalInventoryDebitRial:0},{actualInventoryCostRial:1.5,originalInventoryDebitRial:0},{actualInventoryCostRial:Number.MAX_SAFE_INTEGER,originalInventoryDebitRial:-1}])assert.throws(()=>buildPurchaseReversalAdjustment(input));
 });

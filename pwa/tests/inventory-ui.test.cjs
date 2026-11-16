@@ -22,3 +22,10 @@ test("live search rerender preserves keyboard focus and caret position",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/const start=s\.selectionStart,end=s\.selectionEnd;render\(\)\.then\(\(\)=>\{const next=\$\("#search"\);if\(next\)\{next\.focus\(\);if\(start!==null&&end!==null\)next\.setSelectionRange\(start,end\)\}\}\)/);
 });
+
+
+test("edit and delete action failures are shown without unhandled rejections",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function edit\(s,id\).*\.catch\(e=>toast\(e\.message\|\|"فرم ویرایش باز نشد"\)\)/);
+ assert.match(app,/\[data-del\].*removeRow\(\.\.\.b\.dataset\.del\.split\(":"\)\)\.catch\(e=>toast\(e\.message\|\|"حذف ناموفق بود"\)\)/);
+});

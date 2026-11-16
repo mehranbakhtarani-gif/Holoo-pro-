@@ -1,0 +1,18 @@
+const test=require("node:test");
+const assert=require("node:assert/strict");
+const fs=require("node:fs");
+const path=require("node:path");
+const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+
+test("import orders support search, edit and delete actions",()=>{
+ assert.match(app,/جست‌وجوی کانتینر، تأمین‌کننده یا ارز/);
+ assert.match(app,/imports\.filter\(x=>\[x\.supplierName,x\.container,x\.currency\]/);
+ assert.match(app,/actButtons\("imports",x\.id\)/);
+ assert.match(app,/id:item\?\.id,supplierId:p\.id/);
+});
+
+test("import order requires a valid supplier, unique container and safe direct costs",()=>{
+ assert.match(app,/p\.kind==="CUSTOMER"/);
+ assert.match(app,/شماره کانتینر قبلاً ثبت شده است/);
+ assert.match(app,/هزینه‌های جانبی باید عدد صحیح و غیرمنفی باشند/);
+});

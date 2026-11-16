@@ -143,3 +143,11 @@ test("custom field list settings expose scope, visibility and column width",()=>
  assert.match(custom,/data-cf-width/);
  assert.match(custom,/columnWidth\+"px"/);
 });
+
+test("legacy custom field definitions receive safe default column settings",()=>{
+ assert.match(custom,/definitions=definitions\.map\(x=>\{try\{return validateDefinition\(x\)\}catch\(_\)\{return null\}\}\)\.filter\(Boolean\)/);
+ assert.match(custom,/columnWidth:Math\.max\(80,Math\.min\(400,Number\(d\.columnWidth\)\|\|140\)\)/);
+});
+test("invoice and order custom column headers apply configured width",()=>{
+ assert.ok((custom.match(/th\.style\.width=d\.columnWidth\+"px"/g)||[]).length>=3);
+});

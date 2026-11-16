@@ -8,6 +8,7 @@ test("backup exports every IndexedDB store with schema and record counts",()=>{
  assert.match(app,/version:2,schemaVersion:DB_VERSION/);
  assert.match(app,/storeNames:\[\.\.\.stores\]/);
  assert.match(app,/for\(const store of stores\)\{records\[store\]=await all\(store\);counts\[store\]=records\[store\]\.length\}/);
+ assert.match(app,/blob\.size>50\*1024\*1024/);
 });
 test("restore validates app version, file size, store names and complete v2 schema",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
@@ -28,6 +29,10 @@ test("restore rejects invalid and duplicate record IDs before touching IndexedDB
 test("restore downloads a full pre-restore backup and replaces stores atomically",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/await exportBackup\("holloo-before-restore"\)/);
+ const backup=app.indexOf('await exportBackup("holloo-before-restore")');
+ const confirmSaved=app.indexOf("فایل پشتیبان را در دستگاه ذخیره کرده‌اید",backup);
+ const transaction=app.indexOf('const tx=db.transaction(stores,"readwrite")',backup);
+ assert.ok(confirmSaved>backup&&transaction>confirmSaved);
  assert.match(app,/const tx=db\.transaction\(stores,"readwrite"\)/);
  assert.match(app,/objectStore\.clear\(\);for\(const row of data\.records\[store\]\|\|\[\]\)objectStore\.put\(row\)/);
  assert.match(app,/tx\.onabort/);

@@ -47,3 +47,25 @@ test("capital planner rejects overflow in landed cost, cash requirement and proj
  assert.throws(()=>calculateImportCapitalPlan({...base,fxRialPerUsd:Number.MAX_SAFE_INTEGER}),/محدوده/);
  assert.throws(()=>calculateImportCapitalPlan({...base,salePriceRialPerKg:Number.MAX_SAFE_INTEGER,grossKgPerContainer:100}),/محدوده/);
 });
+
+
+test("capital planner exposes gross margin and monthly operating cash estimate without mixing them with gross profit",()=>{
+ const p=calculateImportCapitalPlan({...base,salePriceRialPerKg:2000000,sellThroughDays:60,monthlyOperatingCostRial:100000000});
+ assert.equal(p.grossProfit,9700000000);
+ assert.equal(p.marginPercent,9700000000/40000000000*100);
+ assert.equal(p.monthlyRevenue,20000000000);
+ assert.equal(p.monthlyNetAfterOperating,19900000000);
+});
+
+test("capital planner rejects unsafe converted available capital instead of silently overflowing",()=>{
+ assert.throws(()=>calculateImportCapitalPlan({...base,availableCapitalRial:Number.MAX_SAFE_INTEGER+1}),/معتبر/);
+});
+
+test("import planner UI compares one two and four containers and labels gross and monthly estimates separately",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/compareImportCapitalScenarios\(common,\[1,2,4\]\)/);
+ assert.match(app,/حاشیه سود ناخالص/);
+ assert.match(app,/جریان عملیاتی ماهانه پس از هزینه/);
+ assert.match(app,/availableCapitalUsd/);
+ assert.match(app,/این صفحه فقط سناریو می‌سازد/);
+});

@@ -1,5 +1,7 @@
 package ir.billion.holloopro
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.os.Bundle
 import android.content.Intent
 import android.content.ClipData
@@ -29,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.LayoutDirection
@@ -74,6 +77,9 @@ import kotlinx.coroutines.flow.StateFlow
 import java.math.BigDecimal
 import java.text.NumberFormat
 import java.util.Locale
+import java.util.Calendar
+import java.util.Date
+import java.text.SimpleDateFormat
 
 private val Navy = Color(0xFF071629)
 private val NavyGlass = Color(0xCC102B46)
@@ -251,7 +257,8 @@ class MainActivity : ComponentActivity() {
                         onImportBankCsv = { importBankCsvLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "application/vnd.ms-excel", "text/plain", "*/*")) },
                         onClearMessage = vm::clearMessage,
                         onExportBackup = { exportBackupLauncher.launch("holloo-backup-${System.currentTimeMillis()}.db") },
-                        onImportBackup = { importBackupLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*")) }
+                        onImportBackup = { importBackupLauncher.launch(arrayOf("application/octet-stream", "application/x-sqlite3", "*/*")) },
+                        onSetOperationDate = vm::setOperationDate
                     )
                     if (pendingBankCsvRows.value.isNotEmpty()) {
                         BankCsvImportPreviewDialog(
@@ -368,10 +375,14 @@ private fun HolooApp(
     onImportBankCsv: () -> Unit,
     onClearMessage: () -> Unit,
     onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit
+    onImportBackup: () -> Unit,
+    onSetOperationDate: (Long?) -> Unit
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showToman by remember { mutableStateOf(true) }
+    var manualOperationDate by remember { mutableStateOf<Long?>(null) }
+    val context = LocalContext.current
+    val operationDateLabel = manualOperationDate?.let { SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(it)) } ?: "اتوماتیک"
     Scaffold(
         containerColor = Navy,
         bottomBar = {
@@ -430,6 +441,38 @@ private fun HolooApp(
                     TextButton(onClick = { showToman = !showToman }) {
                         Text(if (showToman) "تومان" else "ریال", color = Turquoise, fontSize = 10.sp)
                     }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(14.dp)).background(Color(0xFF173D55)).padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("تاریخ عملیات", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(operationDateLabel, color = if (manualOperationDate == null) Turquoise else Color(0xFFFFC47A), fontSize = 11.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { manualOperationDate = null; onSetOperationDate(null) }) {
+                    Text("اتوماتیک", color = if (manualOperationDate == null) Turquoise else Muted, fontSize = 10.sp)
+                }
+                TextButton(onClick = {
+                    val initial = Calendar.getInstance().apply { timeInMillis = manualOperationDate ?: System.currentTimeMillis() }
+                    DatePickerDialog(context, { _, year, month, day ->
+                        val selected = Calendar.getInstance().apply {
+                            timeInMillis = initial.timeInMillis
+                            set(Calendar.YEAR, year); set(Calendar.MONTH, month); set(Calendar.DAY_OF_MONTH, day)
+                        }
+                        TimePickerDialog(context, { _, hour, minute ->
+                            selected.set(Calendar.HOUR_OF_DAY, hour)
+                            selected.set(Calendar.MINUTE, minute)
+                            selected.set(Calendar.SECOND, 0)
+                            selected.set(Calendar.MILLISECOND, 0)
+                            val epoch = selected.timeInMillis
+                            manualOperationDate = epoch
+                            onSetOperationDate(epoch)
+                        }, initial.get(Calendar.HOUR_OF_DAY), initial.get(Calendar.MINUTE), true).show()
+                    }, initial.get(Calendar.YEAR), initial.get(Calendar.MONTH), initial.get(Calendar.DAY_OF_MONTH)).show()
+                }) {
+                    Text("انتخاب دستی", color = Color(0xFFFFC47A), fontSize = 10.sp)
                 }
             }
             if (message != null) {

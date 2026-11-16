@@ -136,3 +136,14 @@ test("demo seeding uses transactional empty-ledger guards to prevent multi-tab d
  assert.match(app,/emptyStores\.map\(store=>\(\{store,match:\{\},expected:null\}\)\)/);
  assert.match(app,/await putManyGuarded\(entries,guards\)/);
 });
+
+ 
+test("product SKU and barcode uniqueness are enforced in the same transaction as create or edit",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putProductUnique\(record\)/);
+ assert.match(app,/db\.transaction\(\["products","auditLog"\],"readwrite"\)/);
+ assert.match(app,/rows\.some\(row=>row\.sku===record\.sku/);
+ assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
+ assert.match(app,/if\(current\)\{for\(const field of \["stock","value","avg"\]\)value\[field\]=current\[field\]\}/);
+ assert.match(app,/await putProductUnique\(v\)/);
+});

@@ -13,8 +13,8 @@ test("party statement print action opens a printable statement for the selected 
 
 test("party statement CSV exports opening balance and dated running ledger balances",()=>{
  assert.match(app,/data-party-statement-csv=/);
- assert.match(app,/party-statement-\+party\.id\+\.csv/);
+ assert.match(app,/a\.download="party-statement-"\+party\.id\+"\.csv"/);
  assert.match(app,/مانده افتتاحیه/);
- assert.match(app,/ledgerRows\.filter\(r=>Number\(r\.partyId\)===Number\(party\.id\)\)/);
+ assert.match(app,/partyLedger\.filter\(r=>Number\(r\.partyId\)===Number\(party\.id\)\)/);
  assert.match(app,/ماهیت/);
 });

@@ -141,6 +141,9 @@ class AppViewModel(private val repository: AccountingRepository) : ViewModel() {
     fun allocateTreasuryToInvoice(entryId: Long, invoiceId: Long, amountRial: Long, onSuccess: () -> Unit = {}) =
         execute(onSuccess) { repository.allocateTreasuryToInvoice(entryId, invoiceId, amountRial); "پرداخت به فاکتور تخصیص یافت" }
 
+    fun allocateTreasuryToInvoices(entryId: Long, allocations: List<ir.billion.holloopro.data.InvoiceSettlementAllocationInput>, onSuccess: () -> Unit = {}) =
+        execute(onSuccess) { repository.allocateTreasuryToInvoices(entryId, allocations); "رسید به چند فاکتور تخصیص یافت" }
+
     fun removeInvoiceSettlement(settlementId: Long, onSuccess: () -> Unit = {}) =
         execute(onSuccess) { repository.removeInvoiceSettlement(settlementId); "تخصیص لغو شد و مانده فاکتور و رسید به‌روزرسانی شد" }
 

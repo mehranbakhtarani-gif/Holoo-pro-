@@ -465,6 +465,14 @@ async function importBankStatementCsv(file,bankName){
  await autoReconcileBankStatementLines();
  return parsed.length;
 }
+async function unmatchBankStatementLine(lineId){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["bankStatementLines","auditLog"],"readwrite"),store=tx.objectStore("bankStatementLines"),request=store.get(Number(lineId));let error=null;
+  request.onsuccess=()=>{const line=request.result;if(!line||line.status!=="MATCHED"){error=new Error("ردیف تطبیق‌شده پیدا نشد");try{tx.abort()}catch(_){};return}const treasuryId=line.matchedTreasuryId;line.status="UNMATCHED";line.matchedTreasuryId=null;line.matchedAt=null;line.candidateTreasuryIds=[];store.put(line);tx.objectStore("auditLog").add({action:"لغو تطبیق صورت‌حساب بانکی",store:"bankStatementLines",recordId:line.id,at:Date.now(),summary:"لغو تطبیق گردش "+treasuryId})};
+  request.onerror=()=>{error=request.error||new Error("خواندن ردیف صورت‌حساب ناموفق بود");try{tx.abort()}catch(_){}};
+  tx.oncomplete=()=>resolve();tx.onerror=()=>reject(error||tx.error||new Error("لغو تطبیق ناموفق بود"));tx.onabort=()=>reject(error||tx.error||new Error("لغو تطبیق لغو شد"));
+ });
+}
 async function autoReconcileBankStatementLines(){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(["bankStatementLines","treasury","auditLog"],"readwrite");
@@ -520,7 +528,7 @@ function bindBankReconciliation(){
  if(importButton&&fileInput)importButton.onclick=()=>fileInput.click();
  if(fileInput)fileInput.onchange=async event=>{const file=event.target.files&&event.target.files[0];if(!file)return;try{const count=await importBankStatementCsv(file,$("#bankCsvBank")?.value);toast(count+" ردیف صورت‌حساب وارد شد");await render()}catch(error){toast(error.message||"ورود صورت‌حساب ناموفق بود")}finally{fileInput.value=""}};
  if(autoButton)autoButton.onclick=async()=>{try{const count=await autoReconcileBankStatementLines();toast(count+" گردش بانکی به‌صورت خودکار تطبیق داده شد");await render()}catch(error){toast(error.message||"تطبیق خودکار ناموفق بود")}};
- document.querySelectorAll("[data-bank-match]").forEach(button=>button.onclick=async()=>{const select=$('[data-bank-match-select="'+button.dataset.bankMatch+'"]');try{if(!select||!select.value)throw Error("گردش بانکی را برای تطبیق انتخاب کنید");await matchBankStatementLine(button.dataset.bankMatch,select.value);toast("ردیف صورت‌حساب تطبیق داده شد");await render()}catch(error){toast(error.message||"تطبیق ناموفق بود")}});
+ document.querySelectorAll("[data-bank-unmatch]").forEach(button=>button.onclick=async()=>{if(!confirm("تطبیق این ردیف لغو شود؟"))return;try{await unmatchBankStatementLine(button.dataset.bankUnmatch);toast("تطبیق لغو شد");await render()}catch(error){toast(error.message||"لغو تطبیق ناموفق بود")}});document.querySelectorAll("[data-bank-match]").forEach(button=>button.onclick=async()=>{const select=$('[data-bank-match-select="'+button.dataset.bankMatch+'"]');try{if(!select||!select.value)throw Error("گردش بانکی را برای تطبیق انتخاب کنید");await matchBankStatementLine(button.dataset.bankMatch,select.value);toast("ردیف صورت‌حساب تطبیق داده شد");await render()}catch(error){toast(error.message||"تطبیق ناموفق بود")}});
 }
 async function convertSalesOrderToInvoice(id){
  const orders=await all("salesOrders"),order=orders.find(x=>Number(x.id)===Number(id));
@@ -591,15 +599,15 @@ if(currentPage==="bankReconciliation"){
  const matchedIds=lines.filter(x=>x.status==="MATCHED"&&x.matchedTreasuryId).map(x=>Number(x.matchedTreasuryId));
  const matchedCount=lines.filter(x=>x.status==="MATCHED").length,unmatchedCount=lines.filter(x=>x.status!=="MATCHED").length,suggestedCount=lines.filter(x=>x.status==="SUGGESTED").length;
  const statementRows=statements.slice().reverse().map(x=>'<tr><td>'+h(x.bank)+'</td><td>'+h(x.fileName)+'</td><td>'+fmt(x.rowCount)+'</td><td>'+date(x.importedAt)+'</td></tr>');
- const lineRows=lines.slice().reverse().map(line=>{
+ const visibleLines=lines.filter(line=>[line.bank,line.description,line.reference,line.status,String(line.signedAmount)].some(value=>String(value??"").toLocaleLowerCase("fa").includes(String(searchText||"").trim().toLocaleLowerCase("fa"))));const lineRows=visibleLines.slice().reverse().map(line=>{
   const candidateIds=Array.isArray(line.candidateTreasuryIds)&&line.candidateTreasuryIds.length?line.candidateTreasuryIds:findBankMatchCandidates(line,treasury,matchedIds,30).map(x=>x.id);
   const candidates=treasury.filter(x=>candidateIds.map(Number).includes(Number(x.id))&&!matchedIds.includes(Number(x.id)));
   const options='<option value="">انتخاب گردش بانکی</option>'+candidates.map(x=>'<option value="'+x.id+'">'+date(x.date)+' • '+(x.kind==="RECEIPT"?"دریافت":"پرداخت")+' • '+h(x.partyName)+' • '+money(x.amount)+'</option>').join("");
   const status=line.status==="MATCHED"?"تطبیق‌شده":line.status==="SUGGESTED"?"نیازمند انتخاب":"تطبیق‌نشده";
-  const matchControl=line.status==="MATCHED"?"شناسه گردش: "+h(line.matchedTreasuryId):candidates.length?'<select data-bank-match-select="'+line.id+'">'+options+'</select> <button class="ghost" data-bank-match="'+line.id+'">تطبیق</button>':"گردش متناظر پیدا نشد";
+  const matchControl=line.status==="MATCHED"?"شناسه گردش: "+h(line.matchedTreasuryId)+' <button class="ghost" data-bank-unmatch="'+line.id+'">لغو تطبیق</button>':candidates.length?'<select data-bank-match-select="'+line.id+'">'+options+'</select> <button class="ghost" data-bank-match="'+line.id+'">تطبیق</button>':"گردش متناظر پیدا نشد";
   return '<tr><td>'+h(line.bank||"")+'</td><td>'+date(line.date)+'</td><td>'+(line.signedAmount>0?"واریز":"برداشت")+'</td><td>'+money(Math.abs(line.signedAmount))+'</td><td>'+h(line.description||"")+'</td><td>'+h(line.reference||"")+'</td><td>'+status+'</td><td>'+matchControl+'</td></tr>';
  });
- html=head("bankReconciliation","ورود و تطبیق صورت‌حساب بانکی")+'<div class="card"><div class="form-grid"><label>نام بانک<input id="bankCsvBank" type="text" placeholder="مثلاً بانک ملت"></label><input id="bankCsvFile" type="file" accept=".csv,text/csv" hidden><button class="btn primary" id="importBankCsv" type="button">ورود فایل CSV</button><button class="btn secondary" id="autoMatchBank" type="button">تطبیق خودکار</button></div><p class="hint">قالب فایل: ستون‌های date و amount الزامی‌اند؛ amount مثبت برای واریز و منفی برای برداشت است. ستون‌های description و reference اختیاری‌اند. تاریخ ISO مانند 2026-11-16 پیشنهاد می‌شود.</p></div>'+stat("ردیف‌های صورت‌حساب",fmt(lines.length),"کل ردیف‌های واردشده")+stat("تطبیق‌شده",fmt(matchedCount),"گردش‌های بانکی تطبیق‌یافته")+stat("باقی‌مانده",fmt(unmatchedCount),"ردیف‌های نیازمند بررسی")+stat("چندگزینه‌ای",fmt(suggestedCount),"نیازمند انتخاب دستی")+ '<h3 class="section-title">فایل‌های واردشده</h3>'+table(["بانک","نام فایل","تعداد ردیف","زمان ورود"],statementRows)+'<h3 class="section-title">مغایرت و تطبیق گردش‌ها</h3>'+table(["بانک","تاریخ","جهت","مبلغ","شرح","مرجع","وضعیت","عملیات"],lineRows);
+ html=head("bankReconciliation","ورود و تطبیق صورت‌حساب بانکی")+'<div class="toolbar"><input class="search" id="search" placeholder="جست‌وجوی بانک، شرح، مرجع یا مبلغ"></div><div class="card"><div class="form-grid"><label>نام بانک<input id="bankCsvBank" type="text" placeholder="مثلاً بانک ملت"></label><input id="bankCsvFile" type="file" accept=".csv,text/csv" hidden><button class="btn primary" id="importBankCsv" type="button">ورود فایل CSV</button><button class="btn secondary" id="autoMatchBank" type="button">تطبیق خودکار</button></div><p class="hint">قالب فایل: ستون‌های date و amount الزامی‌اند؛ amount مثبت برای واریز و منفی برای برداشت است. ستون‌های description و reference اختیاری‌اند. تاریخ ISO مانند 2026-11-16 پیشنهاد می‌شود.</p></div>'+stat("ردیف‌های صورت‌حساب",fmt(lines.length),"کل ردیف‌های واردشده")+stat("تطبیق‌شده",fmt(matchedCount),"گردش‌های بانکی تطبیق‌یافته")+stat("باقی‌مانده",fmt(unmatchedCount),"ردیف‌های نیازمند بررسی")+stat("چندگزینه‌ای",fmt(suggestedCount),"نیازمند انتخاب دستی")+ '<h3 class="section-title">فایل‌های واردشده</h3>'+table(["بانک","نام فایل","تعداد ردیف","زمان ورود"],statementRows)+'<h3 class="section-title">مغایرت و تطبیق گردش‌ها</h3>'+table(["بانک","تاریخ","جهت","مبلغ","شرح","مرجع","وضعیت","عملیات"],lineRows);
 }
 
 if(currentPage==="cashFlow"){

@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,7 +121,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        vm.setOperationDate(null)
+        if (savedInstanceState == null) vm.setOperationDate(null)
         exportBackupLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             if (uri != null) lifecycleScope.launch {
                 runCatching { DatabaseBackup.export(this@MainActivity, (application as HolooApplication).database, uri) }
@@ -385,7 +386,8 @@ private fun HolooApp(
 ) {
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showToman by remember { mutableStateOf(true) }
-    var manualOperationDate by remember { mutableStateOf<Long?>(null) }
+    var manualOperationDate by rememberSaveable { mutableStateOf<Long?>(null) }
+    LaunchedEffect(manualOperationDate) { onSetOperationDate(manualOperationDate) }
     val context = LocalContext.current
     val operationDateLabel = manualOperationDate?.let { SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(it)) } ?: "اتوماتیک"
     Scaffold(

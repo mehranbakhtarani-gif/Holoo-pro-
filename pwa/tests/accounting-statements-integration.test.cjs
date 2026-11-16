@@ -85,3 +85,14 @@ test("party statement provides a print action and prints the party ledger with o
  assert.match(app,/debit=rows\.reduce/);
  assert.match(app,/credit=rows\.reduce/);
 });
+
+
+test("aging receivables and payables report offers a print-ready A4 export",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/id="printAgingReport"/);
+ assert.match(app,/agingPrintButton\.onclick/);
+ assert.match(app,/گزارش سنی مطالبات و بدهی‌ها/);
+ assert.match(app,/@page\{size:A4 landscape/);
+ assert.match(app,/section\("مطالبات مشتریان",aging\.receivables\)/);
+ assert.match(app,/section\("بدهی تأمین‌کنندگان",aging\.payables\)/);
+});

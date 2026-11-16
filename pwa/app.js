@@ -618,12 +618,17 @@ if(page==="allocations"){
  return
 }
 if(page==="warehouseTransfers"){
- const [products,warehouses,stockRows]=await Promise.all([all("products"),all("warehouses"),all("warehouseStock")]);
+ const [products,warehouses,stockRows,lots]=await Promise.all([all("products"),all("warehouses"),all("warehouseStock"),all("inventoryLots")]);
  const product=products.find(x=>x.id===num("productId")),source=warehouses.find(x=>x.id===num("sourceWarehouseId")),destination=warehouses.find(x=>x.id===num("destinationWarehouseId"));
  if(!product||!source||!destination)throw Error("کالا و هر دو انبار را انتخاب کنید");
- const movement=calculateWarehouseTransfer({product,source,destination,quantity:num("quantity"),sourceRows:stockRows,destinationRows:stockRows});
- const row={productId:product.id,productName:product.name,sourceWarehouseId:source.id,sourceWarehouseName:source.name,destinationWarehouseId:destination.id,destinationWarehouseName:destination.name,quantity:movement.quantity,value:movement.value,date:Date.now()};
- await putMany([["warehouseStock",movement.sourceRecord],["warehouseStock",movement.destinationRecord],["warehouseTransfers",row]]);return
+ const quantity=num("quantity"),movement=calculateWarehouseTransfer({product,source,destination,quantity,sourceRows:stockRows,destinationRows:stockRows}),sourceRow=stockRows.find(x=>Number(x.productId)===Number(product.id)&&Number(x.warehouseId)===Number(source.id)),hasProductRows=stockRows.some(x=>Number(x.productId)===Number(product.id));
+ const sourceWarehouseStock=sourceRow||{productId:product.id,warehouseId:source.id,stock:hasProductRows?0:Number(product.stock||0),value:hasProductRows?0:Number(product.value||0)};
+ const transferNumber="WT-"+Date.now(),transferDate=Date.now(),lotPlan=planLotTransfer({lots,productId:product.id,productName:product.name,sourceWarehouseId:source.id,destinationWarehouseId:destination.id,quantity:movement.quantity,sourceWarehouseStock,transferId:transferNumber,date:transferDate});
+ const destinationRow=stockRows.find(x=>Number(x.productId)===Number(product.id)&&Number(x.warehouseId)===Number(destination.id)),destinationValue=Number(destinationRow?.value||0)+lotPlan.transferValue;
+ movement.sourceRecord.stock=lotPlan.sourceRemainingStock;movement.sourceRecord.value=lotPlan.sourceRemainingValue;movement.sourceRecord.average=lotPlan.sourceRemainingStock>1e-9?lotPlan.sourceRemainingValue/lotPlan.sourceRemainingStock:0;
+ movement.destinationRecord.value=destinationValue;movement.destinationRecord.average=movement.destinationRecord.stock>1e-9?destinationValue/movement.destinationRecord.stock:0;
+ const row={number:transferNumber,productId:product.id,productName:product.name,sourceWarehouseId:source.id,sourceWarehouseName:source.name,destinationWarehouseId:destination.id,destinationWarehouseName:destination.name,quantity:movement.quantity,value:lotPlan.transferValue,date:transferDate,lotAllocations:lotPlan.allocations};
+ await putMany([["warehouseStock",movement.sourceRecord],["warehouseStock",movement.destinationRecord],["warehouseTransfers",row],...lotPlan.sourceLotUpdates.map(lot=>["inventoryLots",lot]),...lotPlan.destinationLots.map(lot=>["inventoryLots",lot])]);return
 }
 if(page==="warehouses"){const name=String(d.name||"").trim();if(!name)throw Error("نام انبار الزامی است");const rows=await all("warehouses");if(rows.some(x=>x.name===name&&x.id!==item?.id))throw Error("نام انبار تکراری است");await put("warehouses",{id:item?.id,name,address:d.address,manager:d.manager,createdAt:item?.createdAt||Date.now()});return}if(page==="importShipments"){
  if(item?.receivedAt)throw Error("محموله رسیدشده قابل ویرایش نیست؛ برای اصلاح سند برگشت ثبت کنید");

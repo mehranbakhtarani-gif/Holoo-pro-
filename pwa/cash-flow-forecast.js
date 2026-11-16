@@ -21,7 +21,11 @@ function buildCashFlowForecast(input){
   bucket.count++;valid.push(record);result.eventsCount++;
  }
  let balance=opening;
- for(const bucket of result.weekly){bucket.netRial=bucket.inflowsRial-bucket.outflowsRial;balance+=bucket.netRial;bucket.closingCashRial=balance;result.minimumProjectedCashRial=Math.min(result.minimumProjectedCashRial,balance)}
+ for(const bucket of result.weekly){bucket.netRial=bucket.inflowsRial-bucket.outflowsRial;balance+=bucket.netRial;bucket.closingCashRial=balance}
+ const daily=new Map();
+ for(const event of valid){const key=new Date(event.dueDate).setHours(0,0,0,0),row=daily.get(key)||{inflows:0,outflows:0};if(event.direction==="INFLOW")row.inflows+=event.amountRial;else row.outflows+=event.amountRial;daily.set(key,row)}
+ let dailyBalance=opening;
+ for(const [,row] of [...daily.entries()].sort((a,b)=>a[0]-b[0])){dailyBalance+=row.inflows-row.outflows;result.minimumProjectedCashRial=Math.min(result.minimumProjectedCashRial,dailyBalance)}
  result.closingCashRial=balance;
  return result;
 }

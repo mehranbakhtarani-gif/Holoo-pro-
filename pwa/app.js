@@ -753,12 +753,13 @@ function edit(s,id){all(s).then(a=>{const v=a.find(x=>x.id===id);if(v)return ope
 async function removeRow(s,id){
  const key=Number(id);
  if(s==="products"){
-  const [products,invoices,adjustments]=await Promise.all([all("products"),all("invoices"),all("stockAdjustments")]);
+  const [products,invoices,adjustments,shipments,orders,lots,transfers,warehouseStock]=await Promise.all([all("products"),all("invoices"),all("stockAdjustments"),all("importShipments"),all("salesOrders"),all("inventoryLots"),all("warehouseTransfers"),all("warehouseStock")]);
   const product=products.find(x=>Number(x.id)===key);
   if(!product)return;
   const hasInvoice=invoices.some(x=>Number(x.productId)===key||(Array.isArray(x.lines)&&x.lines.some(line=>Number(line.productId)===key)));
   const hasAdjustment=adjustments.some(x=>Number(x.productId)===key);
-  if(Math.abs(Number(product.stock||0))>0.000001||Number(product.value||0)>1||hasInvoice||hasAdjustment)throw Error("این کالا موجودی یا سابقه انبار/فاکتور دارد؛ برای حفظ سوابق حذف نمی‌شود");
+  const hasShipment=shipments.some(x=>Number(x.productId)===key),hasOrder=orders.some(x=>Number(x.productId)===key||(Array.isArray(x.lines)&&x.lines.some(line=>Number(line.productId)===key))),hasLot=lots.some(x=>Number(x.productId)===key),hasTransfer=transfers.some(x=>Number(x.productId)===key),hasWarehouseStock=warehouseStock.some(x=>Number(x.productId)===key);
+  if(Math.abs(Number(product.stock||0))>0.000001||Number(product.value||0)>1||hasInvoice||hasAdjustment||hasShipment||hasOrder||hasLot||hasTransfer||hasWarehouseStock)throw Error("این کالا موجودی یا سابقه فاکتور، سفارش، محموله یا گردش انبار دارد؛ برای حفظ ارتباط اسناد حذف نمی‌شود");
  }else if(s==="parties"){
   const [parties,invoices,treasury,checks,imports,ledger]=await Promise.all([all("parties"),all("invoices"),all("treasury"),all("checks"),all("imports"),all("partyLedger")]);
   const party=parties.find(x=>Number(x.id)===key);

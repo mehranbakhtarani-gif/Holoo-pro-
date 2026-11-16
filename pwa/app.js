@@ -133,6 +133,13 @@ async function loadDemoData(){
  toast("داده‌های آزمایشی اضافه شد؛ سه کالا، سه شخص و مانده‌های افتتاحیه آماده‌اند");await render();
 }
 async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["2104","حقوق پرداختنی","LIABILITY"],["2105","کسورات حقوق پرداختنی","LIABILITY"],["1502","استهلاک انباشته دارایی","ASSET"],["3101","سرمایه","EQUITY"],["3201","سود و زیان انباشته","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["4301","سود تسعیر ارز","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"],["5203","هزینه پورسانت فروش","EXPENSE"],["5301","هزینه حقوق و دستمزد","EXPENSE"],["5401","هزینه استهلاک","EXPENSE"],["5501","زیان تسعیر ارز","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title:byId.get(id)?.title||title,type:byId.get(id)?.type||type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
+function sameGuardValue(a,b){
+ if(Object.is(a,b))return true;
+ if(a===null||b===null||typeof a!=="object"||typeof b!=="object")return false;
+ if(Array.isArray(a)!==Array.isArray(b))return false;
+ const aKeys=Object.keys(a),bKeys=Object.keys(b);
+ return aKeys.length===bKeys.length&&aKeys.every(key=>Object.prototype.hasOwnProperty.call(b,key)&&sameGuardValue(a[key],b[key]));
+}
 function postVoucherAtomic(entries,voucher,lines,guards=[]){
  const stamp=globalThis.HolooOperationDate?.stampOperationRecord;
  if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");
@@ -166,7 +173,7 @@ function postVoucherAtomic(entries,voucher,lines,guards=[]){
     request.onsuccess=()=>{
      if(failed)return;
      const current=guard.match?request.result.find(row=>Object.entries(guard.match).every(([key,value])=>String(row[key])===String(value))):request.result;
-     const valid=guard.expected===null?current===undefined:!!current&&Object.entries(guard.expected||{}).every(([key,value])=>Object.is(current[key],value));
+     const valid=guard.expected===null?current===undefined:!!current&&Object.entries(guard.expected||{}).every(([key,value])=>sameGuardValue(current[key],value));
      if(!valid){failed=true;staleState=true;try{tx.abort()}catch(_){};return}
      completed++;if(completed===guards.length)writeEntriesAndVoucher();
     };

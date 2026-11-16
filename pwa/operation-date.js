@@ -1,7 +1,7 @@
 "use strict";
 const OPERATION_DATE_STORES=new Set(["invoices","treasury","vouchers","partyLedger","warehouseTransfers","stockAdjustments","inventoryLots","foreignPayablePayments","foreignPayables","importShipments","checks","salesOrders","payroll","assetDepreciations"]);
 function parseOperationDate(value){
- const raw=String(value||"").trim(),m=/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})(?::(\\d{2}))?$/.exec(raw);
+ const raw=String(value||"").trim(),m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(raw);
  if(!m)throw new Error("تاریخ و ساعت دستی را کامل و معتبر وارد کنید");
  const [,ys,mos,ds,hs,mis,ss="00"]=m,y=Number(ys),mo=Number(mos),d=Number(ds),h=Number(hs),mi=Number(mis),sec=Number(ss);
  const date=new Date(y,mo-1,d,h,mi,sec,0);

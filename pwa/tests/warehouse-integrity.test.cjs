@@ -43,3 +43,9 @@ test("warehouse page exports a Persian-compatible CSV stock valuation report",()
  assert.match(app,/\\uFEFF/);
 });
 
+
+test("warehouse transfer history exports quantity, source, destination and value",()=>{
+ assert.match(app,/id="exportWarehouseTransfersCsv"/);
+ assert.match(app,/holloo-warehouse-transfers\.csv/);
+ assert.match(app,/ارزش منتقل‌شده ریال/);
+});

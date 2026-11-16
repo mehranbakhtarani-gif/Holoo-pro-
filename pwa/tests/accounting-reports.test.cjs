@@ -18,6 +18,14 @@ const voucherLines=[
  {voucherId:3,accountCode:"1301",debitRial:20000,creditRial:0},{voucherId:3,accountCode:"1101",debitRial:0,creditRial:20000}
 ];
 
+
+test("financial statements reject an unsafe per-account ending balance",()=>{
+ const unsafeAccounts=[{id:"1101",title:"Cash",type:"ASSET",openingDebitRial:Number.MAX_SAFE_INTEGER,openingCreditRial:0}];
+ const unsafeVouchers=[{id:1,date:10,reference:"ADJUSTMENT"}];
+ const unsafeLines=[{voucherId:1,accountCode:"1101",debitRial:1,creditRial:0}];
+ assert.throws(()=>buildFinancialStatements({accounts:unsafeAccounts,vouchers:unsafeVouchers,voucherLines:unsafeLines,fromDate:0,toDate:10}),/محدوده عددی/);
+});
+
 test("builds a balanced balance sheet and period income statement",()=>{
  const report=buildFinancialStatements({accounts,vouchers,voucherLines,fromDate:0,toDate:300});
  assert.equal(report.incomeStatement.revenue,100000);

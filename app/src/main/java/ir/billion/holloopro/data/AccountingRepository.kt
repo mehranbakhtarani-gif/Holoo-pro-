@@ -948,28 +948,28 @@ class AccountingRepository(private val db: AppDatabase) {
         return db.withTransaction {
             var inserted = 0
             var skipped = 0
+            val seenInFile = mutableSetOf<BankStatementDuplicateKey>()
             rows.forEach { row ->
                 require(row.transactionDateEpoch > 0L) { "تاریخ یکی از ردیف‌های صورت‌حساب معتبر نیست" }
                 require(row.signedAmountRial != 0L && row.signedAmountRial != Long.MIN_VALUE) {
                     "مبلغ یکی از ردیف‌های صورت‌حساب معتبر نیست"
                 }
-                val reference = row.bankReference.trim()
-                val description = row.description.trim()
-                // Blank references/descriptions are not an exemption: the same bank/date/amount
-                // tuple must not be imported twice, including duplicate rows within this CSV.
-                val duplicate = db.bankStatementDao().countDuplicate(
-                    normalizedBank, row.transactionDateEpoch, row.signedAmountRial, reference, description
+                val key = BankStatementDuplicateKey.from(normalizedBank, row)
+                // Track file-local duplicates explicitly; do not depend on database read visibility.
+                val duplicateInFile = !seenInFile.add(key)
+                val duplicateInDatabase = db.bankStatementDao().countDuplicate(
+                    key.bankName, key.transactionDateEpoch, key.signedAmountRial, key.bankReference, key.description
                 ) > 0
-                if (duplicate) {
+                if (duplicateInFile || duplicateInDatabase) {
                     skipped++
                 } else {
                     db.bankStatementDao().insert(
                         BankStatementLineEntity(
-                            bankName = normalizedBank,
-                            transactionDateEpoch = row.transactionDateEpoch,
-                            signedAmountRial = row.signedAmountRial,
-                            bankReference = reference,
-                            description = description
+                            bankName = key.bankName,
+                            transactionDateEpoch = key.transactionDateEpoch,
+                            signedAmountRial = key.signedAmountRial,
+                            bankReference = key.bankReference,
+                            description = key.description
                         )
                     )
                     inserted++
@@ -1007,10 +1007,14 @@ class AccountingRepository(private val db: AppDatabase) {
         db.withTransaction {
             val normalizedBank = bankName.trim()
             val normalizedReference = bankReference.trim()
-            val normalizedDescription = description.trim()
+            val normalizedDescription = description.trim().ifBlank { "کارمزد بانکی" }
+            val feeKey = BankStatementDuplicateKey.from(
+                normalizedBank,
+                BankStatementCsvRow(transactionDateEpoch, Math.negateExact(amountRial), normalizedReference, normalizedDescription)
+            )
             require(db.bankStatementDao().countDuplicate(
-                normalizedBank, transactionDateEpoch, Math.negateExact(amountRial),
-                normalizedReference, normalizedDescription
+                feeKey.bankName, feeKey.transactionDateEpoch, feeKey.signedAmountRial,
+                feeKey.bankReference, feeKey.description
             ) == 0) { "کارمزد بانکی مشابه قبلاً ثبت شده است" }
             ensureBaseAccounts()
             val bank = db.accountDao().byCode("1102") ?: error("حساب بانک تعریف نشده است")
@@ -1029,7 +1033,7 @@ class AccountingRepository(private val db: AppDatabase) {
             db.bankStatementDao().insert(BankStatementLineEntity(
                 bankName = normalizedBank, transactionDateEpoch = transactionDateEpoch,
                 signedAmountRial = Math.negateExact(amountRial), bankReference = normalizedReference,
-                description = if (normalizedDescription.isBlank()) "کارمزد بانکی" else normalizedDescription,
+                description = normalizedDescription,
                 matchedVoucherId = voucherId
             ))
         }

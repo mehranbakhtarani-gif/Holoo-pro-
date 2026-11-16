@@ -29,6 +29,6 @@ test("all party-balance mutations pass through one safe-integer guard",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/function applyPartyBalanceDelta\(party,delta,label="طرف حساب"\)/);
  assert.match(app,/if\(!Number\.isSafeInteger\(current\)\|\|!Number\.isSafeInteger\(change\)\|\|!Number\.isSafeInteger\(next\)\)/);
- assert.equal((app.match(/[A-Za-z_$][\\w$]*\.balance=Number\(/g)||[]).length,0);
+ assert.equal((app.match(/[A-Za-z_$][\w$]*\.balance=Number\(/g)||[]).length,0);
  assert.ok((app.match(/applyPartyBalanceDelta\(/g)||[]).length>=10);
 });

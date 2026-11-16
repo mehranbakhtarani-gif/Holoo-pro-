@@ -42,7 +42,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v135-custom-fields/);
+ assert.match(sw,/holloo-pwa-v136-entity-fields/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -81,4 +81,19 @@ test("runtime: number fields reject non-finite input",()=>{
  const defs=[{key:"cartons",label:"تعداد کارتن",type:"number",enabled:true}];
  assert.equal(api.normalizeLineValues({cartons:"12.5"},defs).cartons,12.5);
  assert.throws(()=>api.normalizeLineValues({cartons:"NaN"},defs),/عدد معتبر/);
+});
+
+test("entity custom fields are scoped to product and party forms and rows",()=>{
+ assert.match(custom,/function enhanceEntityForm\(\)/);
+ assert.match(custom,/function enhanceEntityTable\(\)/);
+ assert.match(custom,/scope===page/);
+ assert.match(app,/customFields:\(\(\)=>\{try\{return JSON\.parse\(d\.__entityCustomFields\|\|"\{\}"\)\}/);
+});
+test("invoice and order line definitions are separated by document context",()=>{
+ assert.match(custom,/getLineDefinitions:page=>definitions\.filter/);
+ assert.match(app,/getLineDefinitions\("salesOrders"\)/);
+ assert.match(app,/getLineDefinitions\("invoices"\)/);
+});
+test("date validation uses a real YYYY-MM-DD calendar date",()=>{
+ assert.match(custom,/\^\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)\$/);
 });

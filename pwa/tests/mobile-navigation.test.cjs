@@ -9,3 +9,9 @@ test("mobile navigation renders a defined icon and label for every tab",()=>{
  assert.match(app,/const icon=icons\[k\]\|\|"•"/,"unknown tab icons must use a visible fallback instead of undefined");
  assert.match(app,/Array\.isArray\(titles\[k\]\)&&titles\[k\]\[0\]/,"tab labels must be checked before rendering");
 });
+
+
+test("dashboard quick links are bound after the page content is rendered",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/\$\("#main"\)\.querySelectorAll\("\[data-page\]"\)\.forEach\(b=>b\.onclick=\(\)=>go\(b\.dataset\.page\)\)/,"quick navigation buttons inside rendered pages must navigate");
+});

@@ -59,3 +59,12 @@ test("import shipment itemized cost headers align one-to-one with displayed valu
  assert.ok(config>=0&&start>config&&end>start);
  assert.equal((app.slice(start,end).match(/"/g)||[]).length/2,23);
 });
+
+ 
+test("import order container uniqueness is checked in the same transaction as create or edit",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putImportOrderUnique\(record\)/);
+ assert.match(app,/db\.transaction\(\["imports","auditLog"\],"readwrite"\)/);
+ assert.ok(app.includes('String(row.container||"").trim().toLowerCase()===String(record.container||"").trim().toLowerCase()'));
+ assert.match(app,/await putImportOrderUnique\(\{id:item\?\.id,supplierId:p\.id/);
+});

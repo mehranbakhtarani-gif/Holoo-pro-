@@ -640,9 +640,8 @@ async function restoreBackup(file){
   counts[store]=rows.length;total+=rows.length;
  }
  if(data.version===2&&(!Array.isArray(data.storeNames)||stores.some(name=>!data.storeNames.includes(name))))throw Error("فایل پشتیبان نسخه جدید ناقص است");
- const summary=stores.filter(s=>counts[s]).map(s=>s+" "+counts[s]).join("، ");
  if(!confirm("بازیابی "+total+" رکورد از فایل پشتیبان انجام شود؟ تمام اطلاعات فعلی جایگزین می‌شود. پیش از جایگزینی، یک نسخه پشتیبان خودکار از اطلاعات فعلی دانلود خواهد شد."))return;
- const before=await exportBackup("holloo-before-restore");
+ await exportBackup("holloo-before-restore");
  const tx=db.transaction(stores,"readwrite");
  for(const store of stores){const objectStore=tx.objectStore(store);objectStore.clear();for(const row of data.records[store]||[])objectStore.put(row)}
  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("بازیابی ناموفق بود"));tx.onabort=()=>reject(tx.error||new Error("بازیابی لغو شد"))});

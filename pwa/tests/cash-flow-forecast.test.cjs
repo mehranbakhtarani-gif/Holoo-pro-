@@ -38,3 +38,13 @@ test("flags the lowest projected cash point when payments exceed available cash"
  ]});
  assert.equal(report.minimumProjectedCashRial,-200);assert.equal(report.closingCashRial,300);
 });
+
+test("PWA wires the cash flow dashboard and helper into the offline build",()=>{
+ const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
+ assert.match(app,/cashFlow:\["جریان نقدی"/);assert.match(app,/if\(currentPage===\"cashFlow\"\)/);
+ assert.match(app,/buildCashFlowForecast\(/);assert.match(app,/1101/);assert.match(app,/1102/);
+ assert.match(app,/data-cash-horizon/);assert.match(app,/treasuryAllocations/);
+ assert.match(html,/cash-flow-forecast\.js/);assert.ok(html.indexOf("cash-flow-forecast.js")<html.indexOf("app.js"));
+ assert.match(sw,/cash-flow-forecast\.js/);assert.match(sw,/holloo-pwa-v53-cash-flow-forecast/);
+});

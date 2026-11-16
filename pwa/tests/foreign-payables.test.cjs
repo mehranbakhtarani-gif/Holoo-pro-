@@ -32,6 +32,7 @@ test("rejects overflow in realized FX totals rather than wrapping",()=>{
 });
 test("does not count reversed installments in realized FX summaries",()=>{
  const p=payable(),posted=planForeignPayablePayment({payable:p,amountMinor:25000,fxRateRialPerUnit:550000});
+ posted.payment.id=98765;
  const reversed=planForeignPayableReversal({payable:posted.updated,payment:posted.payment});
  const summary=summarizeForeignPayable({payable:reversed.updated,payments:[posted.payment,reversed.reversedPayment]});
  assert.equal(summary.realizedFxGainRial,0);

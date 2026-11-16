@@ -42,3 +42,10 @@ test("calculated payroll can be paid later through a guarded treasury transactio
  assert.match(app,/data-payroll-pay/);
  assert.match(app,/payroll:\["createdAt","paidAt"\]/);
 });
+
+ 
+test("approval requests must reference an existing document and support explicit approve/reject actions",()=>{
+ assert.match(app,/سند مرجع با نوع و شناسه انتخاب‌شده پیدا نشد/);
+ assert.match(app,/برای این سند و مرحله قبلاً درخواست تأیید ثبت شده است/);
+ assert.match(app,/data-approval-status=/);
+});

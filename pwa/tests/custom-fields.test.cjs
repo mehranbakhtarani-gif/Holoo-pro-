@@ -75,7 +75,7 @@ test("service worker caches and network-refreshes the custom fields module and i
  assert.match(sw,/custom-fields\\\.js/);
 });
 test("user-defined fields are validated and never evaluated as executable code",()=>{
- assert.match(custom,/allowed=new Set\(\["text","number","date","select","checkbox"\]\)/);
+ assert.match(custom,/allowed=new Set\(\["text","number","date","select","checkbox","textarea"\]\)/);
  assert.match(custom,/\^\[a-zA-Z\]\[a-zA-Z0-9_\]/);
  assert.doesNotMatch(custom,/eval\s*\(|new Function\s*\(/);
 });
@@ -434,3 +434,5 @@ test("custom report saves print template header footer paper and orientation",()
  assert.match(custom,/crPrintOrientation/);
  assert.match(custom,/@page\{size:/);
 });
+
+test("multiline custom fields are available and safely escaped in textarea controls",()=>{ assert.match(custom,/d\.type==="textarea"/); assert.match(custom,/maxlength="500"/); assert.match(custom,/value="textarea">یادداشت چندخطی/); });

@@ -9,3 +9,21 @@ test("account creation and edit buttons report form-opening failures",()=>{
  assert.match(app,/await openForm\("accounts",item\)/);
  assert.match(app,/فرم ویرایش حساب باز نشد/);
 });
+
+
+test("accounting reports wire trial balance, aging print, CSV and ledger filters",()=>{
+ assert.match(app,/trialBalanceColumns\.addEventListener\("change",updateTrialBalance\)/);
+ assert.match(app,/agingPrintButton\.onclick=/);
+ assert.match(app,/exportLedger\.onclick=/);
+ assert.match(app,/printLedger\.onclick=/);
+ assert.match(app,/\["ledgerAccountFilter","ledgerFrom","ledgerTo"\]\.forEach\(id=>\{const el=\$\("#"\+id\);if\(el\)el\.addEventListener\("change",ledgerFilter\)\}\)/);
+ assert.match(app,/exportFinance\.onclick=/);
+});
+
+test("accounting manual vouchers and opening balances have submit handlers and balance guards",()=>{
+ assert.match(app,/\$\("#addVoucherLine"\)\.onclick=addVoucherRow/);
+ assert.match(app,/manualForm\.onsubmit=async/);
+ assert.match(app,/openingForm\.onsubmit=async/);
+ assert.match(app,/debit!==credit/);
+ assert.match(app,/vouchers\.length\).*مانده افتتاحیه پس از ثبت اولین سند قفل است/);
+});

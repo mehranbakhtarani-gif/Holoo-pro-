@@ -3,6 +3,15 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
 
+test("invoice list exports amounts, settlement balances and status to CSV",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/id="exportInvoicesCsv"/);
+ assert.match(app,/holloo-invoices\.csv/);
+ assert.match(app,/getInvoiceSettlement\(invoice,allocations\)/);
+ assert.match(app,/پرداخت‌شده ریال/);
+ assert.match(app,/مانده ریال/);
+});
+
 test("invoice list can search invoice number, party, product and currency",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/جست‌وجوی شماره، طرف حساب، کالا یا ارز/);

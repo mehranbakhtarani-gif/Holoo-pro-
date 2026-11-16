@@ -68,3 +68,10 @@ test("party statements display opening balance before dated movements",()=>{
  assert.match(app,/مانده افتتاحیه/);
  assert.match(app,/money\(Math\.abs\(balance\)\)/);
 });
+
+ 
+test("parties page filters by name, type, phone and address",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/جست‌وجوی نام، تلفن، نشانی یا نوع طرف حساب/);
+ assert.match(app,/parties\.filter\(x=>\[x\.name,x\.kind,x\.phone,x\.address\]/);
+});

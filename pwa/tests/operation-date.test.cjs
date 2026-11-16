@@ -32,8 +32,8 @@ test("PWA exposes the shared date selector and applies it in all persistence pat
  assert.match(app,/operationDateMode="AUTO"/);assert.match(app,/id="operationDateMode"/);assert.match(app,/id="operationDateValue"/);
  assert.match(app,/bindOperationDateControls\(\)/);assert.match(app,/stampOperationRecord/);
  assert.match(app,/function postVoucherAtomic\(entries,voucher,lines\)\{const stamp=/);
- assert.match(app,/function put\(s,v\)\{if\(operationDateMode==="MANUAL"/);
- assert.match(app,/function putMany\(entries\)\{if\(operationDateMode==="MANUAL"/);
+ assert.match(app,/function put\(s,v\)\{if\(globalThis.HolooOperationDate/);
+ assert.match(app,/function putMany\(entries\)\{const stamp=globalThis.HolooOperationDate/);
  assert.ok(html.indexOf("operation-date.js")<html.indexOf("app.js?v=operation-date-1"));
  assert.match(sw,/operation-date\.js/);assert.match(sw,/holloo-pwa-v55-operation-date/);
 });

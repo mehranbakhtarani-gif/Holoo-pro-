@@ -53,3 +53,10 @@ test("supports English debit and deposit column headers",()=>{
  const rows=parseBankCsv("date,withdrawal,deposit\n2026-11-03,125,0\n2026-11-04,0,900");
  assert.deepEqual(rows.map(x=>x.signedAmount),[-125,900]);
 });
+
+test("PWA performs manual and automatic bank matching inside shared readwrite transactions",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/db\.transaction\(\["bankStatementLines","treasury","auditLog"\],"readwrite"\)/);
+ assert.match(app,/const linesRequest=tx\.objectStore\("bankStatementLines"\)\.getAll\(\)/);
+ assert.match(app,/const matchedIds=lines\.filter\(x=>x\.status==="MATCHED"/);
+});

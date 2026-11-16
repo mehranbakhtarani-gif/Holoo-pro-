@@ -51,7 +51,9 @@ test("foreign payable payment reversal guards the payment, payable, party and tr
  
 test("treasury allocation creation and reversal use invoice and settlement version guards",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.ok(app.includes("tr.allocationVersion=Number(tr.allocationVersion||0)+1;invoice.allocationVersion=Number(invoice.allocationVersion||0)+1;"));
+ assert.ok(app.includes('incrementAllocationVersion(tr,"خزانه");incrementAllocationVersion(invoice,"فاکتور");'));
+ assert.ok(app.includes('incrementAllocationVersion(transaction,"خزانه");'));
+ assert.match(app,/function incrementAllocationVersion\(record,label="سند"\)/);
  assert.ok(app.includes('store:"treasury",key:Number(tr.id),expected:transactionSnapshot'));
  assert.ok(app.includes('store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot'));
  assert.ok(app.includes('allocationVersion:invoice.allocationVersion'));

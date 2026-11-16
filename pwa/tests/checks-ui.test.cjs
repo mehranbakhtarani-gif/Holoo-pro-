@@ -37,3 +37,9 @@ test("check register exports all lifecycle fields to CSV",()=>{
  assert.match(app,/ظهرنویسی به نفع/);
  assert.match(app,/check\.status==="BOUNCED"/);
 });
+
+ 
+test("open-check bounce and cancellation transitions use the same stale-state guard as clearing",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/c\.status=next;c\.statusChangedAt=Date\.now\(\);if\(next==="BOUNCED"\)c\.bouncedAt=c\.statusChangedAt;if\(next==="CANCELLED"\)c\.cancelledAt=c\.statusChangedAt;await putManyGuarded\(\[\["checks",c\]\],\[\{store:"checks",key:Number\(c\.id\),expected:checkSnapshot\}\]\)/);
+});

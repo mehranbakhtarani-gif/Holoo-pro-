@@ -41,3 +41,24 @@ test("rejects invalid dates and unsafe amounts",()=>{
  assert.throws(()=>buildReceivablePayableAging({invoices:[{number:"BAD",kind:"SALE",total:1,date:0}],asOfDate:asOf}));
  assert.throws(()=>buildReceivablePayableAging({invoices:[{number:"BAD",kind:"SALE",total:Number.MAX_SAFE_INTEGER+1,date:asOf}],asOfDate:asOf}));
 });
+
+ 
+test("aging reports include only posted invoices and ignore reversed allocations",()=>{
+ const report=buildReceivablePayableAging({asOfDate:Date.UTC(2026,0,31),invoices:[
+  {number:"POSTED",kind:"SALE",status:"POSTED",total:100,dueDate:Date.UTC(2026,0,1),partyName:"A"},
+  {number:"LEGACY",kind:"PURCHASE",total:80,dueDate:Date.UTC(2026,0,1),partyName:"B"},
+  {number:"DRAFT",kind:"SALE",status:"DRAFT",total:900,dueDate:Date.UTC(2026,0,1),partyName:"C"},
+  {number:"REVERSED",kind:"SALE",status:"REVERSED",total:700,dueDate:Date.UTC(2026,0,1),partyName:"D"}
+ ],allocations:[
+  {invoiceNumber:"POSTED",amount:40,status:"ACTIVE"},
+  {invoiceNumber:"POSTED",amount:20,status:"REVERSED"}
+ ]});
+ assert.equal(report.receivables.total,60);
+ assert.equal(report.receivables.rows.length,1);
+ assert.equal(report.payables.total,80);
+ assert.equal(report.payables.rows.length,1);
+});
+
+test("aging reports reject overallocated invoices instead of hiding negative balances",()=>{
+ assert.throws(()=>buildReceivablePayableAging({asOfDate:Date.UTC(2026,0,31),invoices:[{number:"OVER",kind:"SALE",status:"POSTED",total:100,dueDate:Date.UTC(2026,0,1)}],allocations:[{invoiceNumber:"OVER",amount:150,status:"ACTIVE"}]}),/بیشتر است/);
+});

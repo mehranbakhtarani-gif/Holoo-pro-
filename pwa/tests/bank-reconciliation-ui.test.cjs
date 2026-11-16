@@ -14,3 +14,10 @@ test("bank reconciliation supports search and unmatching an incorrect match",()=
 test("unmatching a bank line is audited",()=>{
  assert.match(app,/لغو تطبیق صورت‌حساب بانکی/);
 });
+
+test("bank reconciliation exports statement lines and matched treasury trace to CSV",()=>{
+ assert.match(app,/id="exportBankReconciliationCsv"/);
+ assert.match(app,/holloo-bank-reconciliation\.csv/);
+ assert.match(app,/شناسه گردش خزانه/);
+ assert.match(app,/line\.matchedTreasuryId/);
+});

@@ -556,7 +556,7 @@ async function receiveImportShipment(id){
  if(linkedPayable)linkedPayable.shipmentReceivedAt=now;
  const lot=planLotReceipt({productId:product.id,productName:product.name,warehouseId:warehouse.id,sourceType:"IMPORT_SHIPMENT",sourceId:shipment.id,sourceNumber:shipment.number,container:shipment.container,supplierId:party.id,supplierName:party.name,quantity:Number(shipment.weight),totalCost:costs.totalCost,receivedAt:now});
  if(lots.some(x=>x.id===lot.id))throw Error("برای این محموله قبلاً بچ موجودی ثبت شده است");
- party.balance=Number(party.balance||0)-costs.goodsRial;
+ const nextPartyBalance=Number(party.balance||0)-costs.goodsRial;if(!Number.isSafeInteger(nextPartyBalance))throw Error("مانده تأمین‌کننده برای رسید محموله از محدوده عددی مجاز خارج است");party.balance=nextPartyBalance;
  const ledger={partyId:party.id,date:now,debitRial:0,creditRial:costs.goodsRial,description:"ثبت بدهی خرید محموله "+shipment.number,referenceId:reference};
  const journal=[{accountCode:"1301",debitRial:costs.totalCost,creditRial:0,description:"ورود موجودی محموله "+shipment.number}];
  if(costs.goodsRial>0)journal.push({accountCode:"2101",debitRial:0,creditRial:costs.goodsRial,description:"بدهی بهای کالا به تأمین‌کننده"});

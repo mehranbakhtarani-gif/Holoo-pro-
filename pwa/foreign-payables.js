@@ -66,6 +66,35 @@ function clearForeignPayableInstallmentPlan(payable){
  if(!payable||!Array.isArray(payable.paymentPlan)||!payable.paymentPlan.length)throw new Error("برنامه پرداختی برای حذف وجود ندارد");
  return {...payable,paymentPlan:[],paymentPlanUpdatedAt:Date.now()};
 }
+function reconcileForeignPayablePayments(input){
+ const payments=Array.isArray(input.payments)?input.payments:[],treasury=Array.isArray(input.treasury)?input.treasury:[],partyLedger=Array.isArray(input.partyLedger)?input.partyLedger:[],vouchers=Array.isArray(input.vouchers)?input.vouchers:[],voucherLines=Array.isArray(input.voucherLines)?input.voucherLines:[];
+ const rows=payments.map(payment=>{
+  const reference=String(payment.reference||""),active=payment.status!=="REVERSED",originalTreasury=treasury.filter(x=>x.reference===reference),originalLedger=partyLedger.filter(x=>x.referenceId===reference),originalVouchers=vouchers.filter(x=>x.reference===reference),voucher=originalVouchers[0],lines=voucher?voucherLines.filter(x=>Number(x.voucherId)===Number(voucher.id)):[];
+  const reversalReference="FXPAY-REV:"+payment.id,reversalTreasury=treasury.filter(x=>x.reference===reversalReference),reversalLedger=partyLedger.filter(x=>x.referenceId===reversalReference),reversalVouchers=vouchers.filter(x=>x.reference===reversalReference),reversalVoucher=reversalVouchers[0],reversalLines=reversalVoucher?voucherLines.filter(x=>Number(x.voucherId)===Number(reversalVoucher.id)):[];
+  const issues=[];
+  if(originalTreasury.length!==1)issues.push(originalTreasury.length?"گردش خزانه تکراری":"گردش خزانه پیدا نشد");
+  else if(originalTreasury[0].kind!=="PAYMENT"||Number(originalTreasury[0].amount)!==Number(payment.settlementRial)||Number(originalTreasury[0].foreignAmountMinor)!==Number(payment.amountMinor)||Number(originalTreasury[0].foreignPayableId)!==Number(payment.payableId))issues.push("مبلغ یا مشخصات گردش خزانه مغایر است");
+  if(originalLedger.length!==1)issues.push(originalLedger.length?"گردش طرف حساب تکراری":"گردش طرف حساب پیدا نشد");
+  else if(Number(originalLedger[0].partyId)!==Number(payment.supplierId)||Number(originalLedger[0].debitRial)!==Number(payment.bookedRial)||Number(originalLedger[0].creditRial||0)!==0)issues.push("گردش طرف حساب مغایر است");
+  if(originalVouchers.length!==1)issues.push(originalVouchers.length?"سند حسابداری تکراری":"سند حسابداری پیدا نشد");
+  else{
+   const debit=lines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=lines.reduce((n,x)=>n+Number(x.creditRial||0),0);
+   const liability=lines.filter(x=>String(x.accountCode)==="2101").reduce((n,x)=>n+Number(x.debitRial||0)-Number(x.creditRial||0),0);
+   if(!lines.length||debit!==credit||liability!==Number(payment.bookedRial))issues.push("سند حسابداری نامتوازن یا بدهی آن مغایر است");
+  }
+  if(!active){
+   if(originalTreasury.length===1&&originalTreasury[0].status!=="REVERSED")issues.push("گردش خزانه اصلی وضعیت برگشت ندارد");
+   if(reversalTreasury.length!==1)issues.push(reversalTreasury.length?"گردش برگشت خزانه تکراری":"گردش برگشت خزانه پیدا نشد");
+   else if(reversalTreasury[0].kind!=="RECEIPT"||Number(reversalTreasury[0].amount)!==Number(payment.settlementRial))issues.push("مبلغ گردش برگشت خزانه مغایر است");
+   if(reversalLedger.length!==1)issues.push(reversalLedger.length?"گردش برگشت طرف حساب تکراری":"گردش برگشت طرف حساب پیدا نشد");
+   else if(Number(reversalLedger[0].partyId)!==Number(payment.supplierId)||Number(reversalLedger[0].creditRial)!==Number(payment.bookedRial))issues.push("گردش برگشت طرف حساب مغایر است");
+   if(reversalVouchers.length!==1)issues.push(reversalVouchers.length?"سند برگشت تکراری":"سند برگشت حسابداری پیدا نشد");
+   else{const debit=reversalLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=reversalLines.reduce((n,x)=>n+Number(x.creditRial||0),0);if(!reversalLines.length||debit!==credit)issues.push("سند برگشت نامتوازن است")}
+  }else if(reversalTreasury.length||reversalLedger.length||reversalVouchers.length)issues.push("برای پرداخت فعال، سند برگشت غیرمنتظره وجود دارد");
+  return {paymentId:payment.id,reference,sourceNumber:payment.sourceNumber,status:active?"فعال":"برگشت‌شده",ok:issues.length===0,issues};
+ });
+ return {total:rows.length,matched:rows.filter(x=>x.ok).length,withIssues:rows.filter(x=>!x.ok).length,rows};
+}
 function summarizeForeignPayablesForecast(input){
  const rows=Array.isArray(input.payables)?input.payables:[],asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?30:input.horizonDays);
  if(!Number.isFinite(asOf)||!Number.isSafeInteger(days)||days<0||days>366)throw new Error("بازه پیش‌بینی سررسید معتبر نیست");
@@ -85,6 +114,6 @@ function summarizeForeignPayablesForecast(input){
  }
  return result;
 }
-const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,allocateForeignPayablePaymentToInstallments,getRemainingForeignPayableInstallments,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast};
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,allocateForeignPayablePaymentToInstallments,getRemainingForeignPayableInstallments,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast,reconcileForeignPayablePayments};
 if(typeof module!=="undefined")module.exports=ForeignPayables;
 if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

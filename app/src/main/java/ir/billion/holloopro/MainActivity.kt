@@ -1024,6 +1024,9 @@ private fun WarehouseScreen(
 ) {
     var showCreate by remember { mutableStateOf(false) }
     var showTransfer by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
+    val visibleWarehouses = warehouses.filter { it.name.contains(searchText, true) || it.address.contains(searchText, true) }
+    val visibleKardex = warehouseKardex.filter { it.productName.contains(searchText, true) || it.warehouseName.contains(searchText, true) || it.kind.contains(searchText, true) }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -1033,9 +1036,11 @@ private fun WarehouseScreen(
             TextButton(onClick = { showTransfer = true }, enabled = warehouses.size > 1 && products.isNotEmpty()) { Text("انتقال کالا", color = Turquoise) }
             Button(onClick = { showCreate = true }, colors = ButtonDefaults.buttonColors(containerColor = Turquoise, contentColor = Navy)) { Text("انبار جدید") }
         }
+        FormField("جست‌وجوی نام انبار، نشانی، کالا یا نوع گردش", searchText) { searchText = it }
         if (warehouses.isEmpty()) EmptyState("انبار تعریف نشده است", "ابتدا انبار اصلی را ایجاد کنید")
+        else if (visibleWarehouses.isEmpty() && visibleKardex.isEmpty()) EmptyState("موردی پیدا نشد", "عبارت جست‌وجو را تغییر بده یا پاک کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
-            items(warehouses, key = { it.id }) { warehouse ->
+            items(visibleWarehouses, key = { it.id }) { warehouse ->
                 val rows = warehouseStocks.filter { it.warehouseId == warehouse.id && it.quantityKg > 0.000001 }
                 GlassCard {
                     Text(warehouse.name + if (warehouse.isDefault) " • پیش‌فرض" else "", color = Turquoise, fontWeight = FontWeight.Bold)
@@ -1058,8 +1063,8 @@ private fun WarehouseScreen(
             item {
                 GlassCard {
                     Text("کاردکس انبارها", color = Turquoise, fontWeight = FontWeight.Bold)
-                    if (warehouseKardex.isEmpty()) Text("هنوز گردش انباری ثبت نشده است.", color = Muted, fontSize = 11.sp)
-                    warehouseKardex.take(60).forEach { movement ->
+                    if (visibleKardex.isEmpty()) Text("گردش منطبق با جست‌وجو پیدا نشد.", color = Muted, fontSize = 11.sp)
+                    visibleKardex.take(60).forEach { movement ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(movement.productName + " • " + movement.warehouseName, color = Color.White, fontSize = 11.sp)

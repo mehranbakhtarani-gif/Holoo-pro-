@@ -34,7 +34,7 @@ function planLotSale(input){
   if(!Number.isSafeInteger(cost)||cost<0||cost>lotValue)throw new Error("بهای خروج بچ معتبر نیست");
   const updated={...lot,remainingQty:take>=lotQty-1e-9?0:lotQty-take,remainingValue:lotValue-cost,status:take>=lotQty-1e-9?"CLOSED":"OPEN",updatedAt:Number(input.date||Date.now())};
   const existing=updates.findIndex(x=>x.id===updated.id),newIndex=newLots.findIndex(x=>x.id===updated.id);if(existing>=0)updates[existing]=updated;else if(newIndex>=0)newLots[newIndex]=updated;else updates.push(updated);
-  allocations.push({lotId:lot.id,sourceType:lot.sourceType,sourceId:lot.sourceId,sourceNumber:lot.sourceNumber,container:lot.container||"",quantity:take,cogs:cost});
+  allocations.push({lotId:lot.id,originLotId:lot.originLotId||lot.id,sourceType:lot.sourceType,sourceId:lot.sourceId,sourceNumber:lot.sourceNumber,container:lot.container||"",quantity:take,cogs:cost});
   cogs+=cost;remaining-=take;
  }
  if(remaining>1e-6||!Number.isSafeInteger(cogs))throw new Error("بچ‌های قابل ردیابی برای مقدار خروج کافی نیستند");
@@ -57,13 +57,27 @@ function restoreLotSale(input){
  }
  return updates;
 }
+function planLotTransfer(input){
+ const sourceWarehouseId=Number(input.sourceWarehouseId),destinationWarehouseId=Number(input.destinationWarehouseId),quantity=Number(input.quantity),productId=Number(input.productId),date=Number(input.date||Date.now()),transferId=String(input.transferId||"");
+ if(!transferId||sourceWarehouseId<=0||destinationWarehouseId<=0||sourceWarehouseId===destinationWarehouseId)throw new Error("اطلاعات انتقال بچ معتبر نیست");
+ const sale=planLotSale({lots:input.lots,productId,productName:input.productName,warehouseId:sourceWarehouseId,quantity,warehouseStock:input.sourceWarehouseStock,date});
+ const sourceLots=[...(input.lots||[]),...sale.newLots,...sale.updates],destinationLots=sale.allocations.map((allocation,index)=>{
+  const source=sourceLots.find(x=>String(x.id)===String(allocation.lotId));
+  if(!source)throw new Error("بچ مبدأ برای انتقال پیدا نشد");
+  return {...source,id:"LOT:TRANSFER:"+transferId+":"+index,warehouseId:destinationWarehouseId,originalQty:allocation.quantity,remainingQty:allocation.quantity,originalCost:allocation.cogs,remainingValue:allocation.cogs,unitCost:allocation.quantity?allocation.cogs/allocation.quantity:0,receivedAt:date,originLotId:source.originLotId||source.id,transferredFromLotId:source.id,transferId,status:"OPEN",updatedAt:date};
+ });
+ const transferValue=sale.allocations.reduce((n,x)=>n+x.cogs,0);
+ if(!Number.isSafeInteger(transferValue))throw new Error("ارزش بچ‌های انتقالی معتبر نیست");
+ return {sourceLotUpdates:[...sale.newLots,...sale.updates],destinationLots,allocations:sale.allocations,quantity:sale.allocations.reduce((n,x)=>n+x.quantity,0),transferValue,sourceRemainingStock:sale.remainingStock,sourceRemainingValue:sale.remainingValue};
+}
 function summarizeLotProfit(input){
  const lots=Array.isArray(input.lots)?input.lots:[],invoices=Array.isArray(input.invoices)?input.invoices:[];
- const summaries=new Map();
+ const summaries=new Map(),lotById=new Map(lots.map(lot=>[String(lot.id),lot]));
  for(const lot of lots){
   if(!["IMPORT_SHIPMENT","PURCHASE_INVOICE"].includes(lot.sourceType)||lot.status==="REVERSED")continue;
-  const key=String(lot.id),soldQty=Number(lot.originalQty)-Number(lot.remainingQty||0),soldCost=Number(lot.originalCost)-Number(lot.remainingValue||0);
-  summaries.set(key,{lotId:key,sourceType:lot.sourceType,sourceNumber:lot.sourceNumber,container:lot.container||"",supplierName:lot.supplierName||"",productName:lot.productName||"",originalQty:Number(lot.originalQty),remainingQty:Number(lot.remainingQty||0),soldQty,soldCost,revenue:0,grossProfit:0});
+  const rootId=String(lot.originLotId||lot.id),root=lotById.get(rootId)||lot;
+  if(!summaries.has(rootId))summaries.set(rootId,{lotId:rootId,sourceType:root.sourceType,sourceNumber:root.sourceNumber,container:root.container||"",supplierName:root.supplierName||"",productName:root.productName||"",originalQty:Number(root.originalQty),originalCost:Number(root.originalCost),remainingQty:0,remainingValue:0,soldQty:0,soldCost:0,revenue:0,grossProfit:0});
+  const row=summaries.get(rootId);row.remainingQty+=Number(lot.remainingQty||0);row.remainingValue+=Number(lot.remainingValue||0);
  }
  for(const invoice of invoices){
   if(invoice.kind!=="SALE"||invoice.status==="REVERSED")continue;
@@ -71,13 +85,18 @@ function summarizeLotProfit(input){
    const allocations=Array.isArray(line.lotAllocations)?line.lotAllocations:[];
    const qtyBase=Number(line.totalQty||line.qty||0),lineRevenue=Number(line.lineTotal||0);
    if(!Number.isFinite(qtyBase)||qtyBase<=0||!Number.isSafeInteger(lineRevenue)||lineRevenue<0)continue;
-   for(const allocation of allocations){
-    const row=summaries.get(String(allocation.lotId));if(!row)continue;
-    const revenue=Math.round(lineRevenue*Number(allocation.quantity)/qtyBase);
-    row.revenue+=revenue;row.grossProfit=row.revenue-row.soldCost;
-   }
+   let allocatedRevenue=0;
+   allocations.forEach((allocation,index)=>{
+    const lot=lotById.get(String(allocation.lotId)),rootId=String(allocation.originLotId||lot?.originLotId||lot?.id||allocation.lotId),row=summaries.get(rootId);
+    if(!row)return;
+    const revenue=index===allocations.length-1?lineRevenue-allocatedRevenue:Math.round(lineRevenue*Number(allocation.quantity)/qtyBase);
+    allocatedRevenue+=revenue;row.revenue+=revenue;
+   });
   }
+ }
+ for(const row of summaries.values()){
+  row.soldQty=Math.max(0,row.originalQty-row.remainingQty);row.soldCost=Math.max(0,row.originalCost-row.remainingValue);row.grossProfit=row.revenue-row.soldCost;
  }
  return [...summaries.values()].sort((a,b)=>b.grossProfit-a.grossProfit);
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={planLotReceipt,planLotSale,restoreLotSale,summarizeLotProfit};
+if(typeof module!=="undefined"&&module.exports)module.exports={planLotReceipt,planLotSale,planLotTransfer,restoreLotSale,summarizeLotProfit};

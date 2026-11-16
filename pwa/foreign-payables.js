@@ -39,6 +39,25 @@ function planForeignPayableReversal(input){
  const reversedPayment={...payment,status:"REVERSED",reversedAt:date};
  return {updated,reversedPayment,bookedRial:Number(payment.bookedRial),settlementRial:Number(payment.settlementRial),fxGainRial:Number(payment.fxGainRial||0),fxLossRial:Number(payment.fxLossRial||0)};
 }
-const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable};
+function summarizeForeignPayablesForecast(input){
+ const rows=Array.isArray(input.payables)?input.payables:[],asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?30:input.horizonDays);
+ if(!Number.isFinite(asOf)||!Number.isSafeInteger(days)||days<0||days>366)throw new Error("بازه پیش‌بینی سررسید معتبر نیست");
+ const start=new Date(asOf);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days+1);
+ const result={asOf:start.getTime(),horizonDays:days,openCount:0,overdueCount:0,dueSoonCount:0,byCurrency:{}};
+ for(const p of rows){
+  if(!p||p.status==="CANCELLED"||p.status==="PAID")continue;
+  const amount=toSafeMinor(Number(p.amountMinor)-Number(p.paidMinor||0),"مانده تعهد ارزی");
+  if(!amount)continue;
+  const currency=String(p.currency||"");if(!["USD","CNY","EUR"].includes(currency))continue;
+  if(!result.byCurrency[currency])result.byCurrency[currency]={outstandingMinor:0,overdueMinor:0,dueSoonMinor:0,overdueCount:0,dueSoonCount:0,undatedMinor:0};
+  const bucket=result.byCurrency[currency];bucket.outstandingMinor+=amount;result.openCount++;
+  const due=Number(p.dueDate||0);
+  if(!Number.isFinite(due)||due<=0){bucket.undatedMinor+=amount;continue}
+  if(due<start.getTime()){bucket.overdueMinor+=amount;bucket.overdueCount++;result.overdueCount++}
+  else if(due<end.getTime()){bucket.dueSoonMinor+=amount;bucket.dueSoonCount++;result.dueSoonCount++}
+ }
+ return result;
+}
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable,summarizeForeignPayablesForecast};
 if(typeof module!=="undefined")module.exports=ForeignPayables;
 if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

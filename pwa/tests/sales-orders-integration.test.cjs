@@ -16,7 +16,7 @@ test("sales orders can be drafted, approved, cancelled and converted only after 
  assert.match(app,/if\(next==="CANCELLED"\)/);
  assert.match(app,/data-order-action="APPROVED"/);
  assert.match(app,/data-order-action="INVOICE"/);
- assert.match(app,/status:"INVOICED"/);
+ assert.match(app,/linkedOrder\.status="INVOICED"/);
 });
 test("quotes and orders do not change inventory until invoice posting",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");

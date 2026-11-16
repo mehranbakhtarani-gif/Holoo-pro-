@@ -5,9 +5,10 @@ const path=require("node:path");
 
 test("cheque clearing revalidates cheque and party and rejects duplicate treasury reference",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- const start=app.indexOf('const next=b.dataset.checkStatus');
+ const handler=app.indexOf('document.querySelectorAll("[data-check-status]")');
+ const start=app.indexOf("const next=b.dataset.checkStatus",handler);
  const end=app.indexOf('}else if(next==="ENDORSED"){',start);
- assert.ok(start>=0&&end>start,"cheque clearing branch must exist");
+ assert.ok(handler>=0&&start>handler&&end>start,"cheque clearing branch must exist");
  const body=app.slice(start,end);
  for(const expected of [
   "const checkSnapshot={...c}",
@@ -20,9 +21,10 @@ test("cheque clearing revalidates cheque and party and rejects duplicate treasur
 
 test("cheque endorsement revalidates cheque and both party balances atomically",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- const start=app.indexOf('}else if(next==="ENDORSED"){');
- const end=app.indexOf('}else{\n   c.status=next',start);
- assert.ok(start>=0&&end>start,"cheque endorsement branch must exist");
+ const handler=app.indexOf('document.querySelectorAll("[data-check-status]")');
+ const start=app.indexOf('}else if(next==="ENDORSED"){',handler);
+ const end=app.indexOf("c.status=next",start);
+ assert.ok(handler>=0&&start>handler&&end>start,"cheque endorsement branch must exist");
  const body=app.slice(start,end);
  for(const expected of [
   "const checkSnapshot={...c}",

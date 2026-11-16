@@ -70,7 +70,7 @@ test("master-data edits preserve live stock valuation and party balance inside t
  assert.match(app,/const read=objectStore\.get\(record\.id\)/);
  assert.match(app,/for\(const field of fields\)merged\[field\]=read\.result\[field\]/);
  assert.match(app,/await putProductUnique\(v\)/);
- assert.match(app,/putPreservingFields\("parties",partyRecord,\["balance"\]\)/);
+ assert.match(app,/await putPartyGuarded\(partyRecord\)/);
 });
  
 test("product, party and warehouse deletion rechecks references atomically before deleting",()=>{
@@ -146,4 +146,14 @@ test("product SKU and barcode uniqueness are enforced in the same transaction as
  assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
  assert.match(app,/if\(current\)\{for\(const field of \["stock","value","avg"\]\)value\[field\]=current\[field\]\}/);
  assert.match(app,/await putProductUnique\(v\)/);
+});
+
+ 
+test("party type reclassification and balance preservation are rechecked atomically with all financial history stores",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putPartyGuarded\(record\)/);
+ assert.match(app,/db\.transaction\(\["parties",\.\.\.relatedStores,"auditLog"\],"readwrite"\)/);
+ assert.match(app,/relatedStores=\["invoices","treasury","checks","partyLedger","imports","salesOrders","importShipments","foreignPayables","foreignPayablePayments","fixedAssets"\]/);
+ assert.match(app,/if\(current\.kind!==record\.kind\)/);
+ assert.match(app,/const merged=\{\.\.\.record,balance:current\.balance\}/);
 });

@@ -66,12 +66,14 @@ function planForeignPayableReversal(input){
  return {updated,reversedPayment,bookedRial:Number(payment.bookedRial),settlementRial:Number(payment.settlementRial),fxGainRial:Number(payment.fxGainRial||0),fxLossRial:Number(payment.fxLossRial||0)};
 }
 function planForeignPayableInstallment(input){
- const payable=input.payable,amountMinor=toSafeMinor(input.amountMinor,"مبلغ قسط"),dueDate=Number(input.dueDate);
- if(!payable||payable.status==="CANCELLED"||payable.status==="PAID"||!Number.isSafeInteger(dueDate)||dueDate<=0||amountMinor<=0)throw new Error("اطلاعات قسط معتبر نیست");
- const outstanding=Number(payable.amountMinor)-Number(payable.paidMinor||0),existing=Array.isArray(payable.paymentPlan)?payable.paymentPlan:[];
- const planned=existing.reduce((n,x)=>n+toSafeMinor(x.amountMinor,"مبلغ قسط برنامه‌ریزی‌شده"),0);
- if(planned+amountMinor>outstanding)throw new Error("جمع اقساط برنامه‌ریزی‌شده از مانده تعهد بیشتر است");
- const installment={amountMinor,dueDate,note:String(input.note||""),createdAt:Number(input.createdAt||Date.now())};
+ const payable=input.payable,amountMinor=toSafeMinor(input.amountMinor,"مبلغ قسط"),dueDate=Number(input.dueDate),createdAt=input.createdAt===undefined||input.createdAt===null?Date.now():Number(input.createdAt);
+ if(!payable||payable.status==="CANCELLED"||payable.status==="PAID"||!Number.isSafeInteger(dueDate)||dueDate<=0||!Number.isSafeInteger(createdAt)||createdAt<=0||amountMinor<=0)throw new Error("اطلاعات قسط معتبر نیست");
+ const totalMinor=toSafeMinor(payable.amountMinor,"کل تعهد ارزی"),paidMinor=toSafeMinor(payable.paidMinor||0,"مبلغ پرداخت‌شده ارزی");
+ if(paidMinor>totalMinor)throw new Error("مانده تعهد ارزی برای برنامه‌ریزی معتبر نیست");
+ const outstanding=totalMinor-paidMinor,existing=Array.isArray(payable.paymentPlan)?payable.paymentPlan:[];
+ const planned=existing.reduce((n,x)=>addSafe(n,toSafeMinor(x.amountMinor,"مبلغ قسط برنامه‌ریزی‌شده"),"جمع اقساط برنامه‌ریزی‌شده"),0);
+ if(addSafe(planned,amountMinor,"جمع اقساط برنامه‌ریزی‌شده")>outstanding)throw new Error("جمع اقساط برنامه‌ریزی‌شده از مانده تعهد بیشتر است");
+ const installment={amountMinor,dueDate,note:String(input.note||""),createdAt};
  const basePaid=existing.length?Number(payable.paymentPlanBasePaidMinor??payable.paidMinor??0):Number(payable.paidMinor||0);
  return {...payable,paymentPlan:[...existing,installment],paymentPlanBasePaidMinor:basePaid,paymentPlanUpdatedAt:Number(input.createdAt||Date.now())};
 }
@@ -158,21 +160,22 @@ function reconcileForeignPayableBalances(input){
 }
 
 function summarizeForeignPayablesForecast(input){
- const rows=Array.isArray(input.payables)?input.payables:[],asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?30:input.horizonDays);
- if(!Number.isFinite(asOf)||!Number.isSafeInteger(days)||days<0||days>366)throw new Error("بازه پیش‌بینی سررسید معتبر نیست");
- const start=new Date(asOf);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days+1);
+ const rows=Array.isArray(input.payables)?input.payables:[],asOf=input.asOf===undefined||input.asOf===null?Date.now():Number(input.asOf),days=Number(input.horizonDays===undefined?30:input.horizonDays);
+ if(!Number.isSafeInteger(asOf)||!Number.isSafeInteger(days)||days<0||days>366)throw new Error("بازه پیش‌بینی سررسید معتبر نیست");
+ const start=new Date(asOf);if(!Number.isFinite(start.getTime()))throw new Error("تاریخ مبنای پیش‌بینی معتبر نیست");start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days+1);if(!Number.isFinite(end.getTime()))throw new Error("پایان بازه پیش‌بینی معتبر نیست");
  const result={asOf:start.getTime(),horizonDays:days,openCount:0,overdueCount:0,dueSoonCount:0,byCurrency:{}};
  for(const p of rows){
   if(!p||p.status==="CANCELLED"||p.status==="PAID")continue;
-  const amount=toSafeMinor(Number(p.amountMinor)-Number(p.paidMinor||0),"مانده تعهد ارزی");
+  const amount=toSafeMinor(toSafeMinor(p.amountMinor,"کل تعهد ارزی")-toSafeMinor(p.paidMinor||0,"مبلغ پرداخت‌شده ارزی"),"مانده تعهد ارزی");
   if(!amount)continue;
   const currency=String(p.currency||"");if(!["USD","CNY","EUR"].includes(currency))continue;
   if(!result.byCurrency[currency])result.byCurrency[currency]={outstandingMinor:0,overdueMinor:0,dueSoonMinor:0,overdueCount:0,dueSoonCount:0,undatedMinor:0};
-  const bucket=result.byCurrency[currency];bucket.outstandingMinor+=amount;result.openCount++;
-  const due=Number(p.dueDate||0);
-  if(!Number.isFinite(due)||due<=0){bucket.undatedMinor+=amount;continue}
-  if(due<start.getTime()){bucket.overdueMinor+=amount;bucket.overdueCount++;result.overdueCount++}
-  else if(due<end.getTime()){bucket.dueSoonMinor+=amount;bucket.dueSoonCount++;result.dueSoonCount++}
+  const bucket=result.byCurrency[currency];bucket.outstandingMinor=addSafe(bucket.outstandingMinor,amount,"جمع مانده تعهدات ارزی");result.openCount++;
+  const due=p.dueDate===null||p.dueDate===undefined||p.dueDate===""?0:Number(p.dueDate);
+  if(due!==0&&(!Number.isSafeInteger(due)||due<0))throw new Error("تاریخ سررسید تعهد معتبر نیست");
+  if(!due){bucket.undatedMinor=addSafe(bucket.undatedMinor,amount,"جمع تعهدات بدون سررسید");continue}
+  if(due<start.getTime()){bucket.overdueMinor=addSafe(bucket.overdueMinor,amount,"جمع تعهدات سررسیدگذشته");bucket.overdueCount++;result.overdueCount++}
+  else if(due<end.getTime()){bucket.dueSoonMinor=addSafe(bucket.dueSoonMinor,amount,"جمع تعهدات سررسیدشونده");bucket.dueSoonCount++;result.dueSoonCount++}
  }
  return result;
 }

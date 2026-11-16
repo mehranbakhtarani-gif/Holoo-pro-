@@ -27,3 +27,9 @@ test("accounting manual vouchers and opening balances have submit handlers and b
  assert.match(app,/debit!==credit/);
  assert.match(app,/vouchers\.length\).*مانده افتتاحیه پس از ثبت اولین سند قفل است/);
 });
+
+ 
+test("accounting sales reports exclude draft and reversed invoices but retain legacy posted records",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.ok(app.includes('const sales=invoices.filter(x=>x.kind==="SALE"&&(!x.status||x.status==="POSTED"));'));
+});

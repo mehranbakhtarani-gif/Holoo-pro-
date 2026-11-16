@@ -64,3 +64,13 @@ test("accounting page offers CSV export for the currently filtered account ledge
  assert.match(app,/buildLedgerCsv\(\{rows:ledgerRows,accounts,accountCode:code,fromDate:from,toDate:to\}\)/);
  assert.match(app,/holloo-account-ledger\.csv/);
 });
+
+
+test("account ledger page provides a print-ready report using the current filters and running balances",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/id="printLedgerReport"/);
+ assert.match(app,/buildLedgerRunningRows\(\{rows:ledgerRows,accounts,accountCode:code,fromDate:from,toDate:to\}\)/);
+ assert.match(app,/گزارش گردش حساب/);
+ assert.match(app,/@page\{size:A4 landscape/);
+ assert.match(app,/row\.runningBalance/);
+});

@@ -5,7 +5,9 @@ function planLotReceipt(input){
  const sourceType=String(input.sourceType||""),sourceId=String(input.sourceId??"");
  if(!["IMPORT_SHIPMENT","PURCHASE_INVOICE","STOCK_ADJUSTMENT","WAREHOUSE_TRANSFER","LEGACY"].includes(sourceType)||!sourceId)throw new Error("منبع بچ موجودی معتبر نیست");
  const id=String(input.id||("LOT:"+sourceType+":"+sourceId+":"+productId+":"+warehouseId+":"+(input.lineIndex??0)));
- const lot={id,productId,productName:String(input.productName||""),warehouseId,sourceType,sourceId,sourceNumber:String(input.sourceNumber||sourceId),sourceLineIndex:Number(input.lineIndex||0),container:String(input.container||""),supplierId:input.supplierId??null,supplierName:String(input.supplierName||""),receivedAt:Number(input.receivedAt||Date.now()),originalQty:qty,remainingQty:qty,originalCost:cost,remainingValue:cost,unitCost:cost/qty,status:"OPEN"};
+ const receivedAt=input.receivedAt===undefined||input.receivedAt===null?Date.now():Number(input.receivedAt),unitCost=cost/qty;
+ if(!Number.isSafeInteger(receivedAt)||receivedAt<0||!Number.isFinite(unitCost))throw new Error("تاریخ یا بهای واحد بچ معتبر نیست");
+ const lot={id,productId,productName:String(input.productName||""),warehouseId,sourceType,sourceId,sourceNumber:String(input.sourceNumber||sourceId),sourceLineIndex:Number(input.lineIndex||0),container:String(input.container||""),supplierId:input.supplierId??null,supplierName:String(input.supplierName||""),receivedAt,originalQty:qty,remainingQty:qty,originalCost:cost,remainingValue:cost,unitCost,status:"OPEN"};
  return lot;
 }
 function planLotSale(input){
@@ -13,7 +15,12 @@ function planLotSale(input){
  const stock=input.warehouseStock||{},stockQty=Number(stock.stock),stockValue=Number(stock.value);
  if(!Number.isSafeInteger(productId)||productId<=0||!Number.isSafeInteger(warehouseId)||warehouseId<=0||!Number.isFinite(quantity)||quantity<=0)throw new Error("اطلاعات خروج بچ معتبر نیست");
  if(!Number.isFinite(stockQty)||stockQty<0||!Number.isSafeInteger(stockValue)||stockValue<0||stockQty+1e-9<quantity)throw new Error("موجودی انبار برای خروج بچ کافی یا معتبر نیست");
- const matching=lots.filter(x=>Number(x.productId)===productId&&Number(x.warehouseId)===warehouseId&&Number(x.remainingQty)>1e-9);
+ const candidates=lots.filter(x=>Number(x.productId)===productId&&Number(x.warehouseId)===warehouseId);
+ for(const lot of candidates){
+  const qty=Number(lot.remainingQty),value=Number(lot.remainingValue);
+  if(!Number.isFinite(qty)||qty<0||!Number.isSafeInteger(value)||value<0||(qty<=1e-9&&value!==0))throw new Error("اطلاعات مانده یک بچ معتبر نیست");
+ }
+ const matching=candidates.filter(x=>Number(x.remainingQty)>1e-9);
  let trackedQty=matching.reduce((n,x)=>n+Number(x.remainingQty),0),trackedValue=matching.reduce((n,x)=>n+Number(x.remainingValue),0);
  if(trackedQty>stockQty+1e-6||trackedValue>stockValue+1)throw new Error("موجودی بچ‌ها با موجودی کل انبار مغایرت دارد؛ ابتدا مغایرت‌گیری کنید");
  const updates=[],newLots=[];
@@ -85,12 +92,19 @@ function summarizeLotProfit(input){
    const allocations=Array.isArray(line.lotAllocations)?line.lotAllocations:[];
    const qtyBase=Number(line.totalQty||line.qty||0),lineRevenue=Number(line.lineTotal||0);
    if(!Number.isFinite(qtyBase)||qtyBase<=0||!Number.isSafeInteger(lineRevenue)||lineRevenue<0)continue;
-   let allocatedRevenue=0;
+   const allocationQty=allocations.reduce((sum,allocation)=>sum+Number(allocation.quantity),0);
+   if(!Number.isFinite(allocationQty)||Math.abs(allocationQty-qtyBase)>1e-6)throw new Error("جمع مقدار تخصیص بچ‌ها با مقدار فاکتور برابر نیست");
+   let allocatedRevenue=0,allocatedQty=0;
    allocations.forEach((allocation,index)=>{
-    const revenue=index===allocations.length-1?lineRevenue-allocatedRevenue:Math.round(lineRevenue*Number(allocation.quantity)/qtyBase);
-    allocatedRevenue+=revenue;
+    const quantity=Number(allocation.quantity);
+    if(!Number.isFinite(quantity)||quantity<=0)throw new Error("مقدار تخصیص درآمد بچ معتبر نیست");
+    allocatedQty+=quantity;
+    const cumulativeRevenue=index===allocations.length-1?lineRevenue:Math.round(lineRevenue*allocatedQty/qtyBase);
+    const revenue=cumulativeRevenue-allocatedRevenue;
+    if(!Number.isSafeInteger(revenue)||revenue<0)throw new Error("تخصیص درآمد بین بچ‌ها معتبر نیست");
+    allocatedRevenue=cumulativeRevenue;
     const lot=lotById.get(String(allocation.lotId)),rootId=String(allocation.originLotId||lot?.originLotId||lot?.id||allocation.lotId),row=summaries.get(rootId);
-    if(row)row.revenue+=revenue;
+    if(row){row.revenue+=revenue;if(!Number.isSafeInteger(row.revenue))throw new Error("جمع درآمد محموله از محدوده عددی مجاز خارج است");}
    });
   }
  }

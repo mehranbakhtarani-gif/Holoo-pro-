@@ -42,3 +42,9 @@ test("ledger calculates running balances independently for each account when no 
  assert.match(app,/runningByAccount\.set\(String\(x\.accountCode\)/);
  assert.match(app,/مانده ابتدای بازه برای هر حساب جداگانه/);
 });
+
+test("accounting page uses the same date-scoped trial balance for all report totals and details",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/const statements=buildFinancialStatements\(\{accounts,vouchers,voucherLines,fromDate:0,toDate:Date\.now\(\)\}\);const trial=statements\.trialBalance/);
+ assert.doesNotMatch(app,/const trial=accounts\.map\(a=>\{const rows=voucherLines\.filter/);
+});

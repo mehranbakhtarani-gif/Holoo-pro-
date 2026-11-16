@@ -21,7 +21,7 @@ function summarizeImportShipments(input){
  });
  for(const n of [totalGoodsRial,totalAncillary,totalLanded,receivedCost])if(!Number.isSafeInteger(n))throw new Error("جمع بهای محموله‌ها از محدوده عددی مجاز خارج است");
  for(const n of [totalWeight,receivedWeight,inTransitWeight])if(!Number.isFinite(n))throw new Error("جمع وزن محموله‌ها از محدوده عددی مجاز خارج است");
- for(const [currency,amount] of Object.entries(foreignGoods))if(!Number.isSafeInteger(amount))throw new Error("جمع مبلغ ارزی "+currency+" معتبر نیست");
+ for(const [currency,amount] of Object.entries(foreignGoods))if(!Number.isFinite(amount))throw new Error("جمع مبلغ ارزی "+currency+" معتبر نیست");
  const productRows=[...byProduct.values()].map(x=>({...x,averageUnitCost:x.weight?x.landedCost/x.weight:0})).sort((a,b)=>b.landedCost-a.landedCost);
  const supplierRows=[...bySupplier.values()].map(x=>({...x,averageUnitCost:x.weight?x.landedCost/x.weight:0})).sort((a,b)=>b.landedCost-a.landedCost);
  return {count:rows.length,totalWeight,totalGoodsRial,totalAncillary,totalLanded,weightedUnitCost:totalWeight?totalLanded/totalWeight:0,receivedWeight,receivedCost,inTransitWeight,statusCounts:Object.fromEntries(statusCounts),foreignGoods,productRows,supplierRows,rows:rows.sort((a,b)=>Number(b.updatedAt||0)-Number(a.updatedAt||0))};

@@ -48,3 +48,11 @@ test("accounting page uses the same date-scoped trial balance for all report tot
  assert.match(app,/const statements=buildFinancialStatements\(\{accounts,vouchers,voucherLines,fromDate:0,toDate:Date\.now\(\)\}\);const trial=statements\.trialBalance/);
  assert.doesNotMatch(app,/const trial=accounts\.map\(a=>\{const rows=voucherLines\.filter/);
 });
+
+
+test("filtered ledger opening balance is captured before selected-period rows are applied",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/const openingByAccount=new Map\(runningByAccount\);const selected=/);
+ assert.match(app,/money\(Math\.abs\(openingByAccount\.get\(code\)\|\|0\)\)/);
+ assert.doesNotMatch(app,/مانده ابتدای بازه:[^;]{0,180}runningByAccount\.get\(code\)/);
+});

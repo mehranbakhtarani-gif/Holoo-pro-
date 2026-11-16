@@ -1120,6 +1120,29 @@ function deleteMasterRecordGuarded(store,id){
   tx.onabort=()=>reject(failure||tx.error||new Error("حذف امن لغو شد"));
  });
 }
+function deleteImportShipmentGuarded(id){
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["importShipments","foreignPayables","foreignPayablePayments","auditLog"],"readwrite"),shipmentStore=tx.objectStore("importShipments");
+  const shipmentRead=shipmentStore.get(Number(id)),payablesRead=tx.objectStore("foreignPayables").getAll(),paymentsRead=tx.objectStore("foreignPayablePayments").getAll();
+  let shipment=null,payables=null,payments=null,missing=false,blocked="";
+  const apply=()=>{
+   if(!shipmentRead.readyState||!payables||!payments)return;
+   shipment=shipmentRead.result;
+   if(!shipment){missing=true;try{tx.abort()}catch(_){};return}
+   if(shipment.receivedAt)blocked="محموله رسید انبارشده قابل حذف نیست؛ برای اصلاح سند برگشت ثبت کنید";
+   else if(payables.some(row=>Number(row.sourceShipmentId)===Number(id)))blocked="برای این محموله تعهد ارزی ثبت شده است؛ ابتدا تعهد و پرداخت‌های مرتبط را تعیین تکلیف کنید";
+   if(blocked){try{tx.abort()}catch(_){};return}
+   shipmentStore.delete(Number(id));
+   tx.objectStore("auditLog").add({action:"حذف",store:"importShipments",recordId:Number(id),at:Date.now(),summary:"حذف محموله وارداتی بدون رسید یا تعهد ارزی"});
+  };
+  shipmentRead.onsuccess=apply;shipmentRead.onerror=()=>{try{tx.abort()}catch(_){}};
+  payablesRead.onsuccess=()=>{payables=payablesRead.result||[];apply()};payablesRead.onerror=()=>{try{tx.abort()}catch(_){}};
+  paymentsRead.onsuccess=()=>{payments=paymentsRead.result||[];apply()};paymentsRead.onerror=()=>{try{tx.abort()}catch(_){}};
+  tx.oncomplete=()=>resolve();
+  tx.onerror=()=>reject(tx.error||new Error("حذف محموله ناموفق بود"));
+  tx.onabort=()=>reject(missing?new Error("محموله پیدا نشد"):new Error(blocked||tx.error?.message||"حذف محموله لغو شد"));
+ });
+}
 async function removeRow(s,id){
  const key=Number(id);
  if(s==="products"){
@@ -1137,9 +1160,10 @@ async function removeRow(s,id){
   const linked=invoices.some(x=>Number(x.partyId)===key)||treasury.some(x=>Number(x.partyId)===key)||checks.some(x=>Number(x.partyId)===key)||imports.some(x=>Number(x.supplierId)===key)||ledger.some(x=>Number(x.partyId)===key)||orders.some(x=>Number(x.partyId)===key)||shipments.some(x=>Number(x.supplierId)===key)||payables.some(x=>Number(x.supplierId)===key)||payments.some(x=>Number(x.supplierId)===key)||Math.abs(Number(party.balance||0))>1;
   if(linked)throw Error("این شخص مانده یا سابقه مالی/فاکتور/چک/واردات دارد؛ برای حفظ سوابق حذف نمی‌شود");
  }
- if(s==="warehouses"){const [rows,stock,transfers,shipments,invoices,orders,lots,adjustments]=await Promise.all([all("warehouses"),all("warehouseStock"),all("warehouseTransfers"),all("importShipments"),all("invoices"),all("salesOrders"),all("inventoryLots"),all("stockAdjustments")]);if(rows.length<=1)throw Error("حداقل یک انبار باید در دفتر باقی بماند");const linked=stock.some(x=>Number(x.warehouseId)===key)||transfers.some(x=>Number(x.sourceWarehouseId)===key||Number(x.destinationWarehouseId)===key)||shipments.some(x=>Number(x.warehouseId)===key)||invoices.some(x=>Number(x.warehouseId)===key||Array.isArray(x.lines)&&x.lines.some(line=>Number(line.warehouseId)===key))||orders.some(x=>Number(x.warehouseId)===key)||lots.some(x=>Number(x.warehouseId)===key)||adjustments.some(x=>Number(x.warehouseId)===key);if(linked)throw Error("این انبار در موجودی یا سوابق عملیات استفاده شده است و قابل حذف نیست");}if(s==="employees"){const payroll=await all("payroll");if(payroll.some(x=>Number(x.employeeId)===key))throw Error("کارمندی که سابقه حقوق دارد قابل حذف نیست");}else if(s==="fixedAssets"){const [depreciations,assets]=await Promise.all([all("assetDepreciations"),all("fixedAssets")]),asset=assets.find(x=>Number(x.id)===key);if(depreciations.some(x=>Number(x.assetId)===key)||asset?.purchaseVoucherReference)throw Error("دارایی دارای سند خرید یا استهلاک است؛ برای حفظ دفتر کل حذف نمی‌شود");}if(s==="treasuryAllocations"){const rows=await all("treasuryAllocations"),row=rows.find(x=>Number(x.id)===key);if(row&&(Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0))throw Error("تخصیص دارای سند تسعیر قابل حذف نیست؛ از دکمه برگشت تخصیص استفاده کنید");}
+ if(s==="warehouses"){const [rows,stock,transfers,shipments,invoices,orders,lots,adjustments]=await Promise.all([all("warehouses"),all("warehouseStock"),all("warehouseTransfers"),all("importShipments"),all("invoices"),all("salesOrders"),all("inventoryLots"),all("stockAdjustments")]);if(rows.length<=1)throw Error("حداقل یک انبار باید در دفتر باقی بماند");const linked=stock.some(x=>Number(x.warehouseId)===key)||transfers.some(x=>Number(x.sourceWarehouseId)===key||Number(x.destinationWarehouseId)===key)||shipments.some(x=>Number(x.warehouseId)===key)||invoices.some(x=>Number(x.warehouseId)===key||Array.isArray(x.lines)&&x.lines.some(line=>Number(line.warehouseId)===key))||orders.some(x=>Number(x.warehouseId)===key)||lots.some(x=>Number(x.warehouseId)===key)||adjustments.some(x=>Number(x.warehouseId)===key);if(linked)throw Error("این انبار در موجودی یا سوابق عملیات استفاده شده است و قابل حذف نیست");}if(s==="employees"){const payroll=await all("payroll");if(payroll.some(x=>Number(x.employeeId)===key))throw Error("کارمندی که سابقه حقوق دارد قابل حذف نیست");}else if(s==="fixedAssets"){const [depreciations,assets]=await Promise.all([all("assetDepreciations"),all("fixedAssets")]),asset=assets.find(x=>Number(x.id)===key);if(depreciations.some(x=>Number(x.assetId)===key)||asset?.purchaseVoucherReference)throw Error("دارایی دارای سند خرید یا استهلاک است؛ برای حفظ دفتر کل حذف نمی‌شود");}if(s==="treasuryAllocations")throw Error("تخصیص‌ها را از دکمه «برگشت تخصیص» تعیین تکلیف کنید تا مانده‌ها و نسخه کنترل تخصیص به‌روز بماند");
  if(s==="importShipments"){const [rows,payables]=await Promise.all([all("importShipments"),all("foreignPayables")]),shipment=rows.find(x=>Number(x.id)===key);if(shipment?.receivedAt)throw Error("محموله رسید انبارشده قابل حذف نیست؛ برای اصلاح سند برگشت ثبت کنید");if(payables.some(x=>Number(x.sourceShipmentId)===key))throw Error("برای این محموله تعهد ارزی ثبت شده است؛ ابتدا تعهد و پرداخت‌های مرتبط را تعیین تکلیف کنید");}
  if(!confirm("این مورد حذف شود؟"))return;
+ if(s==="importShipments"){await deleteImportShipmentGuarded(id);toast("حذف شد");render();return}
  if(["products","parties","warehouses"].includes(s)){await deleteMasterRecordGuarded(s,id);toast("حذف شد");render();return}
  await del(s,id);toast("حذف شد");render()
 }

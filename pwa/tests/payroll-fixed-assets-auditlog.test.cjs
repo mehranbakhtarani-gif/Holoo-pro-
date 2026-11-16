@@ -16,7 +16,7 @@ test("payroll posting prevents duplicate employee-period entries inside the acco
  assert.match(app,/\{store:"payroll",match:\{employeeId:Number\(employee\.id\),period\},expected:null\}/);
  assert.match(app,/status==="پرداخت‌شده"&&net>0&&!paymentAccount/);
  assert.match(app,/accountCode:status==="پرداخت‌شده"\?paymentAccountCode:"2104"/);
- assert.match(app,/treasury=\{kind:"PAYMENT",method:paymentMethod,accountCode:paymentAccountCode,accountName:paymentAccount\.title/);
+ assert.match(app,/entries\.push\(\["treasury",\{kind:"PAYMENT",method:paymentMethod,accountCode:paymentAccountCode,accountName:paymentAccount\.title/);
 });
 
 test("later payroll payment uses a selected cash or bank subaccount and preserves it in treasury",()=>{

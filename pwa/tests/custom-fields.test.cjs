@@ -42,7 +42,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v137-more-entity-scopes/);
+ assert.match(sw,/holloo-pwa-v138-entity-validation/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -112,4 +112,13 @@ test("custom fields can target warehouses and import shipments",()=>{
  assert.match(custom,/warehouses.*importShipments/);
  assert.match(custom,/\["products","parties","warehouses","importShipments"\]/);
  assert.match(app,/dataset\.currentPage=currentPage/);
+});
+
+test("entity custom values are validated before form submission",()=>{
+ assert.match(custom,/normalizeLineValues\(vals,definitions\.filter\(d=>d\.enabled&&d\.scope===page\)\)/);
+ assert.match(custom,/e\.stopImmediatePropagation\(\)/);
+});
+test("runtime: required entity fields reject empty values",()=>{
+ const api=loadCustom();
+ assert.throws(()=>api.normalizeLineValues({serial:""},[{key:"serial",label:"شناسه",type:"text",required:true,enabled:true}]),/الزامی/);
 });

@@ -12,7 +12,7 @@ async function reversePwaInvoice(number){
  if(vouchers.some(v=>v.reference==="REVERSAL:INVOICE:"+invoice.number))throw Error("این فاکتور قبلاً برگشت داده شده است");
  const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(original.id));
  if(oldLines.length<2)throw Error("ردیف‌های سند اصلی ناقص است");
- const invoiceSnapshot={...invoice};
+ const invoiceSnapshot={status:invoice.status,reversedAt:invoice.reversedAt};
  const productSnapshots=new Map(products.map(row=>[Number(row.id),{...row}]));
  const partySnapshots=new Map(parties.map(row=>[Number(row.id),{...row}]));
  const warehouseStockSnapshots=new Map(warehouseStockRows.map(row=>[Number(row.productId)+":"+Number(row.warehouseId),{...row}]));

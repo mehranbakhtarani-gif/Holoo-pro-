@@ -14,8 +14,8 @@ test("invoice list exports amounts, settlement balances and status to CSV",()=>{
 
 test("invoice list can search invoice number, party, product and currency",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/جست‌وجوی شماره، طرف حساب، کالا یا ارز/);
- assert.match(app,/invoices\.filter\(x=>\[x\.number,x\.partyName,x\.product,x\.currency/);
+ assert.match(app,/جست‌وجوی شماره، طرف حساب، کالا، ارز، تاریخ یا وضعیت/);
+ assert.match(app,/invoices\.filter\(x=>\[x\.number,x\.partyName,x\.product,x\.currency,x\.kind==="SALE"\?"فروش":"خرید",date\(x\.date\),date\(x\.dueDate\)/);
 });
 
 test("unsettled invoices expose a direct allocation action that preselects the invoice",()=>{

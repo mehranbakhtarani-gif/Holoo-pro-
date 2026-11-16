@@ -26,6 +26,7 @@ function buildFinancialStatements(input){
   const openingDebit=Number(account.openingDebitRial||0),openingCredit=Number(account.openingCreditRial||0);
   if(!Number.isSafeInteger(openingDebit)||openingDebit<0||!Number.isSafeInteger(openingCredit)||openingCredit<0)throw new Error("مانده افتتاحیه حساب نامعتبر است");
   const net=openingDebit-openingCredit+activity.debit-activity.credit;
+  if(!Number.isSafeInteger(net))throw new Error("مانده حساب از محدوده عددی مجاز خارج است");
   return {...account,debit:activity.debit,credit:activity.credit,openingDebit,openingCredit,endingDebit:Math.max(0,net),endingCredit:Math.max(0,-net),net};
  });
  const byType=type=>trialBalance.filter(x=>x.type===type);

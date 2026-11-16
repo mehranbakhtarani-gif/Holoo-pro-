@@ -69,6 +69,35 @@ test("does not assign legacy-stock revenue to a tracked container in mixed-sourc
  assert.equal(rows.length,1);assert.equal(rows[0].sourceNumber,"CN-3");assert.equal(rows[0].revenue,10000);assert.equal(rows[0].grossProfit,5000);
 });
 
+test("preserves zero timestamp for legacy opening stock so FIFO consumes it first",()=>{
+ const legacy=planLotReceipt({productId:1,productName:"FDY",warehouseId:2,sourceType:"LEGACY",sourceId:"legacy-old",sourceNumber:"موجودی قدیمی",quantity:5,totalCost:4000,receivedAt:0});
+ const imported=receipt("CN-NEW",5,5000,100);
+ assert.equal(legacy.receivedAt,0);
+ const sale=planLotSale({productId:1,productName:"FDY",warehouseId:2,quantity:2,warehouseStock:{stock:10,value:9000},lots:[imported,legacy]});
+ assert.equal(sale.allocations[0].sourceType,"LEGACY");
+ assert.equal(sale.allocations[0].quantity,2);
+});
+test("rejects invalid lot balances, unallocated stock value and non-finite unit costs",()=>{
+ const lot=receipt("CN-BAD",5,5000,100);
+ assert.throws(()=>planLotSale({productId:1,warehouseId:2,quantity:1,warehouseStock:{stock:5,value:5000},lots:[{...lot,remainingQty:NaN}]}));
+ assert.throws(()=>planLotSale({productId:1,warehouseId:2,quantity:1,warehouseStock:{stock:10,value:10000},lots:[{...lot,remainingQty:10,remainingValue:9000}]}));
+ assert.throws(()=>planLotReceipt({productId:1,productName:"FDY",warehouseId:2,sourceType:"IMPORT_SHIPMENT",sourceId:"tiny",quantity:Number.MIN_VALUE,totalCost:1}));
+});
+test("allocates rounded invoice revenue across four lots without negative amounts or lost total",()=>{
+ const lots=[receipt("CN-A",1,1,100),receipt("CN-B",1,1,200),receipt("CN-C",1,1,300),receipt("CN-D",1,1,400)];
+ const sale=planLotSale({productId:1,productName:"FDY",warehouseId:2,quantity:4,warehouseStock:{stock:4,value:4},lots,date:500});
+ const rows=summarizeLotProfit({lots:[...sale.updates],invoices:[{kind:"SALE",status:"POSTED",lines:[{qty:4,totalQty:4,lineTotal:2,lotAllocations:sale.allocations}]}]});
+ assert.equal(rows.reduce((sum,row)=>sum+row.revenue,0),2);
+ assert.ok(rows.every(row=>row.revenue>=0));
+});
+test("ignores historical sales without lot allocations instead of breaking shipment reports",()=>{
+ const lot=receipt("CN-HIST",5,5000,100);
+ const rows=summarizeLotProfit({lots:[lot],invoices:[{kind:"SALE",status:"POSTED",lines:[{qty:2,totalQty:2,lineTotal:2000}]}]});
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].revenue,0);
+ assert.equal(rows[0].soldQty,0);
+});
+
 test("PWA integrates FIFO lots with database, shipment receipt, invoice sales, transfers and reversals",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");

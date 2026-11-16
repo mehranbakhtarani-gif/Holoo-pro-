@@ -33,7 +33,7 @@ function planLotSale(input){
   const take=Math.min(remaining,lotQty),cost=take>=lotQty-1e-9?lotValue:Math.round(take*lotValue/lotQty);
   if(!Number.isSafeInteger(cost)||cost<0||cost>lotValue)throw new Error("بهای خروج بچ معتبر نیست");
   const updated={...lot,remainingQty:take>=lotQty-1e-9?0:lotQty-take,remainingValue:lotValue-cost,status:take>=lotQty-1e-9?"CLOSED":"OPEN",updatedAt:Number(input.date||Date.now())};
-  const existing=updates.findIndex(x=>x.id===updated.id);if(existing>=0)updates[existing]=updated;else if(!newLots.some(x=>x.id===updated.id))updates.push(updated);
+  const existing=updates.findIndex(x=>x.id===updated.id),newIndex=newLots.findIndex(x=>x.id===updated.id);if(existing>=0)updates[existing]=updated;else if(newIndex>=0)newLots[newIndex]=updated;else updates.push(updated);
   allocations.push({lotId:lot.id,sourceType:lot.sourceType,sourceId:lot.sourceId,sourceNumber:lot.sourceNumber,container:lot.container||"",quantity:take,cogs:cost});
   cogs+=cost;remaining-=take;
  }
@@ -61,7 +61,7 @@ function summarizeLotProfit(input){
  const lots=Array.isArray(input.lots)?input.lots:[],invoices=Array.isArray(input.invoices)?input.invoices:[];
  const summaries=new Map();
  for(const lot of lots){
-  if(!["IMPORT_SHIPMENT","PURCHASE_INVOICE"].includes(lot.sourceType))continue;
+  if(!["IMPORT_SHIPMENT","PURCHASE_INVOICE"].includes(lot.sourceType)||lot.status==="REVERSED")continue;
   const key=String(lot.id),soldQty=Number(lot.originalQty)-Number(lot.remainingQty||0),soldCost=Number(lot.originalCost)-Number(lot.remainingValue||0);
   summaries.set(key,{lotId:key,sourceType:lot.sourceType,sourceNumber:lot.sourceNumber,container:lot.container||"",supplierName:lot.supplierName||"",productName:lot.productName||"",originalQty:Number(lot.originalQty),remainingQty:Number(lot.remainingQty||0),soldQty,soldCost,revenue:0,grossProfit:0});
  }

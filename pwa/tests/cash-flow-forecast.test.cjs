@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {buildCashFlowForecast}=require("../cash-flow-forecast.js");
+const {buildCashFlowForecast,getDailyCashFlowProjection}=require("../cash-flow-forecast.js");
 const day=86400000,asOf=Date.UTC(2026,10,16,12);
 test("projects weekly opening and closing cash from dated inflows and outflows",()=>{
  const report=buildCashFlowForecast({asOf,horizonDays:30,openingCashRial:1000000,events:[
@@ -82,4 +82,27 @@ test("cash flow dashboard exports summary and all visible forecast tables as CSV
 test("cash flow dashboard renders an interactive monthly calendar with daily inflow and outflow totals",()=>{
  const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8"),css=fs.readFileSync(path.join(__dirname,"..","style.css"),"utf8");
  assert.match(app,/cashFlowCalendarOffset/);assert.match(app,/data-cash-calendar-nav/);assert.match(app,/data-cash-calendar-day/);assert.match(app,/cash-calendar-in/);assert.match(app,/cash-calendar-out/);assert.match(app,/displayEvents=cashFlowCalendarSelectedDate/);assert.match(css,/\.cash-calendar-grid/);assert.match(css,/\.cash-calendar-day/);
+});
+
+ 
+test("daily projection carries forward balances and flags a shortfall on the exact day",()=>{
+ const start=new Date(2026,10,16,12).getTime(),day=86400000;
+ const rows=getDailyCashFlowProjection({asOf:start,horizonDays:30,openingCashRial:100,events:[
+  {direction:"OUTFLOW",amountRial:180,dueDate:new Date(2026,10,18,9).getTime()},
+  {direction:"INFLOW",amountRial:120,dueDate:new Date(2026,10,21,9).getTime()}
+ ]});
+ assert.equal(rows.length,30);assert.equal(rows[0].closingCashRial,100);assert.equal(rows[2].closingCashRial,-80);assert.equal(rows[2].shortfall,true);assert.equal(rows[3].closingCashRial,-80);assert.equal(rows[5].closingCashRial,40);assert.equal(rows[5].shortfall,false);
+});
+test("daily projection excludes overdue, undated and events outside the forecast horizon",()=>{
+ const start=new Date(2026,10,16,12).getTime(),day=86400000;
+ const rows=getDailyCashFlowProjection({asOf:start,horizonDays:30,openingCashRial:500,events:[
+  {direction:"OUTFLOW",amountRial:300,dueDate:start-day},
+  {direction:"OUTFLOW",amountRial:300,dueDate:null},
+  {direction:"OUTFLOW",amountRial:300,dueDate:start+30*day}
+ ]});
+ assert.ok(rows.every(x=>x.closingCashRial===500&&!x.shortfall));
+});
+test("calendar renders daily projected balance and shortfall indicators",()=>{
+ const fs=require("node:fs"),path=require("node:path"),app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8"),css=fs.readFileSync(path.join(__dirname,"..","style.css"),"utf8");
+ assert.match(app,/getDailyCashFlowProjection/);assert.match(app,/projection\.shortfall/);assert.match(app,/cash-calendar-balance/);assert.match(app,/cash-calendar-alert/);assert.match(css,/\.cash-calendar-shortfall/);assert.match(css,/\.cash-calendar-alert/);
 });

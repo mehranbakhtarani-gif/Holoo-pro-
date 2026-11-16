@@ -36,11 +36,10 @@ test("ledger rows preserve voucher reference so manual vouchers expose reversal 
  assert.match(app,/String\(x\.reference\|\|''\)\.startsWith\('MANUAL:'\)/);
 });
 
-test("ledger calculates running balances independently for each account when no account filter is selected",()=>{
+test("ledger calculates running balances independently for each account through the report helper",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/const runningByAccount=new Map\(accounts\.map/);
- assert.match(app,/runningByAccount\.set\(String\(x\.accountCode\)/);
- assert.match(app,/مانده ابتدای بازه برای هر حساب جداگانه/);
+ assert.match(app,/buildLedgerRunningRows\(\{rows:ledgerRows,accounts,accountCode:code,fromDate:from,toDate:to\}\)/);
+ assert.match(app,/مانده ابتدای بازه برای هر حساب جداگانه محاسبه شده است/);
 });
 
 test("accounting page uses the same date-scoped trial balance for all report totals and details",()=>{

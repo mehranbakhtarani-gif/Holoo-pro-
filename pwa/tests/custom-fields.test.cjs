@@ -21,6 +21,15 @@ test("invoice and sales-order line fields are collected and persisted",()=>{
  assert.match(app,/lineCustomFields=JSON\.parse\(data\.__customLineFields\|\|"\[\]"\)/);
  assert.match(app,/customFields:globalThis\.HolooCustomFields\?\.normalizeLineValues/);
 });
+test("existing custom values survive disabled or removed field definitions",()=>{
+ assert.match(custom,/const out=values&&typeof values==="object"&&!Array\.isArray\(values\)\?\{\.\.\.values\}:\{\}/);
+ assert.match(custom,/row\.dataset\.customValues/);
+});
+test("sales-order list and print paths include custom line fields",()=>{
+ assert.match(custom,/async function enhanceSalesOrdersTable/);
+ assert.match(app,/customFields:globalThis\.HolooCustomFields\?\.normalizeLineValues/);
+ assert.match(app,/customDefs\.map\(d=>'<th>'\+h\(d\.label\)/);
+});
 test("custom fields are exposed in invoice and order printouts and CSV exports",()=>{
  assert.match(app,/customDefs\.map\(d=>'<th>'\+h\(d\.label\)/);
  assert.match(app,/customDefs\.map\(d=>d\.label\)/);

@@ -64,3 +64,22 @@ test("reduces scheduled installments by payments made after the plan was created
  const alreadyPaid=planForeignPayableInstallment({payable:{...p,paidMinor:20000},amountMinor:50000,dueDate:1000,createdAt:4000});
  assert.equal(alreadyPaid.paymentPlanBasePaidMinor,20000);assert.equal(getRemainingForeignPayableInstallments(alreadyPaid)[0].amountMinor,50000);
 });
+
+test("allocates actual foreign payments FIFO to planned installments and leaves excess unplanned",()=>{
+ const {planForeignPayableInstallment,planForeignPayablePayment,getRemainingForeignPayableInstallments}=require("../foreign-payables.js");
+ const p=payable(),a=planForeignPayableInstallment({payable:p,amountMinor:20000,dueDate:1000,createdAt:2000}),b=planForeignPayableInstallment({payable:a,amountMinor:30000,dueDate:2000,createdAt:3000});
+ const posted=planForeignPayablePayment({payable:b,amountMinor:40000,fxRateRialPerUnit:600000,date:4000});
+ assert.deepEqual(posted.payment.planAllocations,[{dueDate:1000,amountMinor:20000,note:""},{dueDate:2000,amountMinor:20000,note:""}]);
+ assert.equal(posted.payment.unplannedAmountMinor,0);
+ assert.deepEqual(getRemainingForeignPayableInstallments(posted.updated),[{amountMinor:10000,dueDate:2000,note:"",createdAt:3000}]);
+ const over=planForeignPayablePayment({payable:b,amountMinor:60000,fxRateRialPerUnit:600000,date:5000});
+ assert.equal(over.payment.planAllocations.reduce((n,x)=>n+x.amountMinor,0),50000);
+ assert.equal(over.payment.unplannedAmountMinor,10000);
+});
+test("reversing a payment restores its scheduled installment allocation",()=>{
+ const {planForeignPayableInstallment,planForeignPayablePayment,planForeignPayableReversal,getRemainingForeignPayableInstallments}=require("../foreign-payables.js");
+ const p=payable(),scheduled=planForeignPayableInstallment({payable:p,amountMinor:45000,dueDate:1000,createdAt:2000}),posted=planForeignPayablePayment({payable:scheduled,amountMinor:25000,fxRateRialPerUnit:600000,date:3000});
+ assert.equal(getRemainingForeignPayableInstallments(posted.updated)[0].amountMinor,20000);
+ const reversed=planForeignPayableReversal({payable:posted.updated,payment:posted.payment,date:4000});
+ assert.equal(getRemainingForeignPayableInstallments(reversed.updated)[0].amountMinor,45000);
+});

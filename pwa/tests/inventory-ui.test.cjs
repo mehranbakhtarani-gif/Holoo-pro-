@@ -63,6 +63,16 @@ test("inventory supports unique barcodes and minimum-stock alerts",()=>{
 });
 
  
+test("master-data edits preserve live stock valuation and party balance inside the same IndexedDB transaction",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/function putPreservingFields\(store,record,fields\)/);
+ assert.match(app,/const tx=db\.transaction\(\[store,"auditLog"\],"readwrite"\),objectStore=tx\.objectStore\(store\)/);
+ assert.match(app,/const read=objectStore\.get\(record\.id\)/);
+ assert.match(app,/for\(const field of fields\)merged\[field\]=read\.result\[field\]/);
+ assert.match(app,/putPreservingFields\("products",v,\["stock","value","avg"\]\)/);
+ assert.match(app,/putPreservingFields\("parties",partyRecord,\["balance"\]\)/);
+});
+ 
 test("party edits preserve opening balance and cannot reclassify parties with history",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/const balance=item\?Number\(item\.balance\|\|0\):num\("balance"\)/);

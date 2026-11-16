@@ -5,7 +5,7 @@ async function payPayrollPwa(id){
  const net=Number(row.net||0),now=Date.now(),snapshot={status:row.status,net:row.net};
  if(!Number.isSafeInteger(net)||net<0)throw Error("خالص حقوق برای پرداخت معتبر نیست");
  let account=null;
- if(net>0){const accounts=await all("accounts"),eligible=accounts.filter(a=>a.type==="ASSET"&&/^110[12]\d*$/.test(String(a.id)));const choices=eligible.map(a=>String(a.title||a.id)+" • "+a.id).join("\\n");const code=prompt("کد حساب صندوق/بانک برای پرداخت حقوق را وارد کنید:\\n"+choices,row.paymentAccountCode||"1102");if(code===null)return;account=eligible.find(a=>String(a.id)===String(code).trim());if(!account)throw Error("کد حساب صندوق یا بانک معتبر نیست")}
+ if(net>0){const accounts=await all("accounts"),eligible=accounts.filter(a=>a.type==="ASSET"&&/^110[12]\d*$/.test(String(a.id)));const choices=eligible.map(a=>String(a.title||a.id)+" • "+a.id).join("\n");const code=prompt("کد حساب صندوق/بانک برای پرداخت حقوق را وارد کنید:\n"+choices,row.paymentAccountCode||"1102");if(code===null)return;account=eligible.find(a=>String(a.id)===String(code).trim());if(!account)throw Error("کد حساب صندوق یا بانک معتبر نیست")}
  const method=account?(String(account.id).startsWith("1101")?"صندوق":"بانک"):"",accountCode=account?String(account.id):"";
  row.status="پرداخت‌شده";row.paymentMethod=method;row.paymentAccountCode=accountCode;row.paymentAccountName=account?.title||"";row.paidAt=now;
  if(net===0){await putManyGuarded([["payroll",row]],[{store:"payroll",key:Number(row.id),expected:snapshot}]);return}

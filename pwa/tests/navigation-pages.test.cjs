@@ -33,7 +33,7 @@ test("paid payroll posts a matching treasury payment while calculated payroll re
  assert.ok(app.includes('["paymentAccountCode","حساب صندوق / بانک در صورت پرداخت","select"]'));
  assert.match(app,/status==="پرداخت‌شده"&&net>0\)entries\.push\(\["treasury",\{kind:"PAYMENT"/);
  assert.match(app,/\{accountCode,debitRial:0,creditRial:net/);
- assert.match(app,/accountCode:account,accountName:account\.title/);
+ assert.match(app,/treasury=\{kind:"PAYMENT",method,accountCode,accountName:account\.title/);
 });
 
  

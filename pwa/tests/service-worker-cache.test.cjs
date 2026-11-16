@@ -5,7 +5,7 @@ const path=require("node:path");
 
 test("service worker cache version changes when offline cache behavior changes",()=>{
  const sw=fs.readFileSync(path.resolve(__dirname,"../sw.js"),"utf8");
- assert.match(sw,/holloo-pwa-v166-tabs-22-23-dashboard/);
+ assert.match(sw,/holloo-pwa-v167-tabs-24-25-cash-audit/);
 });
 
 test("offline cache fallback ignores asset query versions so pre-cached files remain available",()=>{

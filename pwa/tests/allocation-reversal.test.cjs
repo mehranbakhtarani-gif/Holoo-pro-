@@ -20,7 +20,7 @@ test("FX allocation reversal posts a reversing voucher and restores party balanc
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/async function reverseTreasuryAllocationPwa/);
  assert.match(app,/FX-SETTLEMENT-REV:/);
- assert.match(app,/party\.balance=Number\(party\.balance\|\|0\)-gain\+loss/);
+ assert.match(app,/applyPartyBalanceDelta\(party,-gain\+loss\)/);
  assert.match(app,/data-allocation-reverse/);
 });
 

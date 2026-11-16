@@ -177,3 +177,16 @@ test("custom reports read custom line values from invoice and order line arrays"
 test("custom reports render empty date fields as blank, not the Unix epoch",()=>{
  assert.match(custom,/value\?new Date\(Number\(value\)\)\.toLocaleDateString\("fa-IR"\):""/);
 });
+
+test("carton-to-kg conversion is explicit and validates positive inputs",()=>{
+ assert.match(custom,/function convertCartonsToKg\(cartons,kgPerCarton\)/);
+ assert.match(custom,/تبدیل کارتن به کیلوگرم/);
+ assert.match(custom,/confirm\("مقدار /);
+});
+test("runtime: carton conversion multiplies carton count by product kg factor",()=>{
+ const api=loadCustom();
+ assert.equal(api.convertCartonsToKg(3,25),75);
+ assert.equal(api.convertCartonsToKg(1.5,20),30);
+ assert.throws(()=>api.convertCartonsToKg(0,20),/عدد مثبت/);
+ assert.throws(()=>api.convertCartonsToKg(2,0),/عدد مثبت/);
+});

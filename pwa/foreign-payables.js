@@ -72,16 +72,17 @@ function planForeignPayableReversal(input){
 function planForeignPayableInstallment(input){
  const payable=input.payable,amountMinor=toSafeMinor(input.amountMinor,"مبلغ قسط"),dueDate=Number(input.dueDate);
  if(!payable||payable.status==="CANCELLED"||payable.status==="PAID"||!Number.isSafeInteger(dueDate)||dueDate<=0||amountMinor<=0)throw new Error("اطلاعات قسط معتبر نیست");
- const outstanding=Number(payable.amountMinor)-Number(payable.paidMinor||0),existing=Array.isArray(payable.paymentPlan)?payable.paymentPlan:[];
- const planned=existing.reduce((n,x)=>n+toSafeMinor(x.amountMinor,"مبلغ قسط برنامه‌ریزی‌شده"),0);
- if(planned+amountMinor>outstanding)throw new Error("جمع اقساط برنامه‌ریزی‌شده از مانده تعهد بیشتر است");
+ const totalMinor=toSafeMinor(payable.amountMinor,"کل تعهد ارزی"),paidMinor=toSafeMinor(payable.paidMinor||0,"مبلغ پرداخت‌شده ارزی");
+ const outstanding=subtractSafe(totalMinor,paidMinor,"مانده تعهد ارزی"),existing=Array.isArray(payable.paymentPlan)?payable.paymentPlan:[];
+ const planned=existing.reduce((n,x)=>addSafe(n,toSafeMinor(x.amountMinor,"مبلغ قسط برنامه‌ریزی‌شده"),"جمع اقساط برنامه‌ریزی‌شده"),0);
+ if(addSafe(planned,amountMinor,"جمع اقساط برنامه‌ریزی‌شده")>outstanding)throw new Error("جمع اقساط برنامه‌ریزی‌شده از مانده تعهد بیشتر است");
  const installment={amountMinor,dueDate,note:String(input.note||""),createdAt:Number(input.createdAt||Date.now())};
  const basePaid=existing.length?Number(payable.paymentPlanBasePaidMinor??payable.paidMinor??0):Number(payable.paidMinor||0);
  return {...payable,paymentPlan:[...existing,installment],paymentPlanBasePaidMinor:basePaid,paymentPlanUpdatedAt:Number(input.createdAt||Date.now())};
 }
 function getRemainingForeignPayableInstallments(payable){
- const plan=Array.isArray(payable?.paymentPlan)?payable.paymentPlan:[],baseline=Number(payable?.paymentPlanBasePaidMinor??payable?.paidMinor??0);
- let consumed=Math.max(0,Number(payable?.paidMinor||0)-baseline);
+ const plan=Array.isArray(payable?.paymentPlan)?payable.paymentPlan:[],baseline=toSafeMinor(payable?.paymentPlanBasePaidMinor??payable?.paidMinor??0,"مبنای پرداخت برنامه‌ریزی‌شده");
+ let consumed=Math.max(0,subtractSafe(toSafeMinor(payable?.paidMinor||0,"مبلغ پرداخت‌شده ارزی"),baseline,"پرداخت پس از برنامه‌ریزی"));
  const remaining=[];
  for(const item of plan){const amount=toSafeMinor(item.amountMinor,"مبلغ قسط");const used=Math.min(amount,consumed);consumed-=used;if(amount>used)remaining.push({...item,amountMinor:amount-used})}
  return remaining;

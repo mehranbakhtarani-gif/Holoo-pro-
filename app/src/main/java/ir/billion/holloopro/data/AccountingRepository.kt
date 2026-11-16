@@ -11,6 +11,7 @@ import java.util.Locale
 import java.util.UUID
 
 class AccountingRepository(private val db: AppDatabase) {
+    fun setOperationDate(epochMillis: Long?) = OperationClock.setManualDate(epochMillis)
     val products = db.productDao().observeWithStock()
     val warehouses = db.warehouseDao().observeAll()
     val warehouseStocks = db.warehouseStockDao().observeStocks()
@@ -74,7 +75,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 ?: InventoryValuation(0.0, 0L)
             val targetNext = InventoryValuationEngine.receive(targetCurrent, quantityKg, issue.cogsRial)
             db.warehouseStockDao().upsertValuation(
-                sourceStored.copy(quantityKg = issue.remaining.quantityKg, valueRial = issue.remaining.valueRial, updatedAt = System.currentTimeMillis())
+                sourceStored.copy(quantityKg = issue.remaining.quantityKg, valueRial = issue.remaining.valueRial, updatedAt = OperationClock.now())
             )
             db.warehouseStockDao().upsertValuation(
                 WarehouseValuationEntity(targetWarehouseId, productId, targetNext.quantityKg, targetNext.valueRial)
@@ -1225,7 +1226,7 @@ class AccountingRepository(private val db: AppDatabase) {
             require(db.importOrderDao().byContainerCode(normalizedContainer) == null) {
                 "این شماره کانتینر قبلاً ثبت شده است"
             }
-            val now = System.currentTimeMillis()
+            val now = OperationClock.now()
             val dueAt = Math.addExact(now, Math.multiplyExact(creditDays.toLong(), 86_400_000L))
             db.importOrderDao().insert(
                 ImportOrderEntity(
@@ -1359,7 +1360,7 @@ class AccountingRepository(private val db: AppDatabase) {
                 description = "ثبت بدهی کالای وارداتی کانتینر " + order.containerCode,
                 referenceId = receiptId
             ))
-            db.importOrderDao().update(order.copy(status = "RECEIVED", arrivedAt = System.currentTimeMillis()))
+            db.importOrderDao().update(order.copy(status = "RECEIVED", arrivedAt = OperationClock.now()))
         }
     }
 

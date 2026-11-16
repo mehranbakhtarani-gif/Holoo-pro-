@@ -17,7 +17,7 @@ data class ProductEntity(
     val twisted: Boolean,
     val unit: String = "kg",
     val notes: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 data class ProductWithStock(
@@ -35,7 +35,7 @@ data class PartyEntity(
     val phone: String = "",
     val address: String = "",
     val openingBalanceRial: Long = 0,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 @Entity(tableName = "invoices", indices = [Index(value = ["number"], unique = true)])
@@ -44,7 +44,7 @@ data class InvoiceEntity(
     val number: String,
     val kind: String,
     val partyId: Long,
-    val dateEpoch: Long = System.currentTimeMillis(),
+    val dateEpoch: Long = OperationClock.now(),
     val subtotalRial: Long,
     val discountRial: Long,
     val taxRial: Long,
@@ -76,7 +76,7 @@ data class StockMovementEntity(
     val kind: String,
     val referenceId: Long = 0,
     val note: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 @Entity(tableName = "party_ledger", indices = [Index(value = ["partyId", "createdAt"])])
@@ -87,7 +87,7 @@ data class PartyLedgerEntity(
     val creditRial: Long,
     val description: String,
     val referenceId: Long = 0,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 @Entity(tableName = "accounts", indices = [Index(value = ["code"], unique = true)])
@@ -104,7 +104,7 @@ data class AccountEntity(
 data class VoucherEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val number: String,
-    val dateEpoch: Long = System.currentTimeMillis(),
+    val dateEpoch: Long = OperationClock.now(),
     val description: String,
     val reference: String = ""
 )
@@ -148,7 +148,7 @@ data class ImportReceiptEntity(
     val importOrderId: Long,
     val goodsCostRial: Long,
     val totalCostRial: Long,
-    val receivedAt: Long = System.currentTimeMillis()
+    val receivedAt: Long = OperationClock.now()
 )
 
 @Entity(tableName = "import_receipt_lines", indices = [Index(value = ["receiptId"]), Index(value = ["productId"])])
@@ -166,7 +166,7 @@ data class ProductValuationEntity(
     @androidx.room.PrimaryKey val productId: Long,
     val quantityKg: Double,
     val valueRial: Long,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = OperationClock.now()
 )
 
 @Entity(tableName = "treasury_entries", indices = [Index(value = ["partyId", "createdAt"])])
@@ -178,7 +178,7 @@ data class TreasuryEntryEntity(
     val amountRial: Long,
     val referenceNumber: String = "",
     val note: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 
@@ -231,7 +231,7 @@ data class CheckEntity(
     val bankName: String = "",
     val status: String = "OPEN",
     val note: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 
@@ -241,7 +241,7 @@ data class InvoiceSettlementEntity(
     val invoiceId: Long,
     val treasuryEntryId: Long,
     val amountRial: Long,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 data class InvoiceSettlementRow(val invoiceId: Long, val paidRial: Long)
@@ -257,7 +257,7 @@ data class InvoiceReturnEntity(
     val invoiceId: Long,
     val amountRial: Long,
     val note: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 @Entity(tableName = "invoice_return_lines", indices = [Index(value = ["returnId"]), Index(value = ["invoiceLineId"])])
@@ -312,7 +312,7 @@ data class WarehouseEntity(
     val name: String,
     val address: String = "",
     val isDefault: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 @Entity(tableName = "warehouse_stock_movements", indices = [Index(value = ["warehouseId", "productId", "createdAt"]), Index(value = ["productId"])])
@@ -324,7 +324,7 @@ data class WarehouseStockMovementEntity(
     val kind: String,
     val referenceId: Long = 0,
     val note: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 @Entity(tableName = "warehouse_valuations", primaryKeys = ["warehouseId", "productId"], indices = [Index(value = ["productId"])])
@@ -333,7 +333,7 @@ data class WarehouseValuationEntity(
     val productId: Long,
     val quantityKg: Double,
     val valueRial: Long,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = OperationClock.now()
 )
 
 @Entity(
@@ -351,7 +351,7 @@ data class BankStatementLineEntity(
     val matchedTreasuryEntryId: Long? = null,
     val matchedCheckId: Long? = null,
     val matchedVoucherId: Long? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 @Entity(
@@ -365,7 +365,7 @@ data class BankStatementPeriodEntity(
     val endDateEpoch: Long,
     val openingBalanceRial: Long,
     val closingBalanceRial: Long,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = OperationClock.now()
 )
 
 data class WarehouseStockRow(

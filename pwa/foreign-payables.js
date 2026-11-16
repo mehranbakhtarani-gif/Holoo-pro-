@@ -163,8 +163,8 @@ function reconcileForeignPayableBalances(input){
 
 function summarizeForeignPayablesForecast(input){
  const rows=Array.isArray(input.payables)?input.payables:[],asOf=Number(input.asOf||Date.now()),days=Number(input.horizonDays===undefined?30:input.horizonDays);
- if(!Number.isFinite(asOf)||!Number.isSafeInteger(days)||days<0||days>366)throw new Error("بازه پیش‌بینی سررسید معتبر نیست");
- const start=new Date(asOf);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days+1);
+ if(!Number.isSafeInteger(asOf)||!Number.isSafeInteger(days)||days<0||days>366)throw new Error("بازه پیش‌بینی سررسید معتبر نیست");
+ const start=new Date(asOf);if(!Number.isFinite(start.getTime()))throw new Error("تاریخ مبنای پیش‌بینی سررسید معتبر نیست");start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+days+1);if(!Number.isFinite(end.getTime()))throw new Error("پایان بازه پیش‌بینی سررسید معتبر نیست");
  const result={asOf:start.getTime(),horizonDays:days,openCount:0,overdueCount:0,dueSoonCount:0,byCurrency:{}};
  for(const p of rows){
   if(!p||p.status==="CANCELLED"||p.status==="PAID")continue;
@@ -172,11 +172,12 @@ function summarizeForeignPayablesForecast(input){
   if(!amount)continue;
   const currency=String(p.currency||"");if(!["USD","CNY","EUR"].includes(currency))continue;
   if(!result.byCurrency[currency])result.byCurrency[currency]={outstandingMinor:0,overdueMinor:0,dueSoonMinor:0,overdueCount:0,dueSoonCount:0,undatedMinor:0};
-  const bucket=result.byCurrency[currency];bucket.outstandingMinor+=amount;result.openCount++;
-  const due=Number(p.dueDate||0);
-  if(!Number.isFinite(due)||due<=0){bucket.undatedMinor+=amount;continue}
-  if(due<start.getTime()){bucket.overdueMinor+=amount;bucket.overdueCount++;result.overdueCount++}
-  else if(due<end.getTime()){bucket.dueSoonMinor+=amount;bucket.dueSoonCount++;result.dueSoonCount++}
+  const bucket=result.byCurrency[currency];bucket.outstandingMinor=addSafe(bucket.outstandingMinor,amount,"جمع مانده تعهدات ارزی");result.openCount++;
+  const due=p.dueDate===null||p.dueDate===undefined||p.dueDate===""?0:Number(p.dueDate);
+  if(due!==0&&(!Number.isSafeInteger(due)||due<0))throw new Error("تاریخ سررسید تعهد ارزی معتبر نیست");
+  if(!due){bucket.undatedMinor=addSafe(bucket.undatedMinor,amount,"جمع تعهدات بدون سررسید");continue}
+  if(due<start.getTime()){bucket.overdueMinor=addSafe(bucket.overdueMinor,amount,"جمع تعهدات سررسیدگذشته");bucket.overdueCount++;result.overdueCount++}
+  else if(due<end.getTime()){bucket.dueSoonMinor=addSafe(bucket.dueSoonMinor,amount,"جمع تعهدات سررسیدشونده");bucket.dueSoonCount++;result.dueSoonCount++}
  }
  return result;
 }

@@ -965,6 +965,41 @@ $("#modal").hidden=false;
 $("#entryForm").onsubmit=async e=>{e.preventDefault();const form=e.target;const data=Object.fromEntries(new FormData(form));if(page==="invoices"||page==="salesOrders"){data.lineProduct=Array.from(form.querySelectorAll('[name="lineProduct"]')).map(x=>x.value);data.lineQty=Array.from(form.querySelectorAll('[name="lineQty"]')).map(x=>x.value);data.linePrice=Array.from(form.querySelectorAll('[name="linePrice"]')).map(x=>x.value);data.lineBonusQty=Array.from(form.querySelectorAll('[name="lineBonusQty"]')).map(x=>x.value);data.lineDiscount=Array.from(form.querySelectorAll('[name="lineDiscount"]')).map(x=>x.value);data.lineCustomFields=JSON.parse(data.__customLineFields||"[]")}try{await saveForm(page,data,item);$("#modal").hidden=true;toast("اطلاعات ذخیره شد");render()}catch(err){toast(err.message||"ذخیره اطلاعات ناموفق بود")}}
 }
 function edit(s,id){all(s).then(a=>{const v=a.find(x=>x.id===id);if(v)return openForm(s,v)}).catch(e=>toast(e.message||"فرم ویرایش باز نشد"))}
+function deleteMasterRecordGuarded(store,id){
+ const key=Number(id),dependencies={
+  products:["products","invoices","stockAdjustments","importShipments","salesOrders","inventoryLots","warehouseTransfers","warehouseStock"],
+  parties:["parties","invoices","treasury","checks","imports","partyLedger","salesOrders","importShipments","foreignPayables","foreignPayablePayments"],
+  warehouses:["warehouses","warehouseStock","warehouseTransfers","importShipments","invoices","salesOrders","inventoryLots","stockAdjustments"]
+ };
+ const stores=dependencies[store];if(!stores)throw new Error("نوع حذف امن پشتیبانی نمی‌شود");
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction([...new Set([...stores,"auditLog"])],"readwrite"),data={};let failure=null;
+  let remaining=stores.length;
+  const abort=message=>{failure=new Error(message);try{tx.abort()}catch(_){}};
+  for(const name of stores){
+   const request=tx.objectStore(name).getAll();
+   request.onsuccess=()=>{
+    data[name]=request.result;
+    if(--remaining!==0)return;
+    const linked={
+     products:()=>data.invoices.some(x=>Number(x.productId)===key||(Array.isArray(x.lines)&&x.lines.some(line=>Number(line.productId)===key)))||data.stockAdjustments.some(x=>Number(x.productId)===key)||data.importShipments.some(x=>Number(x.productId)===key)||data.salesOrders.some(x=>Number(x.productId)===key||(Array.isArray(x.lines)&&x.lines.some(line=>Number(line.productId)===key)))||data.inventoryLots.some(x=>Number(x.productId)===key)||data.warehouseTransfers.some(x=>Number(x.productId)===key)||data.warehouseStock.some(x=>Number(x.productId)===key),
+     parties:()=>data.invoices.some(x=>Number(x.partyId)===key)||data.treasury.some(x=>Number(x.partyId)===key)||data.checks.some(x=>Number(x.partyId)===key)||data.imports.some(x=>Number(x.supplierId)===key)||data.partyLedger.some(x=>Number(x.partyId)===key)||data.salesOrders.some(x=>Number(x.partyId)===key)||data.importShipments.some(x=>Number(x.supplierId)===key)||data.foreignPayables.some(x=>Number(x.supplierId)===key)||data.foreignPayablePayments.some(x=>Number(x.supplierId)===key)||data.invoices.some(x=>Number(x.commissionPartyId)===key)||data.salesOrders.some(x=>Number(x.commissionPartyId)===key)||Math.abs(Number(data.parties.find(x=>Number(x.id)===key)?.balance||0))>1,
+     warehouses:()=>data.warehouseStock.some(x=>Number(x.warehouseId)===key)||data.warehouseTransfers.some(x=>Number(x.sourceWarehouseId)===key||Number(x.destinationWarehouseId)===key)||data.importShipments.some(x=>Number(x.warehouseId)===key)||data.invoices.some(x=>Number(x.warehouseId)===key||Array.isArray(x.lines)&&x.lines.some(line=>Number(line.warehouseId)===key))||data.salesOrders.some(x=>Number(x.warehouseId)===key)||data.inventoryLots.some(x=>Number(x.warehouseId)===key)||data.stockAdjustments.some(x=>Number(x.warehouseId)===key)
+    };
+    if(!data[store].some(x=>Number(x.id)===key)){abort("رکورد برای حذف پیدا نشد؛ فهرست را تازه‌سازی کنید");return}
+    if(store==="warehouses"&&data.warehouses.length<=1){abort("حداقل یک انبار باید در دفتر باقی بماند");return}
+    if(linked[store]()){abort(store==="products"?"این کالا در سوابق یا موجودی استفاده شده است و حذف امن ممکن نیست":store==="parties"?"این شخص مانده یا سابقه مالی دارد و حذف امن ممکن نیست":"این انبار در سوابق عملیات استفاده شده است و حذف امن ممکن نیست");return}
+    const requestDelete=tx.objectStore(store).delete(key);
+    requestDelete.onerror=()=>{failure=new Error("حذف رکورد ناموفق بود");try{tx.abort()}catch(_){}};
+    tx.objectStore("auditLog").add({action:"حذف",store,recordId:key,at:Date.now(),summary:"حذف امن رکورد از "+store});
+   };
+   request.onerror=()=>{failure=request.error||new Error("خواندن سوابق برای حذف ناموفق بود");try{tx.abort()}catch(_){}};
+  }
+  tx.oncomplete=()=>resolve();
+  tx.onerror=()=>reject(failure||tx.error||new Error("حذف امن ناموفق بود"));
+  tx.onabort=()=>reject(failure||tx.error||new Error("حذف امن لغو شد"));
+ });
+}
 async function removeRow(s,id){
  const key=Number(id);
  if(s==="products"){
@@ -985,6 +1020,7 @@ async function removeRow(s,id){
  if(s==="warehouses"){const [rows,stock,transfers,shipments,invoices,orders,lots,adjustments]=await Promise.all([all("warehouses"),all("warehouseStock"),all("warehouseTransfers"),all("importShipments"),all("invoices"),all("salesOrders"),all("inventoryLots"),all("stockAdjustments")]);if(rows.length<=1)throw Error("حداقل یک انبار باید در دفتر باقی بماند");const linked=stock.some(x=>Number(x.warehouseId)===key)||transfers.some(x=>Number(x.sourceWarehouseId)===key||Number(x.destinationWarehouseId)===key)||shipments.some(x=>Number(x.warehouseId)===key)||invoices.some(x=>Number(x.warehouseId)===key||Array.isArray(x.lines)&&x.lines.some(line=>Number(line.warehouseId)===key))||orders.some(x=>Number(x.warehouseId)===key)||lots.some(x=>Number(x.warehouseId)===key)||adjustments.some(x=>Number(x.warehouseId)===key);if(linked)throw Error("این انبار در موجودی یا سوابق عملیات استفاده شده است و قابل حذف نیست");}if(s==="employees"){const payroll=await all("payroll");if(payroll.some(x=>Number(x.employeeId)===key))throw Error("کارمندی که سابقه حقوق دارد قابل حذف نیست");}else if(s==="fixedAssets"){const [depreciations,assets]=await Promise.all([all("assetDepreciations"),all("fixedAssets")]),asset=assets.find(x=>Number(x.id)===key);if(depreciations.some(x=>Number(x.assetId)===key)||asset?.purchaseVoucherReference)throw Error("دارایی دارای سند خرید یا استهلاک است؛ برای حفظ دفتر کل حذف نمی‌شود");}if(s==="treasuryAllocations"){const rows=await all("treasuryAllocations"),row=rows.find(x=>Number(x.id)===key);if(row&&(Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0))throw Error("تخصیص دارای سند تسعیر قابل حذف نیست؛ از دکمه برگشت تخصیص استفاده کنید");}
  if(s==="importShipments"){const [rows,payables]=await Promise.all([all("importShipments"),all("foreignPayables")]),shipment=rows.find(x=>Number(x.id)===key);if(shipment?.receivedAt)throw Error("محموله رسید انبارشده قابل حذف نیست؛ برای اصلاح سند برگشت ثبت کنید");if(payables.some(x=>Number(x.sourceShipmentId)===key))throw Error("برای این محموله تعهد ارزی ثبت شده است؛ ابتدا تعهد و پرداخت‌های مرتبط را تعیین تکلیف کنید");}
  if(!confirm("این مورد حذف شود؟"))return;
+ if(["products","parties","warehouses"].includes(s)){await deleteMasterRecordGuarded(s,id);toast("حذف شد");render();return}
  await del(s,id);toast("حذف شد");render()
 }
 async function saveForm(page,d,item){const num=k=>Number(d[k]||0);if(page==="accounts"){const code=String(d.code||item?.id||"").trim(),title=String(d.title||"").trim(),type={"دارایی":"ASSET","بدهی":"LIABILITY","حقوق مالکانه":"EQUITY","درآمد":"REVENUE","هزینه":"EXPENSE"}[d.type];if(!/^\d{3,12}$/.test(code)||!title||!type)throw Error("کد، عنوان و گروه حساب معتبر الزامی است");const old=await all("accounts");if(!item&&old.some(a=>String(a.id)===code))throw Error("این کد حساب قبلاً ثبت شده است");await put("accounts",{...(item||{}),id:code,title,type,openingDebitRial:Number(item?.openingDebitRial||0),openingCreditRial:Number(item?.openingCreditRial||0)});return}if(page==="products"){const prices=Array.from({length:10},(_,i)=>num("price"+(i+1)));if(prices.some(x=>!Number.isSafeInteger(x)||x<0))throw Error("قیمت‌های فروش باید عدد صحیح و غیرمنفی باشند");const minStock=num("minStock"),barcode=String(d.barcode||"").trim();if(!Number.isFinite(minStock)||minStock<0)throw Error("حداقل موجودی باید صفر یا بیشتر باشد");const v={id:item?.id,sku:d.sku.trim(),barcode,name:d.name.trim(),group:d.group,yarn:d.yarn,color:d.color,denier:num("denier"),twisted:d.twisted==="تاب‌دار",minStock,notes:d.notes,prices,customFields:(()=>{try{return {...(item?.customFields||{}),...JSON.parse(d.__entityCustomFields||"{}")}}catch(_){return item?.customFields||{}}})(),stock:item?.stock||0,value:item?.value||0,avg:item?.avg||0};prices.forEach((price,i)=>v["price"+(i+1)]=price);if(!v.sku||!v.name||!Number.isFinite(v.denier)||v.denier<=0)throw Error("کد، نام و دنیر معتبر الزامی است");const a=await all("products");if(a.some(x=>x.sku===v.sku&&x.id!==v.id))throw Error("کد کالا تکراری است");if(v.barcode&&a.some(x=>x.barcode===v.barcode&&x.id!==v.id))throw Error("بارکد تکراری است");if(item)await putPreservingFields("products",v,["stock","value","avg"]);else await put("products",v)}

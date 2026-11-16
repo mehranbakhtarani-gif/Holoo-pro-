@@ -9,9 +9,9 @@ test("import receipt revalidates all mutable snapshots in the atomic posting tra
  const end=app.indexOf("\nasync function importBankStatementCsv",start);
  assert.ok(start>=0&&end>start,"import receipt function must exist");
  const body=app.slice(start,end);
- assert.match(body,/expectedShipmentState=\{status:shipment\.status,receivedAt:shipment\.receivedAt\}/);
- assert.match(body,/expectedProductState=\{stock:product\.stock,value:product\.value\}/);
- assert.match(body,/expectedPartyBalance=party\.balance/);
+ assert.match(body,/expectedShipmentState=\\{\\.\\.\\.shipment\\}/);
+ assert.match(body,/expectedProductState=\\{\\.\\.\\.product\\}/);
+ assert.match(body,/expectedPartyState=\\{\\.\\.\\.party\\}/);
  assert.match(body,/expectedWarehouseRow=stockRows\.find/);
  assert.match(body,/expectedPayableState=linkedPayable\?/);
  assert.match(body,/store:"importShipments",key:Number\(shipment\.id\),expected:expectedShipmentState/);

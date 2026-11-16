@@ -27,6 +27,7 @@ function stampOperationRecord({store,record,mode="AUTO",manualValue="",now=Date.
   const eventFields={
    invoices:["createdAt","reversedAt"],foreignPayablePayments:["reversedAt"],importShipments:["receivedAt"],inventoryLots:["receivedAt","transferredAt"],
    checks:["createdAt","statusChangedAt","clearedAt","endorsedAt","bouncedAt","cancelledAt"],
+   treasuryAllocations:["reversedAt"],
    salesOrders:["createdAt"],foreignPayables:["createdAt"],payroll:["createdAt"]
   }[store]||[];
   for(const key of eventFields)if(Object.prototype.hasOwnProperty.call(copy,key)&&copy[key]!==null&&Number.isFinite(Number(copy[key]))&&Math.abs(now-Number(copy[key]))<=60000)copy[key]=at;

@@ -978,7 +978,7 @@ if(page==="salesOrders"){
   if(!Number.isSafeInteger(grossLineTotal)||grossLineTotal<=0||lineDiscountRial>=grossLineTotal)throw Error("معادل ریالی یا تخفیف ردیف معتبر نیست");
   const lineTotal=grossLineTotal-lineDiscountRial;subtotal+=lineTotal;
   if(!Number.isSafeInteger(subtotal))throw Error("جمع سفارش از محدوده مجاز خارج است");
-  lines.push({productId:product.id,productName:product.name,qty,bonusQty,totalQty,price,grossLineTotal,discountRial:lineDiscountRial,lineTotal,foreignAmountMinor});
+  lines.push({productId:product.id,productName:product.name,qty,bonusQty,totalQty,price,grossLineTotal,discountRial:lineDiscountRial,lineTotal,foreignAmountMinor,customFields:globalThis.HolooCustomFields?.normalizeLineValues(d.lineCustomFields?.[i]||{})||{}});
  }
  const discount=num("discount"),tax=num("tax");if(!Number.isSafeInteger(discount)||discount<0||discount>subtotal||!Number.isSafeInteger(tax)||tax<0)throw Error("تخفیف یا مالیات سفارش معتبر نیست");
  const total=subtotal-discount+tax;if(!Number.isSafeInteger(total)||total<=0)throw Error("مبلغ نهایی سفارش معتبر نیست");

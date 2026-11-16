@@ -74,3 +74,14 @@ test("account ledger page provides a print-ready report using the current filter
  assert.match(app,/@page\{size:A4 landscape/);
  assert.match(app,/row\.runningBalance/);
 });
+
+
+test("party statement provides a print action and prints the party ledger with opening and closing balances",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/class="ghost party-statement-print"/);
+ assert.match(app,/data-party-statement=/);
+ assert.match(app,/صورتحساب طرف حساب/);
+ assert.match(app,/const opening=Number\(party\.balance\|\|0\)-movement/);
+ assert.match(app,/const debit=rows\.reduce/);
+ assert.match(app,/const credit=rows\.reduce/);
+});

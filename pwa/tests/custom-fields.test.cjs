@@ -162,7 +162,7 @@ test("custom report builder saves reports, previews data and exports CSV/print",
 test("custom report columns use a fixed whitelist and safe text rendering",()=>{
  assert.match(custom,/const reportSchemas=/);
  assert.match(custom,/td\.textContent=value/);
- assert.match(custom,/const safe=\/\^\[=\+\\-@\]/);
+ assert.match(custom,/safe=\/\^\[-=\+@\]/);
 });
 test("report configuration is stored separately in the existing audit store",()=>{
  assert.match(custom,/db\.transaction\(STORE,"readwrite"\)/);

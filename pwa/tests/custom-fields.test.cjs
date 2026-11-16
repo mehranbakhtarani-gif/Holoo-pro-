@@ -70,7 +70,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v153-invoice-print-template-runtime/);
+ assert.match(sw,/holloo-pwa-v154-load-active-print-template/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -236,6 +236,11 @@ test("invoice print designer stores reusable templates and exposes safe print se
  assert.ok(custom.includes("data-pt-row"));
  assert.ok(custom.includes("getInvoicePrintTemplate"));
 });
+test("saved invoice print template is loaded during PWA module initialization",()=>{
+ const init=custom.slice(custom.indexOf("async function init()"));
+ assert.ok(init.indexOf("await readPrintTemplates()")<init.indexOf("ready=true"));
+});
+
 test("invoice print template API supplies a safe default layout",()=>{
  const api=loadCustom();
  const template=api.getInvoicePrintTemplate();
@@ -273,7 +278,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v153-invoice-print-template-runtime/);
+ assert.match(sw,/holloo-pwa-v154-load-active-print-template/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });

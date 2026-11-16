@@ -33,3 +33,13 @@ test("returns safe empty summaries and rejects invalid shipment costs",()=>{
  assert.throws(()=>summarizeImportShipments({shipments:[{weight:1,goodsRial:100,totalCost:99}]}));
  assert.throws(()=>summarizeImportShipments({shipments:[{weight:0,goodsRial:0,totalCost:0}]}));
 });
+
+test("PWA loads and precaches the shipment analytics helper before app code",()=>{
+ const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
+ const html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8"),app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.ok(html.indexOf("import-shipment-analytics.js")>=0);
+ assert.ok(html.indexOf("import-shipment-analytics.js")<html.indexOf("app.js?v=shipment-analytics-1"));
+ assert.match(sw,/\.\/import-shipment-analytics\.js/);
+ assert.match(sw,/import-shipment-analytics\\.js/);
+ assert.match(app,/summarizeImportShipments\(\{shipments:rows\}\)/);
+});

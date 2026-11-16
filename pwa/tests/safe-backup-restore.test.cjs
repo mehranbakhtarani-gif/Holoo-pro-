@@ -28,6 +28,11 @@ test("restore rejects invalid and duplicate record IDs before touching IndexedDB
 test("restore downloads a full pre-restore backup and replaces stores atomically",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/await exportBackup\("holloo-before-restore"\)/);
+ assert.match(app,/blob\.size>50\*1024\*1024/);
+ const backup=app.indexOf('await exportBackup("holloo-before-restore")');
+ const saved=app.indexOf("فایل پشتیبان را در دستگاه ذخیره کرده‌اید",backup);
+ const transaction=app.indexOf('db.transaction(stores,"readwrite")',backup);
+ assert.ok(saved>backup&&transaction>saved);
  assert.match(app,/const tx=db\.transaction\(stores,"readwrite"\)/);
  assert.match(app,/objectStore\.clear\(\);for\(const row of data\.records\[store\]\|\|\[\]\)objectStore\.put\(row\)/);
  assert.match(app,/tx\.onabort/);

@@ -27,3 +27,19 @@ test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX ac
  assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v=foreign-payables-1"));
  assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);
 });
+
+test("forecasts open supplier obligations by currency and due-date window without mixing currencies",()=>{
+ const asOf=new Date(2026,10,16,10).getTime(),day=n=>new Date(2026,10,n,12).getTime();
+ const rows=[
+  {...payable(),id:1,dueDate:day(10)},
+  {...payable(),id:2,currency:"USD",amountMinor:50000,paidMinor:10000,dueDate:day(20)},
+  {...payable(),id:3,currency:"CNY",amountMinor:70000,dueDate:day(30)},
+  {...payable(),id:4,currency:"EUR",amountMinor:90000,dueDate:null},
+  {...payable(),id:5,currency:"USD",status:"PAID",paidMinor:100000,dueDate:day(20)}
+ ];
+ const x=require("../foreign-payables.js").summarizeForeignPayablesForecast({payables:rows,asOf,horizonDays:30});
+ assert.equal(x.openCount,4);assert.equal(x.overdueCount,1);assert.equal(x.dueSoonCount,2);
+ assert.equal(x.byCurrency.USD.outstandingMinor,140000);assert.equal(x.byCurrency.USD.overdueMinor,100000);assert.equal(x.byCurrency.USD.dueSoonMinor,40000);
+ assert.equal(x.byCurrency.CNY.dueSoonMinor,70000);assert.equal(x.byCurrency.EUR.undatedMinor,90000);
+ assert.throws(()=>require("../foreign-payables.js").summarizeForeignPayablesForecast({payables:rows,asOf,horizonDays:400}),/معتبر/);
+});

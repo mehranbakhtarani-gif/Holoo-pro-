@@ -53,7 +53,7 @@ test("shipment profitability consolidates transferred stock and FIFO sales under
  const transfer=planLotTransfer({lots:[first,second],productId:1,productName:"FDY سفید 60D",sourceWarehouseId:2,destinationWarehouseId:3,quantity:120,sourceWarehouseStock:{stock:200,value:285000},transferId:"WT-2",date:300});
  const destLots=transfer.destinationLots;
  const sale=planLotSale({productId:1,productName:"FDY سفید 60D",warehouseId:3,quantity:10,warehouseStock:{stock:120,value:157000},lots:destLots,date:400});
- const allLots=[...transfer.sourceLotUpdates,...destLots,...sale.newLots,...sale.updates];
+ const allLots=[...new Map([...transfer.sourceLotUpdates,...destLots,...sale.newLots,...sale.updates].map(lot=>[lot.id,lot])).values()];
  const rows=summarizeLotProfit({lots:allLots,invoices:[{kind:"SALE",status:"POSTED",lines:[{qty:10,totalQty:10,lineTotal:20000,lotAllocations:sale.allocations}]}]});
  const cn1=rows.find(x=>x.sourceNumber==="CN-1"),cn2=rows.find(x=>x.sourceNumber==="CN-2");
  assert.equal(rows.length,2);assert.equal(cn1.soldQty,10);assert.equal(cn1.remainingQty,90);assert.equal(cn1.soldCost,12500);assert.equal(cn1.revenue,20000);assert.equal(cn1.grossProfit,7500);

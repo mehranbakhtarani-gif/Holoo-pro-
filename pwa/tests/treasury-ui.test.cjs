@@ -11,8 +11,8 @@ test("treasury page shows gross inflow, outflow and net movement summaries",()=>
 });
 
 test("treasury ledger supports search and exposes reference and reversal status",()=>{
- assert.match(app,/جست‌وجوی شناسه، طرف حساب، روش، ارز، مبلغ، تاریخ یا شرح/);
- assert.match(app,/x\.id,x\.partyName,x\.method,x\.currency,x\.note,x\.reference,x\.status,x\.kind==="RECEIPT"\?"دریافت":"پرداخت",x\.amount,fmt\(x\.amount\|\|0\),x\.foreignAmountMinor\?fmtForeign\(x\.foreignAmountMinor\/100\):"",date\(x\.date\)/);
+ assert.match(app,/جست‌وجوی شناسه، طرف حساب، حساب صندوق یا بانک، ارز، مبلغ، تاریخ یا شرح/);
+ assert.match(app,/x\.id,x\.partyName,x\.method,x\.accountCode,x\.accountName,x\.currency,x\.note,x\.reference,x\.status,x\.kind==="RECEIPT"\?"دریافت":"پرداخت",x\.amount,fmt\(x\.amount\|\|0\),x\.foreignAmountMinor\?fmtForeign\(x\.foreignAmountMinor\/100\):"",date\(x\.date\)/);
  assert.match(app,/برگشت‌شده/);
 });
 

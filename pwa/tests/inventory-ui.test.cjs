@@ -29,3 +29,10 @@ test("edit and delete action failures are shown without unhandled rejections",()
  assert.match(app,/function edit\(s,id\).*\.catch\(e=>toast\(e\.message\|\|"فرم ویرایش باز نشد"\)\)/);
  assert.match(app,/\[data-del\].*removeRow\(\.\.\.b\.dataset\.del\.split\(":"\)\)\.catch\(e=>toast\(e\.message\|\|"حذف ناموفق بود"\)\)/);
 });
+
+
+test("products referenced by pending shipments, sales orders, lots or transfers cannot be deleted",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/all\("importShipments"\).*all\("salesOrders"\).*all\("inventoryLots"\).*all\("warehouseTransfers"\)/);
+ assert.match(app,/hasShipment\|\|hasOrder\|\|hasLot\|\|hasTransfer\|\|hasWarehouseStock/);
+});

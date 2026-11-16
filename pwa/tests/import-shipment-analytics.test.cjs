@@ -37,6 +37,25 @@ test("returns safe empty summaries and rejects invalid shipment costs",()=>{
  assert.throws(()=>summarizeImportShipments({shipments:[{weight:0,goodsRial:0,totalCost:0}]}));
 });
 
+
+test("rejects aggregate weight overflow and non-finite unit costs",()=>{
+ assert.throws(()=>summarizeImportShipments({shipments:[
+  {number:"BIG-1",weight:1e308,goodsRial:0,totalCost:0},
+  {number:"BIG-2",weight:1e308,goodsRial:0,totalCost:0}
+ ]}));
+ assert.throws(()=>summarizeImportShipments({shipments:[
+  {number:"TINY",weight:Number.MIN_VALUE,goodsRial:1,totalCost:1}
+ ]}));
+});
+test("rejects negative or unsafe foreign currency amounts",()=>{
+ assert.throws(()=>summarizeImportShipments({shipments:[
+  {number:"NEG",weight:1,goods:-1,goodsRial:1,totalCost:1,currency:"USD"}
+ ]}));
+ assert.throws(()=>summarizeImportShipments({shipments:[
+  {number:"UNSAFE",weight:1,goods:Number.MAX_SAFE_INTEGER+1,goodsRial:1,totalCost:1,currency:"USD"}
+ ]}));
+});
+
 test("PWA loads and precaches the shipment analytics helper before app code",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8"),app=fs.readFileSync(path.join(root,"app.js"),"utf8");

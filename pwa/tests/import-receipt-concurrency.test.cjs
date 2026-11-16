@@ -36,7 +36,8 @@ test("import shipment creation and edits atomically enforce unique numbers and c
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/function putImportShipmentUnique\(record\)/);
  assert.match(app,/db\.transaction\(\["importShipments","foreignPayables","auditLog"\],"readwrite"\)/);
- assert.match(app,/row\.number===record\.number\|\|String\(row\.container\|\|"\)\.trim\(\)\.toLowerCase\(\)===String\(record\.container\|\|"\)\.trim\(\)\.toLowerCase\(\)/);
+ assert.ok(app.includes("row.number===record.number"));
+ assert.ok(app.includes('String(row.container||"").trim().toLowerCase()===String(record.container||"").trim().toLowerCase()'));
  assert.match(app,/const linked=current&&payables\.find\(row=>Number\(row\.sourceShipmentId\)===Number\(current\.id\)\)/);
  assert.match(app,/await putImportShipmentUnique\(shipmentRecord\)/);
 });

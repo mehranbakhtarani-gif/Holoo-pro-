@@ -91,6 +91,13 @@ test("allocates rounded invoice revenue across four lots without negative amount
  assert.ok(rows.every(row=>row.revenue>=0));
 });
 
+test("ignores historical sales without lot allocations instead of failing shipment reports",()=>{
+ const lot=receipt("CN-HIST",5,5000,100);
+ const rows=summarizeLotProfit({lots:[lot],invoices:[{kind:"SALE",status:"POSTED",lines:[{qty:2,totalQty:2,lineTotal:2000}]}]});
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].revenue,0);
+ assert.equal(rows[0].soldQty,0);
+});
 test("PWA integrates FIFO lots with database, shipment receipt, invoice sales, transfers and reversals",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");

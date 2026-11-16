@@ -1623,11 +1623,20 @@ private fun ImportsScreen(
     var dialog by remember { mutableStateOf(false) }
     var editingOrder by remember { mutableStateOf<ImportOrderEntity?>(null) }
     var receivingOrder by remember { mutableStateOf<ImportOrderEntity?>(null) }
+    var searchText by remember { mutableStateOf("") }
+    val visibleImports = imports.filter { order ->
+        val supplier = parties.firstOrNull { it.id == order.supplierId }?.name.orEmpty()
+        order.containerCode.contains(searchText, true) || supplier.contains(searchText, true) ||
+            order.currency.contains(searchText, true) || order.status.contains(searchText, true) ||
+            order.goodsAmountMinor.toString().contains(searchText)
+    }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         SectionHeader("واردات نخ از چین", "ارز، کانتینر، هزینه‌ها و سررسید تأمین‌کننده") { editingOrder = null; dialog = true }
+        FormField("جست‌وجوی کانتینر، تأمین‌کننده، ارز یا مبلغ", searchText) { searchText = it }
         if (imports.isEmpty()) EmptyState("سفارشی ثبت نشده است", "اطلاعات خرید خارجی و هزینه‌های حمل را وارد کن")
+        else if (visibleImports.isEmpty()) EmptyState("سفارشی پیدا نشد", "عبارت جست‌وجو را تغییر بده یا پاک کن")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
-            items(imports, key = { it.id }) { order ->
+            items(visibleImports, key = { it.id }) { order ->
                 val supplier = parties.firstOrNull { it.id == order.supplierId }?.name ?: "تأمین‌کننده"
                 val total = runCatching {
                     LandedCostCalculator.totalCostRial(

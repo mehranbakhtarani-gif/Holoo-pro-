@@ -5,7 +5,7 @@ async function reversePwaInvoice(number){
  const lines=Array.isArray(invoice.lines)?invoice.lines:[];
  if(!lines.length)throw Error("ردیف‌های فاکتور برای برگشت پیدا نشد");
  const [products,parties,vouchers,voucherLines,warehouseStockRows,inventoryLots,allocations]=await Promise.all([all("products"),all("parties"),all("vouchers"),all("voucherLines"),all("warehouseStock"),all("inventoryLots"),all("treasuryAllocations")]);
- const invoiceAllocations=allocations.filter(row=>row.invoiceNumber===invoice.number);if(invoiceAllocations.length){if(invoiceAllocations.some(row=>Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0))throw Error("این فاکتور تخصیص ارزی با سود یا زیان تحقق‌یافته دارد؛ ابتدا سند تسعیر تخصیص را با عملیات معکوس اصلاح کنید");throw Error("ابتدا تخصیص‌های دریافت یا پرداخت این فاکتور را حذف کنید؛ سپس برگشت فاکتور را انجام دهید");}
+ const invoiceAllocations=allocations.filter(row=>row.invoiceNumber===invoice.number);if(invoiceAllocations.length){if(invoiceAllocations.some(row=>Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0))throw Error("تخصیص این فاکتور سود یا زیان تحقق‌یافته دارد؛ برگشت امن تخصیص هنوز در دسترس نیست و برگشت فاکتور متوقف شد");throw Error("ابتدا تخصیص‌های دریافت یا پرداخت این فاکتور را حذف کنید؛ سپس برگشت فاکتور را انجام دهید");}
  const party=parties.find(x=>Number(x.id)===Number(invoice.partyId));
  if(!party)throw Error("طرف حساب فاکتور پیدا نشد");
  const original=vouchers.find(v=>v.reference===invoice.number);

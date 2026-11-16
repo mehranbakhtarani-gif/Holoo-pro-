@@ -239,7 +239,7 @@ async function adjustStockPwa(id){
   {accountCode:creditCode,debitRial:0,creditRial:adjustmentValue,description:"اصلاح موجودی"}
  ],[
   {store:"products",key:Number(product.id),expected:expectedProductState},
-  {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:expectedWarehouseRow?{stock:expectedWarehouseRow.stock,value:expectedWarehouseRow.value}:null}
+  {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:expectedWarehouseRow?{...expectedWarehouseRow}:null}
  ]);
  toast("اصلاح موجودی، انبار، بچ FIFO و سند حسابداری ثبت شد");await render();
 }
@@ -248,12 +248,12 @@ async function receiveImportShipment(id){
  if(!shipment)throw Error("محموله پیدا نشد");
  if(shipment.receivedAt)throw Error("این محموله قبلاً رسید انبار شده است");
  if(shipment.status!=="رسیده")throw Error("ابتدا وضعیت محموله را به «رسیده» تغییر دهید");
- const expectedShipmentState={status:shipment.status,receivedAt:shipment.receivedAt};
+ const expectedShipmentState={...shipment};
  const [products,parties,warehouses,stockRows,lots,foreignPayables]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock"),all("inventoryLots"),all("foreignPayables")]);
  const product=products.find(x=>Number(x.id)===Number(shipment.productId)),party=parties.find(x=>Number(x.id)===Number(shipment.supplierId)),warehouse=warehouses.find(x=>Number(x.id)===Number(shipment.warehouseId));
  if(!product||!party||!warehouse)throw Error("کالا، تأمین‌کننده یا انبار مقصد محموله پیدا نشد");
  const costs=calculateImportShipmentCost({currency:shipment.currency,fx:shipment.fx,weight:shipment.weight,goods:shipment.goods,freight:shipment.freight,customs:shipment.customs,other:shipment.other});
- const expectedProductState={stock:product.stock,value:product.value},expectedPartyBalance=party.balance;
+ const expectedProductState={...product},expectedPartyState={...party};
  const expectedWarehouseRow=stockRows.find(x=>Number(x.productId)===Number(product.id)&&Number(x.warehouseId)===Number(warehouse.id));
  const currentStock=Number(product.stock||0),currentValue=Number(product.value||0);
  if(!Number.isFinite(currentStock)||currentStock<0||!Number.isSafeInteger(currentValue)||currentValue<0)throw Error("موجودی کل کالا برای رسید معتبر نیست");
@@ -264,7 +264,7 @@ async function receiveImportShipment(id){
  const ancillary=costs.totalCost-costs.goodsRial,now=Date.now(),reference="IMPORT-RECEIPT:"+shipment.number;
  shipment.goodsRial=costs.goodsRial;shipment.totalCost=costs.totalCost;shipment.unitCost=costs.unitCost;shipment.status="رسید انبار شده";shipment.receivedAt=now;shipment.receivedVoucherNumber="IMP-"+now;
  const linkedPayable=foreignPayables.find(x=>Number(x.sourceShipmentId)===Number(shipment.id));
- const expectedPayableState=linkedPayable?{shipmentReceivedAt:linkedPayable.shipmentReceivedAt}:null;
+ const expectedPayableState=linkedPayable?{...linkedPayable}:null;
  if(linkedPayable)linkedPayable.shipmentReceivedAt=now;
  const lot=planLotReceipt({productId:product.id,productName:product.name,warehouseId:warehouse.id,sourceType:"IMPORT_SHIPMENT",sourceId:shipment.id,sourceNumber:shipment.number,container:shipment.container,supplierId:party.id,supplierName:party.name,quantity:Number(shipment.weight),totalCost:costs.totalCost,receivedAt:now});
  if(lots.some(x=>x.id===lot.id))throw Error("برای این محموله قبلاً بچ موجودی ثبت شده است");
@@ -278,7 +278,7 @@ async function receiveImportShipment(id){
  await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["inventoryLots",lot],...(linkedPayable?[["foreignPayables",linkedPayable]]:[]),["parties",party],["partyLedger",ledger]],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal,[
   {store:"importShipments",key:Number(shipment.id),expected:expectedShipmentState},
   {store:"products",key:Number(product.id),expected:expectedProductState},
-  {store:"parties",key:Number(party.id),expected:{balance:expectedPartyBalance}},
+  {store:"parties",key:Number(party.id),expected:expectedPartyState},
   {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:expectedWarehouseRow?{stock:expectedWarehouseRow.stock,value:expectedWarehouseRow.value}:null},
   {store:"inventoryLots",match:{sourceType:"IMPORT_SHIPMENT",sourceId:Number(shipment.id)},expected:null},
   {store:"foreignPayables",match:{sourceShipmentId:Number(shipment.id)},expected:expectedPayableState}

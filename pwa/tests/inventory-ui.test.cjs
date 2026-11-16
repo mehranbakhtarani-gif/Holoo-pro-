@@ -73,7 +73,7 @@ test("party statements display opening balance before dated movements",()=>{
 test("parties page filters by name, type, phone and address",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/جست‌وجوی نام، تلفن، نشانی یا نوع طرف حساب/);
- assert.match(app,/parties\.filter\(x=>\[x\.name,x\.kind,x\.phone,x\.address\]/);
+ assert.match(app,/parties\.filter\(x=>\[x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.phone,x\.address\]/);
 });
 
  

@@ -553,7 +553,7 @@ function putManyGuarded(entries,guards=[]){
 }
 function del(s,id){return new Promise((res,rej)=>{const t=db.transaction([s,"auditLog"],"readwrite"),q=t.objectStore(s).delete(Number(id));q.onsuccess=()=>t.objectStore("auditLog").add({action:"حذف",store:s,recordId:Number(id),at:Date.now(),summary:"حذف رکورد از "+s});q.onerror=()=>{try{t.abort()}catch(_){}};t.oncomplete=()=>res();t.onerror=()=>rej(t.error||new Error("حذف ناموفق بود"));t.onabort=()=>rej(t.error||new Error("حذف لغو شد"))})}
 function parseDateOnlyLocal(value,label="تاریخ",endOfDay=false){
- const raw=String(value||"").trim(),match=/^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(raw);
+ const raw=String(value||"").trim(),match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
  if(!match)throw Error(label+" را به شکل معتبر انتخاب کنید");
  const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]),hour=endOfDay?23:12,minute=endOfDay?59:0,second=endOfDay?59:0,millisecond=endOfDay?999:0;
  const parsed=new Date(year,month-1,day,hour,minute,second,millisecond);

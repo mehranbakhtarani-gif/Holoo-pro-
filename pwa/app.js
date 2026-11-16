@@ -631,7 +631,7 @@ if(currentPage==="cashFlow"){
  const applyOffsets=(rows,kind)=>{
   const offsets=new Map();
   for(const c of openChecks.filter(x=>kind==="SALE"?x.kind==="RECEIVED":x.kind==="PURCHASE"?x.kind==="PAYABLE":false)){
-   const id=String(c.partyId);offsets.set(id,(offsets.get(id)||0)+Number(c.amount));
+   const id=String(c.partyId),next=(offsets.get(id)||0)+Number(c.amount);if(!Number.isSafeInteger(next))throw Error("جمع چک‌های طرف حساب از محدوده عددی مجاز خارج است");offsets.set(id,next);
   }
   for(const row of rows.slice().sort((x,y)=>Number(x.dueDate)-Number(y.dueDate))){
    const key=String(row.partyId),available=offsets.get(key)||0,covered=Math.min(available,Number(row.outstanding||0)),remaining=Number(row.outstanding||0)-covered;
@@ -659,8 +659,8 @@ if(currentPage==="cashFlow"){
   const amount=Number.isSafeInteger(foreignAmountMinor)&&foreignAmountMinor>0?HolooForeignPayables.convertMinorAtRate(foreignAmountMinor,Number(s.fx)):0;
   if(Number.isSafeInteger(amount)&&amount>0)events.push({direction:"OUTFLOW",amountRial:amount,dueDate:s.dueDate,source:"برآورد پرداخت محموله وارداتی",reference:s.number,partyName:s.supplierName,currency:s.currency,foreignAmountMinor});
  }
- const cashBalance=code=>{const account=accounts.find(x=>String(x.id)===code);if(!account)return 0;return Number(account.openingDebitRial||0)-Number(account.openingCreditRial||0)+voucherLines.filter(x=>String(x.accountCode)===code).reduce((n,x)=>n+Number(x.debitRial||0)-Number(x.creditRial||0),0)};
- const cashOnHandRial=cashBalance("1101"),bankBalanceRial=cashBalance("1102"),openingCashRial=cashOnHandRial+bankBalanceRial;
+ const cashBalance=code=>{const account=accounts.find(x=>String(x.id)===code);if(!account)return 0;let balance=Number(account.openingDebitRial||0)-Number(account.openingCreditRial||0);if(!Number.isSafeInteger(balance))throw Error("مانده افتتاحیه صندوق یا بانک معتبر نیست");for(const line of voucherLines.filter(x=>String(x.accountCode)===code)){const debit=Number(line.debitRial||0),credit=Number(line.creditRial||0);if(!Number.isSafeInteger(debit)||debit<0||!Number.isSafeInteger(credit)||credit<0)throw Error("گردش صندوق یا بانک معتبر نیست");balance+=debit;if(!Number.isSafeInteger(balance))throw Error("جمع بدهکار صندوق یا بانک از محدوده عددی مجاز خارج است");balance-=credit;if(!Number.isSafeInteger(balance))throw Error("مانده صندوق یا بانک از محدوده عددی مجاز خارج است")}return balance};
+ const cashOnHandRial=cashBalance("1101"),bankBalanceRial=cashBalance("1102"),openingCashRial=cashOnHandRial+bankBalanceRial;if(!Number.isSafeInteger(openingCashRial))throw Error("جمع نقد و بانک از محدوده عددی مجاز خارج است");
  const forecast=buildCashFlowForecast({asOf:now,horizonDays:cashFlowHorizon,openingCashRial,events}),dailyProjection=getDailyCashFlowProjection({asOf:now,horizonDays:cashFlowHorizon,openingCashRial,events});const firstShortfallDay=dailyProjection.find(x=>x.shortfall)||null,worstShortfallDay=dailyProjection.reduce((worst,row)=>row.closingCashRial<(worst?.closingCashRial??0)?row:worst,null),shortfallDays=dailyProjection.filter(x=>x.shortfall).length;
  const horizonEnd=new Date(forecast.asOf);horizonEnd.setDate(horizonEnd.getDate()+cashFlowHorizon);const upcoming=events.filter(x=>Number(x.dueDate)>=forecast.asOf&&Number(x.dueDate)<horizonEnd.getTime()).sort((x,y)=>Number(x.dueDate)-Number(y.dueDate));
  const attention=events.filter(x=>!x.dueDate||Number(x.dueDate)<forecast.asOf).sort((x,y)=>(Number(x.dueDate)||Infinity)-(Number(y.dueDate)||Infinity));

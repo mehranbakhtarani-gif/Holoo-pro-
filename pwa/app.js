@@ -648,7 +648,7 @@ async function exportBackup(prefix="holloo-backup"){
  const records={},counts={};
  for(const store of stores){records[store]=await all(store);counts[store]=records[store].length}
  const data={app:"HOLLOO PRO+ PWA",version:2,schemaVersion:DB_VERSION,exportedAt:new Date().toISOString(),storeNames:[...stores],counts,records};
- const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});if(blob.size>50*1024*1024)throw Error("حجم نسخه پشتیبان از سقف ۵۰ مگابایت بیشتر است؛ فایل صادر نشد");const url=URL.createObjectURL(blob),a=document.createElement("a");
  a.href=url;a.download=prefix+"-"+new Date().toISOString().slice(0,10)+".json";a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
  return {counts,total:Object.values(counts).reduce((sum,n)=>sum+n,0)};
 }
@@ -671,6 +671,7 @@ async function restoreBackup(file){
  if(data.version===2&&(!Array.isArray(data.storeNames)||stores.some(name=>!data.storeNames.includes(name))))throw Error("فایل پشتیبان نسخه جدید ناقص است");
  if(!confirm("بازیابی "+total+" رکورد از فایل پشتیبان انجام شود؟ تمام اطلاعات فعلی جایگزین می‌شود. پیش از جایگزینی، یک نسخه پشتیبان خودکار از اطلاعات فعلی دانلود خواهد شد."))return;
  await exportBackup("holloo-before-restore");
+ if(!confirm("دانلود نسخه پشتیبان قبلی آغاز شد. فقط در صورتی ادامه دهید که فایل پشتیبان را در دستگاه ذخیره کرده‌اید؛ در غیر این صورت لغو کنید."))return;
  const tx=db.transaction(stores,"readwrite");
  for(const store of stores){const objectStore=tx.objectStore(store);objectStore.clear();for(const row of data.records[store]||[])objectStore.put(row)}
  await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("بازیابی ناموفق بود"));tx.onabort=()=>reject(tx.error||new Error("بازیابی لغو شد"))});

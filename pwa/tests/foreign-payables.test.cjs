@@ -149,7 +149,7 @@ test("filters supplier balance rows by supplier, currency and reconciliation sta
 test("exports supplier balance reconciliation as Persian UTF-8 CSV with shipment references",()=>{
  const {buildForeignPayableBalanceCsv}=require("../foreign-payables.js");
  const csv=buildForeignPayableBalanceCsv({rows:[{supplierId:3,supplierName:'شرکت "الف"',ok:false,partyLedgerBalanceRial:20,generalLedgerBalanceRial:30,ledgerDeltaRial:2,generalLedgerDeltaRial:3,currencies:{USD:{outstandingMinor:1250,bookValueRial:10}},trace:[{currency:"USD",sourceNumber:"S-1",receiptReference:"IMPORT-RECEIPT:S-1",payments:[{reference:"FXP-1",reversalReference:"FXPR-1"}]}]}]});
- assert.ok(csv.startsWith("\\uFEFF"));
+ assert.ok(csv.startsWith("\uFEFF"));
  assert.ok(csv.includes('"شرکت ""الف"""'));
  assert.ok(csv.includes("IMPORT-RECEIPT:S-1"));
  assert.ok(csv.includes("FXPR-1"));

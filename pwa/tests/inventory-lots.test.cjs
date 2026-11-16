@@ -90,6 +90,12 @@ test("allocates rounded invoice revenue across four lots without negative amount
  assert.equal(rows.reduce((sum,row)=>sum+row.revenue,0),2);
  assert.ok(rows.every(row=>row.revenue>=0));
 });
+test("rejects sale revenue attributed to a missing lot",()=>{
+ const lot=receipt("CN-MISSING",5,5000,100);
+ assert.throws(()=>summarizeLotProfit({lots:[lot],invoices:[{kind:"SALE",status:"POSTED",lines:[
+  {qty:1,totalQty:1,lineTotal:1000,lotAllocations:[{lotId:"NOT-FOUND",quantity:1,cogs:100}]}
+ ]}]}),/پیدا نشد/);
+});
 test("ignores historical sales without lot allocations instead of breaking shipment reports",()=>{
  const lot=receipt("CN-HIST",5,5000,100);
  const rows=summarizeLotProfit({lots:[lot],invoices:[{kind:"SALE",status:"POSTED",lines:[{qty:2,totalQty:2,lineTotal:2000}]}]});

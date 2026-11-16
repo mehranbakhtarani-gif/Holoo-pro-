@@ -321,7 +321,7 @@ if(currentPage==="cashFlow"){
  const openChecks=checks.filter(x=>x.status==="OPEN"&&x.purpose!=="ضمان"&&Number(x.amount)>0);
  const applyOffsets=(rows,kind)=>{
   const offsets=new Map();
-  for(const c of openChecks.filter(x=>kind==="SALE"?x.kind==="RECEIVED":x.kind==="PURCHASE"&&x.kind==="PAYABLE")){
+  for(const c of openChecks.filter(x=>kind==="SALE"?x.kind==="RECEIVED":x.kind==="PURCHASE"?x.kind==="PAYABLE":false)){
    const id=String(c.partyId);offsets.set(id,(offsets.get(id)||0)+Number(c.amount));
   }
   for(const row of rows.slice().sort((x,y)=>Number(x.dueDate)-Number(y.dueDate))){

@@ -1,0 +1,27 @@
+name: PWA quality checks
+on:
+  pull_request:
+    paths:
+      - "pwa/**"
+      - ".github/workflows/pwa-quality.yml"
+  push:
+    branches:
+      - feature/pwa-customization-framework
+    paths:
+      - "pwa/**"
+      - ".github/workflows/pwa-quality.yml"
+jobs:
+  syntax-and-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: JavaScript syntax checks
+        run: |
+          node --check pwa/app.js
+          node --check pwa/custom-fields.js
+          node --check pwa/sw.js
+      - name: PWA customization acceptance checks
+        run: node --test pwa/tests/custom-fields.test.cjs

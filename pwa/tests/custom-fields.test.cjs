@@ -436,3 +436,13 @@ test("custom report saves print template header footer paper and orientation",()
 });
 
 test("multiline custom fields are available and safely escaped in textarea controls",()=>{ assert.match(custom,/d\.type==="textarea"/); assert.match(custom,/maxlength="500"/); assert.match(custom,/value="textarea">یادداشت چندخطی/); });
+
+
+test("runtime: custom report CSV neutralizes formulas after leading control whitespace",()=>{
+ const api=loadCustom();
+ assert.equal(api.safeCsvCell("=1+1"), "\"'=1+1\"");
+ assert.equal(api.safeCsvCell("\t=1+1"), "\"'\t=1+1\"");
+ assert.equal(api.safeCsvCell("\r=1+1"), "\"'\r=1+1\"");
+ assert.equal(api.safeCsvCell("\n=1+1"), "\"'\n=1+1\"");
+ assert.equal(api.safeCsvCell("متن عادی"), "\"متن عادی\"");
+});

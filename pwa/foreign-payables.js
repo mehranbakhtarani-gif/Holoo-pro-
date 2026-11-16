@@ -48,6 +48,13 @@ function planForeignPayableInstallment(input){
  const installment={amountMinor,dueDate,note:String(input.note||""),createdAt:Number(input.createdAt||Date.now())};
  return {...payable,paymentPlan:[...existing,installment],paymentPlanUpdatedAt:Number(input.createdAt||Date.now())};
 }
+function getRemainingForeignPayableInstallments(payable){
+ const plan=Array.isArray(payable?.paymentPlan)?payable.paymentPlan:[],baseline=Number(payable?.paymentPlanBasePaidMinor??payable?.paidMinor??0);
+ let consumed=Math.max(0,Number(payable?.paidMinor||0)-baseline);
+ const remaining=[];
+ for(const item of plan){const amount=toSafeMinor(item.amountMinor,"مبلغ قسط");const used=Math.min(amount,consumed);consumed-=used;if(amount>used)remaining.push({...item,amountMinor:amount-used})}
+ return remaining;
+}
 function clearForeignPayableInstallmentPlan(payable){
  if(!payable||!Array.isArray(payable.paymentPlan)||!payable.paymentPlan.length)throw new Error("برنامه پرداختی برای حذف وجود ندارد");
  return {...payable,paymentPlan:[],paymentPlanUpdatedAt:Date.now()};
@@ -71,6 +78,6 @@ function summarizeForeignPayablesForecast(input){
  }
  return result;
 }
-const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast};
+const ForeignPayables={createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,planForeignPayableInstallment,getRemainingForeignPayableInstallments,clearForeignPayableInstallmentPlan,summarizeForeignPayable,summarizeForeignPayablesForecast};
 if(typeof module!=="undefined")module.exports=ForeignPayables;
 if(typeof globalThis!=="undefined")globalThis.HolooForeignPayables=ForeignPayables;

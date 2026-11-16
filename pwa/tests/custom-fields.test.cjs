@@ -42,7 +42,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v143-report-builder/);
+ assert.match(sw,/holloo-pwa-v144-report-builder/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -167,4 +167,9 @@ test("custom report columns use a fixed whitelist and safe text rendering",()=>{
 test("report configuration is stored separately in the existing audit store",()=>{
  assert.match(custom,/db\.transaction\(STORE,"readwrite"\)/);
  assert.match(custom,/REPORT_CONFIG_ID/);
+});
+
+test("custom reports read custom line values from invoice and order line arrays",()=>{
+ assert.match(custom,/report\.dataset==="invoices"\|\|report\.dataset==="salesOrders"/);
+ assert.match(custom,/row\.lines\|\|\[\]/);
 });

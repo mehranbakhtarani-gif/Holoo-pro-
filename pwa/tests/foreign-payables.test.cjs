@@ -118,9 +118,9 @@ test("reconciles supplier foreign balances against supplier subledger and linked
  ];
  const payments=[{id:8,payableId:1,reference:"FXPAY:1:8",status:"POSTED"},{id:9,payableId:1,reference:"FXPAY:1:9",status:"REVERSED"}];
  const refs=["IMPORT-RECEIPT:IMP-1","FXPAY:1:8","FXPAY:1:9","FXPAY-REV:9","IMPORT-RECEIPT:IMP-2"];
- const partyLedger=refs.map((referenceId,i)=>({referenceId,partyId:2,creditRial:[60000000,0,0,12000000,15000000][i],debitRial:[0,12000000,0,0,0][i]}));
+ const partyLedger=refs.map((referenceId,i)=>({referenceId,partyId:2,creditRial:[60000000,0,0,12000000,15000000][i],debitRial:[0,12000000,12000000,0,0][i]}));
  const vouchers=refs.map((reference,id)=>({id:id+1,reference}));
- const voucherLines=[{voucherId:1,accountCode:"2101",creditRial:60000000,debitRial:0},{voucherId:2,accountCode:"2101",creditRial:0,debitRial:12000000},{voucherId:3,accountCode:"2101",creditRial:0,debitRial:0},{voucherId:4,accountCode:"2101",creditRial:12000000,debitRial:0},{voucherId:5,accountCode:"2101",creditRial:15000000,debitRial:0}];
+ const voucherLines=[{voucherId:1,accountCode:"2101",creditRial:60000000,debitRial:0},{voucherId:2,accountCode:"2101",creditRial:0,debitRial:12000000},{voucherId:3,accountCode:"2101",creditRial:0,debitRial:12000000},{voucherId:4,accountCode:"2101",creditRial:12000000,debitRial:0},{voucherId:5,accountCode:"2101",creditRial:15000000,debitRial:0}];
  const result=reconcileForeignPayableBalances({payables,payments,partyLedger,vouchers,voucherLines});
  assert.equal(result.total,1);assert.equal(result.matched,1);assert.equal(result.rows[0].bookValueRial,63000000);
  assert.equal(result.rows[0].partyLedgerBalanceRial,63000000);assert.equal(result.rows[0].generalLedgerBalanceRial,63000000);

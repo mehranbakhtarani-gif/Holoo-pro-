@@ -55,8 +55,8 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   for(const tab of tabs){
    await page.locator('#mobileNav [data-page="'+tab.key+'"]').click();
    await page.waitForFunction(()=>Boolean(document.querySelector("#main h1")?.textContent.trim()));
-   const layout=await page.evaluate(()=>({width:document.querySelector("#main").clientWidth,scroll:document.querySelector("#main").scrollWidth}));
-   assert.ok(layout.scroll<=layout.width+2,tab.key+" overflows the mobile workspace");
+   const layout=await page.evaluate(()=>{const main=document.querySelector("#main"),bounds=main.getBoundingClientRect();return {width:main.clientWidth,scroll:main.scrollWidth,offenders:[...main.querySelectorAll("*")].map(el=>{const rect=el.getBoundingClientRect();return {tag:el.tagName,id:el.id,className:typeof el.className==="string"?el.className:"",text:(el.innerText||"").trim().slice(0,70),left:Math.round(rect.left),right:Math.round(rect.right),width:Math.round(rect.width),scroll:el.scrollWidth,client:el.clientWidth}}).filter(x=>x.right>bounds.right+2||x.left<bounds.left-2).slice(0,12)}});
+   assert.ok(layout.scroll<=layout.width+2,tab.key+" overflows the mobile workspace: "+JSON.stringify(layout));
   }
   await page.setViewportSize({width:1440,height:900});
   await page.locator('#sidebar [data-page="home"]').click();

@@ -300,7 +300,7 @@ const DB_NAME="holloo-pro-pwa",DB_VERSION=12;
 const stores=["products","parties","invoices","imports","checks","treasury","accounts","vouchers","voucherLines","stockAdjustments","partyLedger","warehouses","warehouseStock","warehouseTransfers","importShipments","approvals","employees","payroll","fixedAssets","treasuryAllocations","auditLog","assetDepreciations","bankStatements","bankStatementLines","salesOrders","inventoryLots","foreignPayables","foreignPayablePayments","importChargePayables"];
 let db,showToman=true,currentPage="home",searchText="",inventoryStockFilter="ALL",foreignRateOverrides={},cashFlowHorizon=90,cashFlowCalendarOffset=0,cashFlowCalendarSelectedDate="",operationDateMode="AUTO",operationManualDate="";
 const $=s=>document.querySelector(s),h=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])),fmt=n=>new Intl.NumberFormat("fa-IR").format(Math.round(Number(n)||0)),fmtForeign=n=>new Intl.NumberFormat("fa-IR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0),money=n=>fmt(showToman?Number(n||0)/10:Number(n||0)),moneyUnit=()=>showToman?"تومان":"ریال",date=v=>v?new Intl.DateTimeFormat("fa-IR").format(new Date(v)):"—";
-const titles={home:["داشبورد کسب‌وکار","نمای کلی فروش، انبار و گردش مالی"],inventory:["کالا و انبار","مدیریت کالاهای نخ و ارزش موجودی"],inventoryReports:["گزارش‌های انبار","کاردکس مقداری و ریالی و کالاهای راکد"],parties:["اشخاص","مشتریان و تأمین‌کنندگان و مانده حساب"],invoices:["فاکتورها","ثبت خرید و فروش با کنترل موجودی"],salesOrders:["پیش‌فاکتور و سفارش","ثبت پیش‌فاکتور، سفارش فروش و تبدیل به فاکتور"],imports:["واردات نخ","ثبت سفارش، ارز و هزینه‌های واردات"],checks:["مدیریت چک‌ها","چک‌های دریافتی و پرداختی و سررسیدها"],treasury:["دریافت و پرداخت","ثبت گردش صندوق و بانک"],accounting:["گزارش مالی","خلاصه عملکرد و گردش حساب‌ها"],bankReconciliation:["مغایرت بانکی","ورود صورت‌حساب و تطبیق با گردش بانک"],foreignExchange:["سود و زیان ارزی","گزارش سود و زیان تحقق‌یافته تسعیر ارز"],warehouses:["مدیریت انبارها","موجودی مستقل، ارزش موجودی و گردش بین انبارها"],warehouseTransfers:["انتقال بین انبارها","ثبت و پیگیری انتقال موجودی و ارزش دفتری"],importShipments:["محموله‌های وارداتی","پیگیری کانتینرها، هزینه‌ها و تسویه محموله"],approvals:["گردش تأیید","ثبت و پیگیری درخواست‌های تأیید اسناد"],employees:["کارکنان","اطلاعات پرسنلی و حقوق پایه"],payroll:["حقوق و دستمزد","ثبت دوره حقوق، کسورات و پرداخت"],fixedAssets:["دارایی ثابت","ثبت بهای خرید و استهلاک دارایی‌ها"],auditLog:["گزارش ممیزی","سوابق ثبت، ویرایش و حذف اطلاعات"],allocations:["تخصیص دریافت و پرداخت","تخصیص تراکنش‌های خزانه به چند فاکتور"],depreciations:["استهلاک دارایی‌ها","ثبت استهلاک دوره‌ای با سند حسابداری"],foreignPayables:["تعهدات ارزی تأمین‌کنندگان","بدهی دلاری و یوانی، سررسید، اقساط و سود و زیان تسعیر"],foreignPayablePayments:["پرداخت تعهد ارزی","ثبت پرداخت مرحله‌ای و محاسبه سود یا زیان تحقق‌یافته"],importChargePayments:["پرداخت هزینه جانبی واردات","تسویه مرحله‌ای هزینه حمل، گمرک و سایر هزینه‌های محموله از حساب ۲۱۰۲"],cashFlow:["جریان نقدی","پیش‌بینی موجودی نقد و تعهدات ۳۰، ۶۰ و ۹۰ روز آینده"],importPlanner:["برنامه‌ریزی سرمایه واردات","مقایسه سفارش ۱، ۲ و ۴ کانتینر و نیاز نقدینگی"]};
+const titles={home:["داشبورد کسب‌وکار","نمای کلی فروش، انبار و گردش مالی"],inventory:["کالا و انبار","مدیریت کالاهای نخ و ارزش موجودی"],inventoryReports:["گزارش‌های انبار","کاردکس مقداری و ریالی و کالاهای راکد"],parties:["اشخاص","مشتریان و تأمین‌کنندگان و مانده حساب"],invoices:["فاکتورها","ثبت خرید و فروش با کنترل موجودی"],salesOrders:["پیش‌فاکتور و سفارش","ثبت پیش‌فاکتور، سفارش فروش و تبدیل به فاکتور"],imports:["واردات نخ","ثبت سفارش، ارز و هزینه‌های واردات"],checks:["مدیریت چک‌ها","چک‌های دریافتی و پرداختی و سررسیدها"],treasury:["دریافت و پرداخت","ثبت گردش صندوق و بانک"],accounting:["گزارش مالی","خلاصه عملکرد و گردش حساب‌ها"],bankReconciliation:["مغایرت بانکی","ورود صورت‌حساب و تطبیق با گردش بانک"],foreignExchange:["سود و زیان ارزی","گزارش سود و زیان تحقق‌یافته تسعیر ارز"],warehouses:["مدیریت انبارها","موجودی مستقل، ارزش موجودی و گردش بین انبارها"],warehouseTransfers:["انتقال بین انبارها","ثبت و پیگیری انتقال موجودی و ارزش دفتری"],importShipments:["محموله‌های وارداتی","پیگیری کانتینرها، هزینه‌ها و تسویه محموله"],approvals:["گردش تأیید","ثبت و پیگیری درخواست‌های تأیید اسناد"],employees:["کارکنان","اطلاعات پرسنلی و حقوق پایه"],payroll:["حقوق و دستمزد","ثبت دوره حقوق، کسورات و پرداخت"],fixedAssets:["دارایی ثابت","ثبت بهای خرید و استهلاک دارایی‌ها"],auditLog:["گزارش ممیزی","سوابق ثبت، ویرایش و حذف اطلاعات"],allocations:["تخصیص دریافت و پرداخت","تخصیص تراکنش‌های خزانه به چند فاکتور"],depreciations:["استهلاک دارایی‌ها","ثبت استهلاک دوره‌ای با سند حسابداری"],foreignPayables:["تعهدات ارزی تأمین‌کنندگان","بدهی دلاری و یوانی، سررسید، اقساط و سود و زیان تسعیر"],foreignPayablePayments:["پرداخت تعهد ارزی","ثبت پرداخت مرحله‌ای و محاسبه سود یا زیان تحقق‌یافته"],importChargePayments:["پرداخت هزینه جانبی واردات","تسویه مرحله‌ای هزینه حمل، گمرک و سایر هزینه‌های محموله از حساب ۲۱۰۲"],cashFlow:["جریان نقدی","پیش‌بینی موجودی نقد و تعهدات ۳۰، ۶۰ و ۹۰ روز آینده"],importPlanner:["برنامه‌ریزی سرمایه واردات","مقایسه سفارش ۱، ۲ و ۴ کانتینر و نیاز نقدینگی"],stocktakes:["انبارگردانی","ثبت شمارش فیزیکی، مغایرت و بستن دوره انبار"]};
 function openDB(){return new Promise((res,rej)=>{let settled=false;const q=indexedDB.open(DB_NAME,DB_VERSION);const timer=setTimeout(()=>{if(!settled){settled=true;rej(new Error("مهلت باز کردن پایگاه داده تمام شد؛ احتمالاً یک زبانه دیگر برنامه هنوز نسخه قبلی دفتر را باز نگه داشته است."))}},10000);q.onupgradeneeded=()=>{try{const d=q.result;for(const s of stores)if(!d.objectStoreNames.contains(s))d.createObjectStore(s,{keyPath:"id",autoIncrement:true})}catch(e){try{q.transaction.abort()}catch(_){}if(!settled){settled=true;clearTimeout(timer);rej(e)}}};q.onblocked=()=>{if(!settled){settled=true;clearTimeout(timer);rej(new Error("ارتقای دفتر توسط یک زبانه دیگر مسدود شده است؛ همه زبانه‌های برنامه را ببندید و فقط همین صفحه را باز کنید."))}};q.onsuccess=()=>{const d=q.result;d.onversionchange=()=>d.close();if(!settled){settled=true;clearTimeout(timer);res(d)}else d.close()};q.onerror=()=>{if(!settled){settled=true;clearTimeout(timer);rej(q.error||new Error("باز کردن پایگاه داده ناموفق بود"))}}})}
 async function loadDemoData(){
  const [existing,partiesNow,vouchersNow,ledgerNow,treasuryNow,invoicesNow,checksNow,importsNow,shipmentsNow,adjustmentsNow,accountsNow]=await Promise.all([all("products"),all("parties"),all("vouchers"),all("partyLedger"),all("treasury"),all("invoices"),all("checks"),all("imports"),all("importShipments"),all("stockAdjustments"),all("accounts")]);
@@ -704,6 +704,98 @@ async function adjustStockPwa(id){
   {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:expectedWarehouseRow?{...expectedWarehouseRow}:null}
  ]);
  toast("اصلاح موجودی، انبار، بچ FIFO و سند حسابداری ثبت شد");await render();
+}
+async function createStocktakePwa(warehouseId){
+ const [warehouses,products,stockRows,adjustments]=await Promise.all([all("warehouses"),all("products"),all("warehouseStock"),all("stockAdjustments")]);
+ const warehouse=warehouses.find(x=>Number(x.id)===Number(warehouseId));if(!warehouse)throw Error("انبار انتخاب‌شده پیدا نشد");
+ if(adjustments.some(x=>x.kind==="STOCKTAKE"&&Number(x.warehouseId)===Number(warehouse.id)&&x.status==="OPEN"))throw Error("برای این انبار یک انبارگردانی باز وجود دارد؛ ابتدا آن را تکمیل یا بررسی کنید");
+ const now=Date.now(),number="STK-"+now,header={kind:"STOCKTAKE",number,warehouseId:Number(warehouse.id),warehouseName:warehouse.name,status:"OPEN",createdAt:now,lineCount:products.length};
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(["stockAdjustments","auditLog"],"readwrite"),store=tx.objectStore("stockAdjustments");let stocktakeId=null;
+  const add=store.add(header);
+  add.onsuccess=()=>{
+   stocktakeId=add.result;
+   for(const product of products){
+    const row=stockRows.find(x=>Number(x.productId)===Number(product.id)&&Number(x.warehouseId)===Number(warehouse.id));
+    store.add({kind:"STOCKTAKE_LINE",stocktakeId,stocktakeNumber:number,warehouseId:Number(warehouse.id),productId:Number(product.id),productName:product.name||"",sku:product.sku||"",expectedQty:Number(row?.stock||0),expectedValue:Number(row?.value||0),countedQty:null,status:"PENDING"});
+   }
+   tx.objectStore("auditLog").add({action:"ایجاد انبارگردانی",store:"stockAdjustments",recordId:stocktakeId,at:now,summary:"شروع "+number+" در "+warehouse.name});
+  };
+  add.onerror=()=>{try{tx.abort()}catch(_){}};
+  tx.oncomplete=()=>resolve(stocktakeId);
+  tx.onerror=()=>reject(tx.error||new Error("ایجاد انبارگردانی ناموفق بود"));
+  tx.onabort=()=>reject(tx.error||new Error("ایجاد انبارگردانی لغو شد"));
+ });
+}
+async function recordStocktakeCountPwa(lineId,countedQty){
+ const rows=await all("stockAdjustments"),line=rows.find(x=>Number(x.id)===Number(lineId)&&x.kind==="STOCKTAKE_LINE");
+ if(!line)throw Error("ردیف شمارش پیدا نشد");
+ const header=rows.find(x=>Number(x.id)===Number(line.stocktakeId)&&x.kind==="STOCKTAKE");
+ if(!header||header.status!=="OPEN"||line.status!=="PENDING")throw Error("این ردیف در انبارگردانی باز قابل شمارش نیست");
+ const count=Number(countedQty);if(!Number.isFinite(count)||count<0)throw Error("مقدار شمارش باید عددی معتبر و غیرمنفی باشد");
+ const snapshot={...line};line.countedQty=count;line.status="COUNTED";line.countedAt=Date.now();
+ await putManyGuarded([["stockAdjustments",line]],[{store:"stockAdjustments",key:Number(line.id),expected:snapshot}]);
+ return line;
+}
+async function closeStocktakePwa(stocktakeId){
+ const [adjustments,products,stockRows,inventoryLots,accounts]=await Promise.all([all("stockAdjustments"),all("products"),all("warehouseStock"),all("inventoryLots"),all("accounts")]);
+ const header=adjustments.find(x=>Number(x.id)===Number(stocktakeId)&&x.kind==="STOCKTAKE");
+ if(!header||header.status!=="OPEN")throw Error("انبارگردانی باز پیدا نشد");
+ const lines=adjustments.filter(x=>x.kind==="STOCKTAKE_LINE"&&Number(x.stocktakeId)===Number(header.id));
+ if(!lines.length||lines.length!==Number(header.lineCount)||lines.some(x=>x.status!=="COUNTED"||!Number.isFinite(Number(x.countedQty))))throw Error("ابتدا شمارش تمام کالاهای این انبار را تکمیل کنید");
+ const comparison=HolooInventoryControl.buildStocktakeComparison({stockRows:lines.map(x=>({productId:x.productId,warehouseId:x.warehouseId,stock:x.expectedQty,value:x.expectedValue})),products,counts:lines.map(x=>({productId:x.productId,warehouseId:x.warehouseId,countedQty:x.countedQty}))});
+ const headerSnapshot={...header},entries=[],guards=[{store:"stockAdjustments",key:Number(header.id),expected:headerSnapshot}],journal=[],accountCodes=new Set(),now=Date.now();
+ const productSnapshots=new Map(),warehouseSnapshots=new Map(),lotSnapshots=new Map(),lotNewIds=new Set();
+ const currentWarehouseRows=stockRows.filter(x=>Number(x.warehouseId)===Number(header.warehouseId));
+ let increaseValue=0,decreaseValue=0;
+ for(const result of comparison){
+  const line=lines.find(x=>Number(x.productId)===result.productId),lineSnapshot={...line},product=products.find(x=>Number(x.id)===result.productId);
+  if(!product)throw Error("کالای "+result.productName+" هنگام بستن انبارگردانی پیدا نشد");
+  const currentRow=currentWarehouseRows.find(x=>Number(x.productId)===result.productId),currentQty=Number(currentRow?.stock||0),currentValue=Number(currentRow?.value||0);
+  if(Math.abs(currentQty-Number(line.expectedQty))>1e-6||currentValue!==Number(line.expectedValue))throw Error("موجودی دفتری "+result.productName+" پس از شروع شمارش تغییر کرده است؛ انبارگردانی را دوباره انجام دهید");
+  const delta=Number(result.deltaQty);let valueDelta=0,stockRecord=currentRow?{...currentRow}:{productId:product.id,productName:product.name,warehouseId:header.warehouseId,stock:0,value:0,average:0,updatedAt:now},lotEntries=[];
+  const productSnapshot=productSnapshots.get(Number(product.id))||{...product};productSnapshots.set(Number(product.id),productSnapshot);
+  if(Math.abs(delta)>1e-6){
+   if(delta>0){
+    const unitValue=Number(line.expectedQty)>0?Number(line.expectedValue)/Number(line.expectedQty):Number(product.avg||0);
+    valueDelta=Math.round(delta*unitValue);
+    if(!Number.isSafeInteger(valueDelta)||valueDelta<0)throw Error("ارزش افزایش موجودی برای "+product.name+" معتبر نیست");
+    const lot=planLotReceipt({productId:product.id,productName:product.name,warehouseId:header.warehouseId,sourceType:"STOCK_ADJUSTMENT",sourceId:header.number+":"+product.id,sourceNumber:header.number,quantity:delta,totalCost:valueDelta,receivedAt:now});
+    lotEntries.push(["inventoryLots",lot]);lotNewIds.add(String(lot.id));
+    stockRecord.stock=currentQty+delta;stockRecord.value=currentValue+valueDelta;
+    product.stock=Number(product.stock||0)+delta;product.value=Number(product.value||0)+valueDelta;
+    increaseValue+=valueDelta;if(!Number.isSafeInteger(increaseValue))throw Error("جمع ارزش افزایش انبارگردانی از محدوده مجاز خارج است");
+   }else{
+    const sale=planLotSale({productId:product.id,productName:product.name,warehouseId:header.warehouseId,quantity:-delta,warehouseStock:{stock:currentQty,value:currentValue},lots:inventoryLots,date:now});
+    valueDelta=-Number(sale.cogs);
+    if(!Number.isSafeInteger(valueDelta)||valueDelta>0||-valueDelta>currentValue)throw Error("بهای کاهش موجودی برای "+product.name+" معتبر نیست");
+    lotEntries.push(...[...sale.newLots,...sale.updates].map(lot=>["inventoryLots",lot]));
+    for(const lot of [...sale.newLots,...sale.updates]){const id=String(lot.id);if(sale.newLots.includes(lot))lotNewIds.add(id);else if(!lotSnapshots.has(id)){const original=inventoryLots.find(x=>String(x.id)===id);if(original)lotSnapshots.set(id,{...original})}}
+    stockRecord.stock=sale.remainingStock;stockRecord.value=sale.remainingValue;stockRecord.average=sale.average;
+    product.stock=Number(product.stock||0)+delta;product.value=Number(product.value||0)+valueDelta;
+    decreaseValue+=-valueDelta;if(!Number.isSafeInteger(decreaseValue))throw Error("جمع ارزش کاهش انبارگردانی از محدوده مجاز خارج است");
+   }
+   if(!Number.isFinite(product.stock)||product.stock<0||!Number.isSafeInteger(product.value)||product.value<0)throw Error("موجودی کالا پس از انبارگردانی معتبر نیست");
+   product.avg=product.stock>0?product.value/product.stock:0;
+   stockRecord.average=stockRecord.stock>0?stockRecord.value/stockRecord.stock:0;stockRecord.updatedAt=now;
+   entries.push(["products",product],["warehouseStock",stockRecord],["stockAdjustments",{kind:"STOCKTAKE_ADJUSTMENT",stocktakeId:header.id,stocktakeNumber:header.number,productId:product.id,productName:product.name,warehouseId:header.warehouseId,warehouseName:header.warehouseName,deltaKg:delta,valueRial:Math.abs(valueDelta),date:now,number:header.number+"-"+product.id}]);
+   entries.push(...lotEntries);
+   if(currentRow){const key=Number(currentRow.productId)+":"+Number(currentRow.warehouseId);if(!warehouseSnapshots.has(key))warehouseSnapshots.set(key,{...currentRow})}
+   line.deltaQty=delta;line.valueDelta=valueDelta;line.status="CLOSED";line.closedAt=now;
+  }else{line.deltaQty=0;line.valueDelta=0;line.status="CLOSED";line.closedAt=now}
+  entries.push(["stockAdjustments",line]);guards.push({store:"stockAdjustments",key:Number(line.id),expected:lineSnapshot});
+ }
+ for(const [id,snapshot] of productSnapshots)guards.push({store:"products",key:id,expected:snapshot});
+ for(const [key,snapshot] of warehouseSnapshots){const [productId,warehouseId]=key.split(":").map(Number);guards.push({store:"warehouseStock",match:{productId,warehouseId},expected:snapshot})}
+ for(const id of lotNewIds)guards.push({store:"inventoryLots",key:id,expected:null});
+ for(const [id,snapshot] of lotSnapshots)guards.push({store:"inventoryLots",key:snapshot.id,expected:snapshot});
+ header.status="CLOSED";header.closedAt=now;header.increaseValueRial=increaseValue;header.decreaseValueRial=decreaseValue;header.voucherNumber=increaseValue+decreaseValue>0?"STKC-"+now:null;
+ entries.push(["stockAdjustments",header]);
+ if(increaseValue>0){journal.push({accountCode:"1301",debitRial:increaseValue,creditRial:0,description:"افزایش موجودی طبق انبارگردانی "+header.number},{accountCode:"4201",debitRial:0,creditRial:increaseValue,description:"مازاد موجودی طبق انبارگردانی "+header.number});accountCodes.add("1301");accountCodes.add("4201")}
+ if(decreaseValue>0){journal.push({accountCode:"5201",debitRial:decreaseValue,creditRial:0,description:"کسری موجودی طبق انبارگردانی "+header.number},{accountCode:"1301",debitRial:0,creditRial:decreaseValue,description:"کاهش موجودی طبق انبارگردانی "+header.number});accountCodes.add("5201");accountCodes.add("1301")}
+ if(journal.length){for(const code of accountCodes){const account=accounts.find(x=>String(x.id)===code);if(!account)throw Error("حساب "+code+" برای بستن انبارگردانی تعریف نشده است");guards.push({store:"accounts",key:account.id,expected:{id:account.id,type:account.type}})}await ensureBaseAccounts();await postVoucherAtomic(entries,{number:header.voucherNumber,date:now,description:"بستن انبارگردانی "+header.number,reference:"STOCKTAKE:"+header.number},journal,guards)}
+ else await putManyGuarded(entries,guards);
+ return {header,comparison,increaseValue,decreaseValue};
 }
 async function receiveImportShipment(id){
  const shipments=await all("importShipments"),shipment=shipments.find(x=>Number(x.id)===Number(id));

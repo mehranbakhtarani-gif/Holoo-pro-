@@ -16,7 +16,7 @@ test("inventory reports expose a persistent count sheet and controlled variance 
 test("stocktake store migration is additive and offline assets receive a new cache version",()=>{
  assert.match(app,/for\(const s of stores\)if\(!d\.objectStoreNames\.contains\(s\)\)d\.createObjectStore\(s/);
  assert.match(html,/inventory-control\.js\?v=inventory-control-2/);
- assert.match(sw,/holloo-pwa-v161-stocktake/);
+ assert.match(sw,/holloo-pwa-v162-reorder-report/);
  assert.match(sw,/\.\/inventory-control\.js/);
 });
 

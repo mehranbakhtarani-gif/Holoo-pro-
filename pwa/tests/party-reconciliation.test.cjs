@@ -27,8 +27,8 @@ test("opening balances in control accounts reconcile even when their counterpart
   parties:[{id:1,name:"Customer",balance:125000},{id:2,name:"Supplier",balance:-75000}],
   partyLedger:[{partyId:1,debitRial:125000,creditRial:0,referenceId:"OPENING:PARTY:1"},{partyId:2,debitRial:0,creditRial:75000,referenceId:"OPENING:PARTY:2"}],
   accounts:[{id:"1103",openingDebitRial:125000,openingCreditRial:0},{id:"2101",openingDebitRial:0,openingCreditRial:75000}],
-  vouchers:[{id:1,reference:"OPENING:PARTY:1"},{id:2,reference:"OPENING:PARTY:2"}],
-  voucherLines:[{voucherId:1,accountCode:"1103",debitRial:125000,creditRial:0},{voucherId:2,accountCode:"2101",debitRial:0,creditRial:75000}]
+  vouchers:[],
+  voucherLines:[]
  });
  assert.equal(result.ok,true);
  assert.equal(result.totals.partyVsLedgerDeltaRial,0);

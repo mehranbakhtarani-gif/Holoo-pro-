@@ -180,11 +180,15 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   await page.locator('#entryForm [name="kind"]').selectOption({label:"مشتری"});
   await page.locator('#entryForm [name="status"]').selectOption({label:"مسدود"});
   await page.locator('#entryForm [name="blockedReason"]').fill("چک برگشتی");
+  const blockedFormData=await page.locator("#entryForm").evaluate(form=>Object.fromEntries(new FormData(form)));
+  assert.equal(blockedFormData.status,"مسدود");
+  await page.evaluate(()=>{window.__HOLLOO_TEST_TOASTS=[];const original=window.toast;window.toast=message=>{window.__HOLLOO_TEST_TOASTS.push(String(message));return original(message)}});
+  await page.locator("#toast").evaluate(element=>{element.textContent="";element.classList.remove("show")});
   await page.locator('#entryForm button[type="submit"]').click();
-  await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.trim().length>0);
-  const blockedSaveToast=(await page.locator("#toast").textContent()).trim();
-  assert.match(blockedSaveToast,/اطلاعات ذخیره شد/, "blocked-party create failed: "+blockedSaveToast);
-  await page.waitForFunction(()=>document.querySelector("#modal").hidden===true);
+  await page.waitForFunction(()=>document.querySelector("#modal")?.hidden===true||document.querySelector("#toast")?.textContent.trim().length>0);
+  const blockedSaveState=await page.evaluate(()=>({toast:document.querySelector("#toast")?.textContent.trim(),history:window.__HOLLOO_TEST_TOASTS||[],modalHidden:document.querySelector("#modal")?.hidden}));
+  assert.equal(blockedSaveState.modalHidden,true,"blocked-party create failed: "+JSON.stringify(blockedSaveState));
+  assert.match(blockedSaveState.toast||"",/اطلاعات ذخیره شد/,"blocked-party create failed: "+JSON.stringify(blockedSaveState));
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("مشتری مسدود آزمایشی"));
   assert.ok((await page.locator("#main").textContent()).includes("مسدود"));
 

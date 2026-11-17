@@ -24,7 +24,7 @@ test("unknown accounts, malformed lines and unsafe totals fail closed",()=>{
 test("treasury, cheque, foreign payment, allocation and invoice reversals use journal validation",()=>{
  assert.match(app,/validateReversalVoucherLines\(\{voucher,lines:oldLines,accounts,expectedLines,expectedTotal:amount,label:"خزانه"\}\)/);
  assert.match(app,/validateReversalVoucherLines\(\{voucher,lines:oldLines,accounts,expectedLines,expectedTotal:amount,label:"وصول چک"\}\)/);
- assert.match(app,/validateReversalVoucherLines\(\{voucher:original,lines:oldLines,accounts,expectedTotal:gain\+loss,label:"تسعیر تخصیص"\}\)/);
+ assert.match(app,/allocation\.fxVoucherReference\)throw Error/);assert.match(app,/expectedFxLines=gain>0/);assert.match(app,/expectedLines:expectedFxLines,expectedTotal:gain\+loss,label:"تسعیر تخصیص"/);assert.doesNotMatch(app,/const candidates=vouchers\.filter\(v=>String\(v\.reference\|\|""\)\.startsWith\(prefix\)/);
  assert.match(app,/validateReversalVoucherLines\(\{voucher:originalVoucher,lines:oldLines,accounts,expectedLines,expectedTotal:plan\.settlementRial\+plan\.fxGainRial,label:"پرداخت تعهد ارزی"\}\)/);
  assert.match(app,/validateReversalVoucherLines\(\{voucher:original,lines:oldLines,accounts,label:"فاکتور "\+invoice\.number\}\)/);
 });

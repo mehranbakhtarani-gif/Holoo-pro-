@@ -31,7 +31,7 @@ test("accounting manual vouchers and opening balances have submit handlers and b
  
 test("accounting sales reports exclude draft and reversed invoices but retain legacy posted records",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.ok(app.includes('const sales=invoices.filter(x=>x.kind==="SALE"&&(!x.status||x.status==="POSTED"));'));
+ assert.ok(app.includes('const sales=invoices.filter(x=>x.kind==="SALE"&&(!x.status||x.status==="POSTED")&&Number(x.date||0)>=reportFrom&&Number(x.date||0)<=reportTo);'));
 });
 
  

@@ -5,7 +5,7 @@ const {reconcilePartyBalances}=require("../party-reconciliation.js");
 test("reconciles customer and supplier balances against subledger and control accounts",()=>{
  const result=reconcilePartyBalances({
   parties:[{id:1,name:"Customer",balance:700},{id:2,name:"Supplier",balance:-300}],
-  partyLedger:[{partyId:1,debitRial:1000,creditRial:300,referenceId:"SALE-1"},{partyId:2,debitRial:0,creditRial:500,referenceId:"PUR-1"},{partyId:2,debitRial:200,creditRial:0,referenceId:"PAY-1"}],
+  partyLedger:[{partyId:1,debitRial:1000,creditRial:0,referenceId:"SALE-1"},{partyId:1,debitRial:0,creditRial:300,referenceId:"RECEIPT-1"},{partyId:2,debitRial:0,creditRial:500,referenceId:"PUR-1"},{partyId:2,debitRial:200,creditRial:0,referenceId:"PAY-1"}],
   accounts:[{id:"1103",openingDebitRial:0,openingCreditRial:0},{id:"2101",openingDebitRial:0,openingCreditRial:0}],
   vouchers:[{id:11,reference:"SALE-1"},{id:12,reference:"RECEIPT-1"},{id:13,reference:"PUR-1"},{id:14,reference:"PAY-1"}],
   voucherLines:[
@@ -51,7 +51,7 @@ test("detects a stale stored party balance and a missing control-account posting
 
 test("aggregates shared voucher references across multiple parties without double counting",()=>{
  const result=reconcilePartyBalances({
-  parties:[{id:1,name:"Customer",balance:0},{id:2,name:"Supplier",balance:0}],
+  parties:[{id:1,name:"Customer",balance:-500},{id:2,name:"Supplier",balance:500}],
   partyLedger:[{partyId:1,debitRial:0,creditRial:500,referenceId:"CHECK:ENDORSE:1"},{partyId:2,debitRial:500,creditRial:0,referenceId:"CHECK:ENDORSE:1"}],
   accounts:[{id:"1103",openingDebitRial:0,openingCreditRial:0},{id:"2101",openingDebitRial:0,openingCreditRial:0}],
   vouchers:[{id:9,reference:"CHECK:ENDORSE:1"}],

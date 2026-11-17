@@ -1523,21 +1523,23 @@ if(page==="invoices"){
 }
 if(page==="allocations"){
  const transactions=await all("treasury"),invoices=await all("invoices"),allocs=await all("treasuryAllocations");
- const tr=transactions.find(x=>x.id===num("treasuryId")),invoice=invoices.find(x=>x.number===d.invoiceId),amount=num("amount");
+ const tr=transactions.find(x=>Number(x.id)===num("treasuryId")),invoice=invoices.find(x=>x.number===d.invoiceId),amount=num("amount");
  if(!tr||!invoice||invoice.status==="REVERSED"||!Number.isSafeInteger(amount)||amount<=0)throw Error("تراکنش، فاکتور فعال و مبلغ تخصیص معتبر الزامی است");
- if(tr.partyId!==invoice.partyId)throw Error("طرف حساب تراکنش با فاکتور یکسان نیست");
+ if(Number(tr.partyId)!==Number(invoice.partyId))throw Error("طرف حساب تراکنش با فاکتور یکسان نیست");
  if(!((tr.kind==="RECEIPT"&&invoice.kind==="SALE")||(tr.kind==="PAYMENT"&&invoice.kind==="PURCHASE")))throw Error("نوع دریافت/پرداخت با نوع فاکتور سازگار نیست");
- validateTreasuryAllocation({transaction:tr,invoice,amount,allocations:allocs,currentAllocationId:item?.id});
- const invoiceCurrency=String(invoice.currency||"IRR"),transactionCurrency=String(tr.currency||"IRR"),transactionSnapshot={...tr},invoiceSnapshot={...invoice};
+ const invoiceCurrency=String(invoice.currency||"IRR").toUpperCase(),transactionCurrency=String(tr.currency||"IRR").toUpperCase(),transactionSnapshot={...tr},invoiceSnapshot={...invoice};
  if(invoiceCurrency!==transactionCurrency)throw Error("ارز دریافت/پرداخت باید با ارز فاکتور یکسان باشد");
- if(item)throw Error("تخصیص ثبت‌شده قابل ویرایش نیست؛ برای اصلاح سند جدید ثبت کنید");const party=(await all("parties")).find(x=>x.id===invoice.partyId);if(!party)throw Error("طرف حساب تخصیص پیدا نشد");const allocation={treasuryId:tr.id,invoiceNumber:invoice.number,partyId:invoice.partyId,partyName:invoice.partyName,amount,date:Date.now()};incrementAllocationVersion(tr,"خزانه");incrementAllocationVersion(invoice,"فاکتور");
+ if(item)throw Error("تخصیص ثبت‌شده قابل ویرایش نیست؛ برای اصلاح سند جدید ثبت کنید");
+ const party=(await all("parties")).find(x=>Number(x.id)===Number(invoice.partyId));if(!party)throw Error("طرف حساب تخصیص پیدا نشد");
+ const allocation={treasuryId:tr.id,invoiceNumber:invoice.number,partyId:invoice.partyId,partyName:invoice.partyName,amount,date:Date.now()};
  let fxJournal=[];
  if(invoiceCurrency!=="IRR"){
   if(!Number.isSafeInteger(invoice.foreignTotalMinor)||invoice.foreignTotalMinor<=0||!Number.isSafeInteger(tr.foreignAmountMinor)||tr.foreignAmountMinor<=0||!Number.isSafeInteger(tr.fxRateRialPerUnit)||tr.fxRateRialPerUnit<=0)throw Error("اطلاعات ارزی فاکتور یا تراکنش ناقص است");
   const foreignAmountMinor=calculateTreasuryForeignAllocation({transaction:tr,amount,allocations:allocs});
-  const previouslyAllocated=getActiveInvoiceForeignAllocatedMinor(invoice.number,allocs);
-  if(!Number.isSafeInteger(previouslyAllocated)||!Number.isSafeInteger(previouslyAllocated+foreignAmountMinor))throw Error("جمع تخصیص ارزی از محدوده عددی مجاز خارج است");if(previouslyAllocated+foreignAmountMinor>invoice.foreignTotalMinor)throw Error("مبلغ ارزی تخصیص از مانده فاکتور بیشتر است");
-  const fx=calculateRealizedForeignExchange({kind:invoice.kind,currency:invoiceCurrency,invoiceAmountMinor:invoice.foreignTotalMinor,settledAmountMinor:foreignAmountMinor,invoiceFxRateRialPerUnit:invoice.fxRateRialPerUnit,settlementFxRateRialPerUnit:tr.fxRateRialPerUnit});
+  const previouslyAllocated=getActiveInvoiceForeignAllocatedMinor(invoice.number,allocs),invoiceRows=allocs.filter(x=>x.invoiceNumber===invoice.number&&x.status!=="REVERSED"),transactionRows=allocs.filter(x=>Number(x.treasuryId)===Number(tr.id)&&x.status!=="REVERSED");
+  const previousInvoiceBookedRial=invoiceRows.reduce((n,x)=>n+Number(x.bookedRial??x.amount),0),previousTransactionForeignMinor=transactionRows.reduce((n,x)=>n+Number(x.foreignAmountMinor),0),previousTransactionSettlementRial=transactionRows.reduce((n,x)=>n+Number(x.settlementRial??x.amount),0);
+  if(!Number.isSafeInteger(previousInvoiceBookedRial)||previousInvoiceBookedRial<0||!Number.isSafeInteger(previousTransactionForeignMinor)||previousTransactionForeignMinor<0||!Number.isSafeInteger(previousTransactionSettlementRial)||previousTransactionSettlementRial<0||!Number.isSafeInteger(previouslyAllocated+foreignAmountMinor)||previouslyAllocated+foreignAmountMinor>invoice.foreignTotalMinor)throw Error("جمع تخصیص ارزی از مانده یا محدوده عددی مجاز خارج است");
+  const fx=calculateCumulativeRealizedForeignExchange({kind:invoice.kind,currency:invoiceCurrency,invoiceAmountMinor:invoice.foreignTotalMinor,settledAmountMinor:foreignAmountMinor,previousInvoiceSettledMinor:previouslyAllocated,previousInvoiceBookedRial,invoiceTotalRial:Number(invoice.total),invoiceFxRateRialPerUnit:invoice.fxRateRialPerUnit,treasuryAmountMinor:tr.foreignAmountMinor,previousTreasurySettledMinor:previousTransactionForeignMinor,previousTreasurySettlementRial,treasuryTotalRial:Number(tr.amount),settlementFxRateRialPerUnit:tr.fxRateRialPerUnit});
   allocation.foreignAmountMinor=foreignAmountMinor;allocation.currency=invoiceCurrency;allocation.fxGainRial=fx.gainRial;allocation.fxLossRial=fx.lossRial;allocation.bookedRial=fx.bookedRial;allocation.settlementRial=fx.settlementRial;
   if(fx.gainRial>0){
    fxJournal=invoice.kind==="SALE"?[{accountCode:"1103",debitRial:fx.gainRial,creditRial:0,description:"تعدیل مطالبات بابت سود تسعیر"},{accountCode:"4301",debitRial:0,creditRial:fx.gainRial,description:"سود تسعیر ارز"}]:[{accountCode:"2101",debitRial:fx.gainRial,creditRial:0,description:"تعدیل بدهی بابت سود تسعیر"},{accountCode:"4301",debitRial:0,creditRial:fx.gainRial,description:"سود تسعیر ارز"}];
@@ -1545,9 +1547,11 @@ if(page==="allocations"){
    fxJournal=invoice.kind==="SALE"?[{accountCode:"5501",debitRial:fx.lossRial,creditRial:0,description:"زیان تسعیر ارز"},{accountCode:"1103",debitRial:0,creditRial:fx.lossRial,description:"تعدیل مطالبات بابت زیان تسعیر"}]:[{accountCode:"5501",debitRial:fx.lossRial,creditRial:0,description:"زیان تسعیر ارز"},{accountCode:"2101",debitRial:0,creditRial:fx.lossRial,description:"تعدیل بدهی بابت زیان تسعیر"}];
   }
  }
+ validateTreasuryAllocation({transaction:tr,invoice,amount,invoiceAmount:invoiceCurrency==="IRR"?amount:Number(allocation.bookedRial),allocations:allocs,currentAllocationId:item?.id});
+ incrementAllocationVersion(tr,"خزانه");incrementAllocationVersion(invoice,"فاکتور");
  if(fxJournal.length){
   const partySnapshot={...party},now=Date.now(),reference="FX-SETTLEMENT:"+invoice.number+":"+now;allocation.fxVoucherReference=reference;
-  applyPartyBalanceDelta(party,Number(allocation.fxGainRial||0)-Number(allocation.fxLossRial||0));const ledger={partyId:party.id,date:now,debitRial:Number(allocation.fxGainRial||0),creditRial:Number(allocation.fxLossRial||0),description:"تعدیل ارزی تسویه "+invoice.number,referenceId:reference};await postVoucherAtomic([["treasury",tr],["invoices",invoice],["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FX-"+now,date:now,description:"تسعیر تسویه "+invoice.number,reference},fxJournal,[{store:"treasury",key:Number(tr.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot}]);
+  applyPartyBalanceDelta(party,Number(allocation.fxGainRial||0)-Number(allocation.fxLossRial||0));const ledger={partyId:party.id,date:now,debitRial:Number(allocation.fxGainRial||0),creditRial:Number(allocation.fxLossRial||0),description:"تعدیل ارزی تسویه "+invoice.number,referenceId:reference};await postVoucherAtomic([["treasury",tr],["invoices",invoice],["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FX-"+now,date:now,description:"تسعیر تسویه "+invoice.number,reference},fxJournal,[{store:"treasury",key:Number(tr.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot},{store:"parties",key:Number(party.id),expected:{...party, balance:Number(party.balance||0)-Number(allocation.fxGainRial||0)+Number(allocation.fxLossRial||0)}}]);
  }else await putManyGuarded([["treasury",tr],["invoices",invoice],["treasuryAllocations",allocation]],[{store:"treasury",key:Number(tr.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot}]);
  return
 }

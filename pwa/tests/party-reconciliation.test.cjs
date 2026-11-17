@@ -180,3 +180,19 @@ test("reversed invoice requires one matching opposite party-ledger movement",()=
  assert.equal(invalid.withIssues,1);
  assert.ok(invalid.rows[0].issues.some(x=>x.includes("برگشت فاکتور")));
 });
+
+
+test("orphan settlement allocations are exposed in the global reconciliation report",()=>{
+ const result=reconcilePartyBalances({
+  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:0}],
+  invoices:[{id:10,number:"S-10",partyId:1,kind:"SALE",status:"POSTED",total:1000}],
+  treasuryAllocations:[
+   {id:30,partyId:1,invoiceNumber:"MISSING-INVOICE",treasuryId:20,amount:100,status:"POSTED"},
+   {id:31,partyId:99,invoiceNumber:"S-10",treasuryId:21,amount:100,status:"POSTED"}
+  ]
+ });
+ assert.equal(result.orphanAllocationCount,2);
+ assert.equal(result.orphanAllocations.length,2);
+ assert.equal(result.withIssues,1);
+ assert.ok(result.orphanIssues.some(x=>x.includes("تخصیص دریافت/پرداخت")));
+});

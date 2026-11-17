@@ -137,9 +137,23 @@ function buildStocktakeComparison(input){
  }
  return result;
 }
+function buildReorderReport(input){
+ const rows=[];
+ for(const product of input.products||[]){
+  const stock=Number(product.stock??0),minimum=Number(product.minStock??0),maximum=Number(product.maxStock??0),average=Number(product.avg??0);
+  if(!Number.isFinite(stock)||stock<0||!Number.isFinite(minimum)||minimum<0||!Number.isFinite(maximum)||maximum<0||!Number.isFinite(average)||average<0)throw new Error("موجودی یا حدود سفارش کالا معتبر نیست");
+  if(minimum<=0)continue;
+  if(maximum>0&&maximum<minimum)throw new Error("حداکثر موجودی کالای "+String(product.name||product.sku||product.id)+" از حداقل کمتر است");
+  if(stock>minimum)continue;
+  const target=maximum>minimum?maximum:minimum,recommended=Math.max(0,target-stock),estimatedValue=Math.round(recommended*average);
+  if(!Number.isSafeInteger(estimatedValue))throw new Error("ارزش پیشنهادی سفارش از محدوده عددی خارج است");
+  rows.push({productId:Number(product.id),sku:String(product.sku||""),name:String(product.name||""),stock,minStock:minimum,maxStock:maximum,targetStock:target,recommendedQty:recommended,average,estimatedValue});
+ }
+ return rows.sort((a,b)=>b.recommendedQty-a.recommendedQty||b.estimatedValue-a.estimatedValue||a.name.localeCompare(b.name,"fa"));
+}
 function buildInventoryCsv(rows,headers){
  const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
  return "\uFEFF"+[headers,...rows].map(row=>row.map(quote).join(",")).join("\r\n");
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv};
+if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildReorderReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv};
 if(typeof globalThis!=="undefined")globalThis.HolooInventoryControl={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv};

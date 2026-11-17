@@ -90,6 +90,26 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   await page.locator("#search").fill("ALT-002");
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("نخ آزمایشی ممیزی"));
   assert.match(await page.locator("#main").textContent(),/ALT-002|نخ آزمایشی ممیزی/);
+  await page.locator("#search").fill("");
+  await page.evaluate(async()=>{
+   const db=await new Promise((resolve,reject)=>{const request=indexedDB.open("holloo-pro-pwa",11);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+   const tx=db.transaction("products","readwrite"),store=tx.objectStore("products"),read=store.getAll();
+   read.onsuccess=()=>{const product=read.result.find(row=>row.sku==="QA-YARN-001");if(!product){tx.abort();return}product.stock=12;product.value=1440000;product.avg=120000;store.put(product)};
+   await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error("inventory seed failed"))});
+   db.close();
+  });
+  const productRow=page.locator("#main tr").filter({hasText:"QA-YARN-001"}).first();
+  await productRow.locator('[data-edit^="products:"]').click();
+  await page.locator('#entryForm [name="name"]').fill("نخ آزمایشی ویرایش‌شده");
+  await page.locator('#entryForm button[type="submit"]').click();
+  await page.waitForFunction(()=>document.querySelector("#modal").hidden===true);
+  await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("نخ آزمایشی ویرایش‌شده"));
+  const preserved=await page.evaluate(async()=>{
+   const db=await new Promise((resolve,reject)=>{const request=indexedDB.open("holloo-pro-pwa",11);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+   const tx=db.transaction("products","readonly"),rows=await new Promise((resolve,reject)=>{const request=tx.objectStore("products").getAll();request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+   const row=rows.find(product=>product.sku==="QA-YARN-001");db.close();return row&&{stock:row.stock,value:row.value,avg:row.avg,name:row.name};
+  });
+  assert.deepEqual(preserved,{stock:12,value:1440000,avg:120000,name:"نخ آزمایشی ویرایش‌شده"});
 
   await page.locator("#search").fill("");
   await page.locator("#addBtn").click();

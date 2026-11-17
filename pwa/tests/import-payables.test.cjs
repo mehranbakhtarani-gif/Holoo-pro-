@@ -90,6 +90,7 @@ test("ancillary import payment reversal restores payable, party balance, treasur
   vouchers:[{id:10,reference:"TREASURY:IMPORT-CHARGE:5:10"}],
   voucherLines:[{voucherId:10,accountCode:"2102",debitRial:200,creditRial:0},{voucherId:10,accountCode:"1102",debitRial:0,creditRial:200}],
   treasuryAllocations:[],
+  accounts:["1101","1102","2101","2102"].map(id=>({id,type:id==="2102"?"LIABILITY":"ASSET"})),
   importChargePayables:[{id:5,partyId:3,partyName:"طلبکار",amountRial:500,paidRial:200,status:"PARTIAL"}],
   partyLedger:[]
  };

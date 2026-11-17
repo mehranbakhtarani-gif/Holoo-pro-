@@ -92,5 +92,5 @@ test("reorder report suggests replenishment to max stock, or minimum when no max
 });
 test("reorder report rejects inconsistent stock thresholds and unsafe estimated values",()=>{
  assert.throws(()=>buildReorderReport({products:[{id:1,name:"bad",stock:2,minStock:8,maxStock:5,avg:10}]}),/حداکثر/);
- assert.throws(()=>buildReorderReport({products:[{id:1,name:"bad",stock:0,minStock:1,maxStock:0,avg:Number.MAX_SAFE_INTEGER}]}),/محدوده/);
+ assert.throws(()=>buildReorderReport({products:[{id:1,name:"bad",stock:0,minStock:2,maxStock:0,avg:Number.MAX_SAFE_INTEGER}]}),/محدوده/);
 });

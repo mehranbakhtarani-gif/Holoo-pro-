@@ -5,7 +5,7 @@ const path=require("node:path");
 
 test("inventory search covers product identifiers, yarn attributes and denier",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/x\.sku,x\.barcode,x\.name,x\.group,x\.group1,x\.group2,x\.group3,x\.unit,x\.yarn,x\.color,x\.denier/);
+ assert.match(app,/x\.sku,x\.barcode,\.\.\.\(Array\.isArray\(x\.barcodes\)\?x\.barcodes:\[\]\),x\.name,x\.group,x\.group1,x\.group2,x\.group3,x\.unit,x\.yarn,x\.color,x\.denier/);
  assert.match(app,/toLocaleLowerCase\("fa"\)/);
  assert.match(app,/جست‌وجوی کد، بارکد، نام، گروه، نوع نخ، دنیر یا رنگ/);
 });
@@ -55,9 +55,11 @@ test("product creation rejects non-finite and non-positive denier values",()=>{
 test("inventory supports unique barcodes and minimum-stock alerts",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.ok(app.includes('["barcode","بارکد اصلی","text"]'));
+ assert.ok(app.includes('["barcodes","بارکدهای اضافی (با ویرگول جدا کنید)","text"]'));
  assert.match(app,/جست‌وجوی کد، بارکد، نام/);
  assert.ok(app.includes('["minStock","حداقل موجودی هشدار (کیلوگرم)","number"]'));
- assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
+ assert.match(app,/const ownCodes=\[record\.barcode/);
+ assert.match(app,/یکی از بارکدها قبلاً برای کالای دیگری ثبت شده است/);
  assert.match(app,/Number\(x\.stock\|\|0\)<=Number\(x\.minStock\)/);
  assert.match(app,/حداقل تعیین نشده/);
 });
@@ -105,7 +107,7 @@ test("party statements display opening balance before dated movements",()=>{
 test("parties page filters by ID, name, type, phone, address and balance",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/جست‌وجوی کد، نام، تلفن، نشانی، نوع یا مانده طرف حساب/);
- assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\)\]/);
+ assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\),x\.status==="BLOCKED"\?"مسدود":"فعال",x\.blockedReason\]/);
 });
 
  
@@ -143,7 +145,8 @@ test("product SKU and barcode uniqueness are enforced in the same transaction as
  assert.match(app,/function putProductUnique\(record\)/);
  assert.match(app,/db\.transaction\(\["products","auditLog"\],"readwrite"\)/);
  assert.match(app,/rows\.some\(row=>row\.sku===record\.sku/);
- assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
+ assert.match(app,/const ownCodes=\[record\.barcode/);
+ assert.match(app,/یکی از بارکدها قبلاً برای کالای دیگری ثبت شده است/);
  assert.match(app,/if\(current\)\{for\(const field of \["stock","value","avg"\]\)value\[field\]=current\[field\]\}/);
  assert.match(app,/await putProductUnique\(v\)/);
 });

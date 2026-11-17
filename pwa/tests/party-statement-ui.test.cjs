@@ -16,11 +16,11 @@ test("party statement CSV exports opening balance and dated running ledger balan
  assert.match(app,/a\.download="party-statement-"\+party\.id\+"\.csv"/);
  assert.match(app,/مانده افتتاحیه/);
  assert.match(app,/partyLedger\.filter\(r=>Number\(r\.partyId\)===Number\(party\.id\)\)/);
- assert.match(app,/ماهیت/);
+ assert.match(app,/\["نام طرف حساب",party\.name/);assert.match(app,/\["تلفن",party\.phone\|\|"—"/);assert.match(app,/ماهیت/);
 });
 
 
 test("party search includes identifier, contact details, type and balance",()=>{
  assert.match(app,/جست‌وجوی کد، نام، تلفن، نشانی، نوع یا مانده طرف حساب/);
- assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\)\]/);
+ assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\),x\.status==="BLOCKED"\?"مسدود":"فعال",x\.blockedReason\]/);
 });

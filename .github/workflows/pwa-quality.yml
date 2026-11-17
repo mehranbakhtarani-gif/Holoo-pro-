@@ -22,5 +22,9 @@ jobs:
       - name: JavaScript syntax checks
         run: |
           for file in pwa/*.js; do node --check "$file"; done
-      - name: Full PWA regression suite
+      - name: Install Chromium browser test dependencies
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+      - name: Full PWA regression and real-browser suite
         run: node --test pwa/tests/*.test.cjs

@@ -2,7 +2,7 @@ name: Package HOLLOO PRO+ PWA
 # Includes syntax and regression checks for accounting, invoice aging, import shipment analytics, and bank CSV layouts.
 on:
   push:
-    branches: [main, feature/invoice-printing, feature/import-shipment-analytics, feature/inventory-lot-tracking, feature/foreign-payable-management, feature/import-capital-planner, feature/import-capital-planner-dates, feature/pwa-full-rollout, feature/pwa-customization-qa]
+    branches: [main, feature/invoice-printing, feature/import-shipment-analytics, feature/inventory-lot-tracking, feature/foreign-payable-management, feature/import-capital-planner, feature/import-capital-planner-dates, feature/pwa-full-rollout, feature/pwa-customization-qa, feature/pwa-page-audit-phase-2]
     paths:
       - 'pwa/**'
       - '.github/workflows/package-pwa.yml'

@@ -66,7 +66,7 @@ test("reversed foreign allocations release the invoice booked and foreign balanc
 test("cumulative FX allocation reversals must follow reverse order across invoice and treasury chains",()=>{
  const first={id:10,treasuryId:3,invoiceNumber:"INV-A",currency:"USD",foreignAmountMinor:300};
  const second={id:11,treasuryId:4,invoiceNumber:"INV-A",currency:"USD",foreignAmountMinor:200};
- const third={id:12,treasuryId:3,invoiceNumber:"INV-B",currency:"USD",foreignAmountMinor:100};
+ const third={id:12,treasuryId:4,invoiceNumber:"INV-B",currency:"USD",foreignAmountMinor:100};
  const rows=[first,second,third];
  assert.throws(()=>validateTreasuryAllocationReversalOrder({allocation:first,allocations:rows}),/جدیدترین تخصیص/);
  assert.throws(()=>validateTreasuryAllocationReversalOrder({allocation:second,allocations:rows}),/جدیدترین تخصیص/);

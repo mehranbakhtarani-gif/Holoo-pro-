@@ -139,9 +139,16 @@ test("detects duplicate and mismatched foreign payment accounting records",()=>{
 test("reconciles reversed foreign payable payments including reversal voucher and cash receipt",()=>{
  const {reconcileForeignPayablePayments}=require("../foreign-payables.js");
  const payment={id:11,payableId:12,supplierId:2,sourceNumber:"IMP-009",reference:"FXPAY:12:902",status:"REVERSED",amountMinor:25000,bookedRial:150000000,settlementRial:137500000,fxGainRial:12500000,fxLossRial:0};
- const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,status:"REVERSED"},{reference:"FXPAY-REV:11",kind:"RECEIPT",amount:137500000}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:150000000,creditRial:0},{referenceId:"FXPAY-REV:11",partyId:2,debitRial:0,creditRial:150000000}],vouchers:[{id:33,reference:payment.reference},{id:34,reference:"FXPAY-REV:11"}],voucherLines:[{voucherId:33,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:33,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:33,accountCode:"4301",debitRial:0,creditRial:12500000},{voucherId:34,accountCode:"1102",debitRial:137500000,creditRial:0},{voucherId:34,accountCode:"4301",debitRial:12500000,creditRial:0},{voucherId:34,accountCode:"2101",debitRial:0,creditRial:150000000}]};
+ const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,status:"REVERSED"},{reference:"FXPAY-REV:11",kind:"RECEIPT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,reversalOf:payment.reference}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:150000000,creditRial:0},{referenceId:"FXPAY-REV:11",partyId:2,debitRial:0,creditRial:150000000}],vouchers:[{id:33,reference:payment.reference},{id:34,reference:"FXPAY-REV:11"}],voucherLines:[{voucherId:33,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:33,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:33,accountCode:"4301",debitRial:0,creditRial:12500000},{voucherId:34,accountCode:"1102",debitRial:137500000,creditRial:0},{voucherId:34,accountCode:"4301",debitRial:12500000,creditRial:0},{voucherId:34,accountCode:"2101",debitRial:0,creditRial:150000000}]};
  const result=reconcileForeignPayablePayments(data);
  assert.equal(result.matched,1);assert.equal(result.withIssues,0);
+ const mispostedLines=data.voucherLines.map(line=>line.voucherId===34&&line.accountCode==="1102"?{...line,accountCode:"1101"}:line);
+ const misposted=reconcileForeignPayablePayments({...data,voucherLines:mispostedLines});
+ assert.equal(misposted.withIssues,1);assert.match(misposted.rows[0].issues.join(" "),/به‌صورت معکوس/);
+ const wrongTreasury=reconcileForeignPayablePayments({...data,treasury:data.treasury.map(row=>row.reference==="FXPAY-REV:11"?{...row,reversalOf:"WRONG"}:row)});
+ assert.match(wrongTreasury.rows[0].issues.join(" "),/مشخصات گردش برگشت خزانه/);
+ const wrongLedger=reconcileForeignPayablePayments({...data,partyLedger:data.partyLedger.map(row=>row.referenceId==="FXPAY-REV:11"?{...row,debitRial:1}:row)});
+ assert.match(wrongLedger.rows[0].issues.join(" "),/گردش برگشت طرف حساب/);
 });
 
 test("reconciles supplier foreign balances against supplier subledger and linked general-ledger liability",()=>{

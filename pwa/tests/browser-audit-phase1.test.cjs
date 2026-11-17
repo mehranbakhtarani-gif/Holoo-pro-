@@ -70,7 +70,7 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   await page.locator('#entryForm [name="price1"]').fill("120000");
   await page.locator('#entryForm button[type="submit"]').click();
   await page.waitForFunction(()=>document.querySelector("#modal").hidden===true);
-  await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("ذخیره اطلاعات"));
+  await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("اطلاعات ذخیره شد"));
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("نخ آزمایشی ممیزی"));
   await page.locator("#search").fill("ALT-002");
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("نخ آزمایشی ممیزی"));
@@ -107,7 +107,7 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   await page.locator('#entryForm [name="creditLimit"]').fill("5000000");
   await page.locator('#entryForm [name="creditDays"]').fill("30");
   await page.locator('#entryForm button[type="submit"]').click();
-  await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("ذخیره اطلاعات"));
+  await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("اطلاعات ذخیره شد"));
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("مشتری آزمایشی ممیزی"));
   await page.locator("#search").fill("تهران");
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("مشتری آزمایشی ممیزی"));

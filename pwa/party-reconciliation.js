@@ -8,7 +8,7 @@ function reconcilePartyBalances(input){
  const parties=Array.isArray(input.parties)?input.parties:[],partyLedger=Array.isArray(input.partyLedger)?input.partyLedger:[],treasury=Array.isArray(input.treasury)?input.treasury:[],invoices=Array.isArray(input.invoices)?input.invoices:[],allocations=Array.isArray(input.treasuryAllocations)?input.treasuryAllocations:[],payables=Array.isArray(input.importChargePayables)?input.importChargePayables:[],foreignPayables=Array.isArray(input.foreignPayables)?input.foreignPayables:[],foreignPayments=Array.isArray(input.foreignPayments)?input.foreignPayments:[];
  const knownPartyIds=new Set(parties.map(x=>Number(x.id)));
  const orphanLedgerRows=partyLedger.filter(x=>!knownPartyIds.has(Number(x.partyId)));
- const orphanAllocations=allocations.filter(x=>{const invoice=invoices.find(row=>row.number===x.invoiceNumber);return !invoice||!knownPartyIds.has(Number(x.partyId||invoice?.partyId))});
+ const orphanAllocations=allocations.filter(x=>{const invoice=invoices.find(row=>row.number===x.invoiceNumber);return !invoice||!knownPartyIds.has(Number(x.partyId??invoice?.partyId))});
  const orphanTreasuryRows=treasury.filter(x=>Number.isSafeInteger(Number(x.partyId))&&Number(x.partyId)>0&&!knownPartyIds.has(Number(x.partyId)));
  const orphanImportPayables=payables.filter(x=>x.status!=="RECONCILIATION_REQUIRED"&&x.status!=="CANCELLED"&&(!x.partyId?(x.status!=="OPEN"||Number(x.paidRial||0)>0):!knownPartyIds.has(Number(x.partyId))));
  const orphanForeignPayables=foreignPayables.filter(x=>x.status!=="CANCELLED"&&x.shipmentReceivedAt&&(!x.supplierId||!knownPartyIds.has(Number(x.supplierId))));
@@ -99,7 +99,7 @@ function reconcilePartyBalances(input){
    if(!Number.isSafeInteger(invoiceTotal)||invoiceTotal<0)add("مبلغ فاکتور "+invoice.number+" معتبر نیست");
    let allocated=0;
    for(const allocation of related){
-    const amount=Number(allocation.amount),allocationPartyId=Number(allocation.partyId||invoice.partyId);
+    const amount=Number(allocation.amount),allocationPartyId=Number(allocation.partyId??invoice.partyId);
     if(!Number.isSafeInteger(amount)||amount<=0){add("مبلغ تخصیص فاکتور "+invoice.number+" باید عدد صحیح و مثبت باشد");continue}
     if(allocationPartyId!==partyId)add("طرف حساب تخصیص فاکتور "+invoice.number+" با فاکتور یکسان نیست");
     const matches=invoices.filter(x=>x.number===allocation.invoiceNumber);

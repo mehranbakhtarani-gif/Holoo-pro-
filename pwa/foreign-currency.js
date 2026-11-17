@@ -39,6 +39,12 @@ function calculateCumulativeRealizedForeignExchange(input){
  const gainRial=kind==="SALE"?Math.max(0,differenceRial):Math.max(0,-differenceRial),lossRial=kind==="SALE"?Math.max(0,-differenceRial):Math.max(0,differenceRial);
  return {currency,settledAmountMinor,bookedRial,settlementRial,differenceRial,gainRial,lossRial,invoiceCumulativeMinor,treasuryCumulativeMinor};
 }
+
+function buildRealizedForeignExchangeRows(input){
+ const allocations=(input.allocations||[]).filter(row=>row&&row.status!=="REVERSED"&&(Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0));
+ const payments=(input.foreignPayments||[]).filter(row=>row&&row.status!=="REVERSED"&&(Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0));
+ return [...allocations,...payments].sort((a,b)=>Number(b.date||0)-Number(a.date||0));
+}
 function calculateRealizedForeignExchange(input){
  const kind=input.kind,currency=String(input.currency||"").toUpperCase();
  if(!["SALE","PURCHASE"].includes(kind))throw new Error("نوع معامله برای محاسبه اختلاف ارز معتبر نیست");
@@ -52,4 +58,4 @@ function calculateRealizedForeignExchange(input){
  const lossRial=kind==="SALE"?Math.max(0,-rawDifference):Math.max(0,rawDifference);
  return {currency,settledAmountMinor,bookedRial:booked.rial,settlementRial:actual.rial,differenceRial:rawDifference,gainRial,lossRial};
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={FOREIGN_CURRENCY_MINOR_UNITS,convertForeignAmountToRial,convertRialToForeignMinor,calculateRealizedForeignExchange,calculateCumulativeRealizedForeignExchange};
+if(typeof module!=="undefined"&&module.exports)module.exports={FOREIGN_CURRENCY_MINOR_UNITS,convertForeignAmountToRial,convertRialToForeignMinor,calculateRealizedForeignExchange,calculateCumulativeRealizedForeignExchange,buildRealizedForeignExchangeRows};

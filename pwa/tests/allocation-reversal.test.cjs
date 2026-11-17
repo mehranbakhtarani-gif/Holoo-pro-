@@ -28,3 +28,15 @@ test("manual operation date is applied to allocation reversal timestamp",()=>{
  const op=fs.readFileSync(path.resolve(__dirname,"../operation-date.js"),"utf8");
  assert.match(op,/treasuryAllocations:\["reversedAt"\]/);
 });
+
+test("FX allocation reversal requires its exact source voucher and exact gain or loss journal",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/if\(!allocation\.fxVoucherReference\)throw Error/);
+ assert.match(app,/const fxVoucherMatches=vouchers\.filter\(v=>v\.reference===allocation\.fxVoucherReference\)/);
+ assert.match(app,/const counterpartyAccount=invoice\.kind==="SALE"\?"1103":invoice\.kind==="PURCHASE"\?"2101":""/);
+ assert.match(app,/expectedFxLines=gain>0/);
+ assert.match(app,/accountCode:"4301",debitRial:0,creditRial:gain/);
+ assert.match(app,/accountCode:"5501",debitRial:loss,creditRial:0/);
+ assert.match(app,/expectedLines:expectedFxLines,expectedTotal:gain\+loss/);
+ assert.doesNotMatch(app,/const candidates=vouchers\.filter\(v=>String\(v\.reference\|\|""\)\.startsWith\(prefix\)/);
+});

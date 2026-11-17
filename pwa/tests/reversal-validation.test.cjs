@@ -58,3 +58,23 @@ test("purchase reversal accepts only its explicit balanced inventory-cost adjust
  assert.throws(()=>validateReversalVoucherPair({originalLines,reversalLines:[...validReverse,{...adjustment[0],creditRial:51},adjustment[1]],additionalLines:adjustment,label:"تعدیل نامعتبر"}),/تعدیلی اضافه/);
  assert.throws(()=>validateReversalVoucherPair({originalLines,reversalLines:[...validReverse,...adjustment,{accountCode:"1101",debitRial:1,creditRial:0}],additionalLines:adjustment,label:"ردیف غیرمجاز"}),/تعداد ردیف‌ها/);
 });
+
+const fs=require("node:fs");
+const path=require("node:path");
+const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+const index=fs.readFileSync(path.resolve(__dirname,"../index.html"),"utf8");
+const sw=fs.readFileSync(path.resolve(__dirname,"../sw.js"),"utf8");
+
+test("all journal reversal paths use the shared validator and PWA loads and caches it",()=>{
+ assert.match(app,/function validateReversalVoucherLines\(args\)/);
+ for(const route of ["reverseClearedCheckPwa","reverseTreasuryPwa","reverseTreasuryAllocationPwa","reversePwaInvoice","reverseForeignPayablePaymentPwa"])assert.ok(app.includes("function "+route+"("),route+" must remain present");
+ assert.ok(app.includes('validateReversalVoucherLines({voucher,lines:oldLines,accounts,expectedLines,expectedTotal:amount,label:"وصول چک"})'));
+ assert.ok(app.includes('validateReversalVoucherLines({voucher,lines:oldLines,accounts,expectedLines,expectedTotal:amount,label:"خزانه"})'));
+ assert.ok(app.includes('validateReversalVoucherLines({voucher:original,lines:oldLines,accounts,expectedLines:expectedFxLines,expectedTotal:gain+loss,label:"تسعیر تخصیص"})'));
+ assert.ok(app.includes('validateReversalVoucherLines({voucher:original,lines:oldLines,accounts,label:"فاکتور "+invoice.number})'));
+ assert.ok(app.includes('validateReversalVoucherLines({voucher:originalVoucher,lines:oldLines,accounts,expectedLines,expectedTotal:plan.settlementRial+plan.fxGainRial,label:"پرداخت تعهد ارزی"})'));
+ assert.ok(app.includes('validateReversalVoucherLines({voucher:original,lines,accounts,label:"سند دستی"})'));
+ assert.ok(index.indexOf("reversal-validation.js")<index.indexOf("app.js?v=reversal-integrity-3"));
+ assert.match(sw,/reversal-validation\\.js/);
+ assert.match(sw,/holloo-pwa-v168-reversal-row-validation/);
+});

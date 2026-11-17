@@ -23,6 +23,6 @@ test("invoice print format is visible in list, print document, search and CSV ex
 });
 
 test("invoice print-format update refreshes the PWA script and offline cache",()=>{
- assert.match(html,/app\.js\?v=fx-bigint-2/);
+ assert.match(html,/app\.js\?v=reverse-order-2/);
  assert.match(sw,/holloo-pwa-v169-fx-bigint-precision/);
 });

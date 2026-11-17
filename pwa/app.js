@@ -185,8 +185,8 @@ async function reversePwaInvoice(number){
  const partySnapshots=new Map(parties.map(row=>[Number(row.id),{...row}]));
  const warehouseStockSnapshots=new Map(warehouseStockRows.map(row=>[Number(row.productId)+":"+Number(row.warehouseId),{...row}]));
  const lotSnapshots=new Map(inventoryLots.map(row=>[String(row.id),{...row}]));
- const updated=[],warehouseUpdates=[],lotUpdates=[],lotAllocationsToRestore=[];let purchaseReversalInventoryCost=0;
- for(const line of lines){
+ const updated=[],warehouseUpdates=[],lotUpdates=[],lotAllocationsToRestore=[],reversalAdjustments=[];let purchaseReversalInventoryCost=0;
+ for(const [lineIndex,line] of lines.entries()){
   const product=products.find(x=>Number(x.id)===Number(line.productId));
   if(!product)throw Error("کالای "+(line.productName||line.productId)+" پیدا نشد");
   const qty=Number(line.qty||0),totalQty=Number(line.totalQty??qty),warehouseId=Number(line.warehouseId||invoice.warehouseId||0);
@@ -223,11 +223,11 @@ async function reversePwaInvoice(number){
   }
   stockRow.average=stockRow.stock>0?stockRow.value/stockRow.stock:0;stockRow.updatedAt=Date.now();
   product.avg=product.stock>0?product.value/product.stock:0;
-  updated.push(["products",product]);warehouseUpdates.push(["warehouseStock",stockRow]);
+  updated.push(["products",product]);warehouseUpdates.push(["warehouseStock",stockRow]);reversalAdjustments.push({kind:"INVOICE_REVERSAL",invoiceNumber:invoice.number,productId:product.id,productName:product.name,warehouseId,warehouseName:line.warehouseName||invoice.warehouseName||"",deltaKg:invoice.kind==="SALE"?totalQty:-totalQty,valueRial:valueChange,date:Date.now(),number:"REV-"+invoice.number+"-"+lineIndex,reference:"INVOICE-REVERSAL:"+invoice.number+":"+lineIndex});
  }
  if(lotAllocationsToRestore.length)lotUpdates.push(...restoreLotSale({lots:inventoryLots,allocations:lotAllocationsToRestore,date:Date.now()}));
  applyPartyBalanceDelta(party,invoice.kind==="SALE"?-Number(invoice.total||0):Number(invoice.total||0));
- const entries=[...updated,...warehouseUpdates,...lotUpdates.map(lot=>["inventoryLots",lot]),["parties",party],["invoices",{...invoice,status:"REVERSED",reversedAt:Date.now()}],["partyLedger",{partyId:party.id,date:Date.now(),debitRial:invoice.kind==="PURCHASE"?invoice.total:0,creditRial:invoice.kind==="SALE"?invoice.total:0,description:"برگشت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]];
+ const entries=[...updated,...warehouseUpdates,...lotUpdates.map(lot=>["inventoryLots",lot]),...reversalAdjustments.map(row=>["stockAdjustments",row]),["parties",party],["invoices",{...invoice,status:"REVERSED",reversedAt:Date.now()}],["partyLedger",{partyId:party.id,date:Date.now(),debitRial:invoice.kind==="PURCHASE"?invoice.total:0,creditRial:invoice.kind==="SALE"?invoice.total:0,description:"برگشت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]];
  if(Number(invoice.commissionAmount||0)>0&&invoice.commissionPartyId){
   const commissionParty=parties.find(x=>Number(x.id)===Number(invoice.commissionPartyId));
   if(!commissionParty)throw Error("طرف حساب پورسانت برای برگشت پیدا نشد");
@@ -248,7 +248,7 @@ async function reversePwaInvoice(number){
  const warehouseKeys=[...new Set(warehouseUpdates.map(([,row])=>Number(row.productId)+":"+Number(row.warehouseId)))];
  const lotIds=[...new Set(lotUpdates.map(row=>String(row.id)))];
  const partyIds=[...new Set(entries.filter(([store])=>store==="parties").map(([,row])=>Number(row.id)))];
- const guards=[{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot}];
+ const guards=[{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot},...reversalAdjustments.map(row=>({store:"stockAdjustments",match:{reference:row.reference},expected:null}))];
  for(const code of new Set(reverseVoucherLines.map(line=>String(line.accountCode)))){const account=accounts.find(row=>String(row.id)===code);if(!account)throw Error("حساب "+code+" برای سند معکوس فاکتور پیدا نشد");guards.push({store:"accounts",key:account.id,expected:{id:account.id,type:account.type}})}
  for(const id of partyIds){const snapshot=partySnapshots.get(id);if(!snapshot)throw Error("اطلاعات طرف حساب برای کنترل برگشت ناقص است");guards.push({store:"parties",key:id,expected:snapshot})}
  for(const id of productIds){const snapshot=productSnapshots.get(id);if(!snapshot)throw Error("اطلاعات کالا برای کنترل برگشت ناقص است");guards.push({store:"products",key:id,expected:snapshot})}

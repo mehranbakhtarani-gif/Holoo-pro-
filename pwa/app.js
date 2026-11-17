@@ -69,7 +69,7 @@ async function reconcileLegacyImportChargePwa(id){
  const seen=new Set(),partyIds=new Set(),snapshots=[],paymentAmounts=[];
  for(const payment of candidates){
   const amount=Number(payment.amount),reference=String(payment.reference||"");
-  if(payment.kind!=="PAYMENT"||!Number.isSafeInteger(amount)||amount<=0||!reference)throw Error("اطلاعات یکی از پرداخت‌های قدیمی معتبر نیست؛ تطبیق خودکار متوقف شد");
+  if(payment.kind!=="PAYMENT"||!Number.isSafeInteger(amount)||amount<=0||!reference||(payment.currency&&payment.currency!=="IRR"))throw Error("اطلاعات یکی از پرداخت‌های قدیمی معتبر نیست؛ تطبیق خودکار متوقف شد");
   if(seen.has(reference))throw Error("مرجع پرداخت قدیمی تکراری است؛ ابتدا مغایرت را دستی بررسی کنید");
   seen.add(reference);
   if(payment.importChargePayableId&&Number(payment.importChargePayableId)!==Number(payable.id))throw Error("این پرداخت قبلاً به هزینه دیگری متصل شده است");
@@ -96,12 +96,13 @@ async function reconcileLegacyImportChargePwa(id){
  const paidRial=safeRialTotal(paymentAmounts,"جمع پرداخت‌های قدیمی");
  const totalRial=Number(payable.amountRial);
  if(!Number.isSafeInteger(totalRial)||totalRial<=0||paidRial>totalRial)throw Error("جمع پرداخت‌های قدیمی از مبلغ هزینه بیشتر است یا مبلغ هزینه معتبر نیست");
- const accrualReference="IMPORT-CHARGE-ACCRUAL:"+payable.id;
+ const accrualReference="IMPORT-CHARGE-ACCRUAL:"+payable.id,accrualDate=Math.min(...snapshots.map(payment=>Number(payment.date||Date.now())));
+ if(!Number.isFinite(accrualDate))throw Error("تاریخ پرداخت‌های قدیمی معتبر نیست");
  if(partyLedger.some(x=>x.referenceId===accrualReference))throw Error("سند تفصیلی ایجاد بدهی این هزینه قبلاً وجود دارد؛ بررسی دستی لازم است");
  const payableSnapshot={...payable},partySnapshot={...party},now=Date.now();
  applyPartyBalanceDelta(party,-totalRial,"طلبکار هزینه واردات");
  payable.partyId=party.id;payable.partyName=party.name;payable.paidRial=paidRial;payable.status=paidRial===totalRial?"PAID":"PARTIAL";payable.reconciledAt=now;payable.updatedAt=now;
- const entries=[["importChargePayables",payable],["parties",party],["partyLedger",{partyId:party.id,date:now,debitRial:0,creditRial:totalRial,description:"ایجاد بدهی هزینه جانبی محموله "+payable.shipmentNumber,referenceId:accrualReference}],...snapshots.map(payment=>{payment.importChargePayableId=payable.id;payment.importChargePayableReference=payable.reference;payment.importAncillaryPaymentReconciledAt=now;return ["treasury",payment]})];
+ const entries=[["importChargePayables",payable],["parties",party],["partyLedger",{partyId:party.id,date:accrualDate,debitRial:0,creditRial:totalRial,description:"ایجاد بدهی هزینه جانبی محموله "+payable.shipmentNumber,referenceId:accrualReference}],...snapshots.map(payment=>{payment.importChargePayableId=payable.id;payment.importChargePayableReference=payable.reference;payment.importAncillaryPaymentReconciledAt=now;return ["treasury",payment]})];
  const guards=[{store:"importChargePayables",key:Number(payable.id),expected:payableSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"partyLedger",match:{referenceId:accrualReference},expected:null},...snapshots.map(payment=>({store:"treasury",key:Number(payment.id),expected:Object.fromEntries(Object.entries(payment).filter(([key])=>!["importChargePayableId","importChargePayableReference","importAncillaryPaymentReconciledAt"].includes(key)))}))];
  await putManyGuarded(entries,guards);
 }

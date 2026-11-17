@@ -82,6 +82,33 @@ function planLotTransfer(input){
  if(!Number.isSafeInteger(transferValue))throw new Error("ارزش بچ‌های انتقالی معتبر نیست");
  return {sourceLotUpdates:[...sale.newLots,...sale.updates],destinationLots,allocations:sale.allocations,quantity:sale.allocations.reduce((n,x)=>n+x.quantity,0),transferValue,sourceRemainingStock:sale.remainingStock,sourceRemainingValue:sale.remainingValue};
 }
+function planLotTransferReversal(input){
+ const transfer=input.transfer||{},lots=Array.isArray(input.lots)?input.lots:[],allocations=Array.isArray(transfer.lotAllocations)?transfer.lotAllocations:[];
+ const transferId=String(transfer.number||""),productId=Number(transfer.productId),sourceWarehouseId=Number(transfer.sourceWarehouseId),destinationWarehouseId=Number(transfer.destinationWarehouseId);
+ if(!transferId||!Number.isSafeInteger(productId)||productId<=0||!Number.isSafeInteger(sourceWarehouseId)||!Number.isSafeInteger(destinationWarehouseId)||sourceWarehouseId<=0||destinationWarehouseId<=0||sourceWarehouseId===destinationWarehouseId)throw new Error("مشخصات انتقال برای برگشت معتبر نیست");
+ if(transfer.status==="REVERSED"||transfer.reversedAt)throw new Error("این انتقال قبلاً برگشت داده شده است");
+ if(!allocations.length)throw new Error("انتقال قدیمی اطلاعات تخصیص FIFO ندارد؛ برگشت خودکار امن نیست");
+ let quantity=0,value=0;
+ const sourceAllocations=[];
+ const destinationUpdates=[];
+ allocations.forEach((allocation,index)=>{
+  const lotId=String(allocation.lotId||""),qty=Number(allocation.quantity),cost=Number(allocation.cogs);
+  if(!lotId||!Number.isFinite(qty)||qty<=0||!Number.isSafeInteger(cost)||cost<0)throw new Error("تخصیص FIFO انتقال معتبر نیست");
+  const source=lots.find(row=>String(row.id)===lotId);
+  const destinationId="LOT:TRANSFER:"+transferId+":"+index;
+  const destination=lots.find(row=>String(row.id)===destinationId);
+  if(!source||Number(source.productId)!==productId||Number(source.warehouseId)!==sourceWarehouseId)throw new Error("بچ مبدأ انتقال با کالا یا انبار مبدأ مطابقت ندارد");
+  if(!destination||String(destination.transferId)!==transferId||String(destination.transferredFromLotId)!==lotId||Number(destination.productId)!==productId||Number(destination.warehouseId)!==destinationWarehouseId)throw new Error("بچ مقصد متعلق به این انتقال نیست یا پیدا نشد");
+  if(Math.abs(Number(destination.originalQty)-qty)>1e-6||Math.abs(Number(destination.remainingQty)-qty)>1e-6||Number(destination.originalCost)!==cost||Number(destination.remainingValue)!==cost)throw new Error("بچ مقصد پس از انتقال مصرف، جابه‌جا یا تغییر کرده است؛ برگشت خودکار امن نیست");
+  sourceAllocations.push({lotId,quantity:qty,cogs:cost});
+  destinationUpdates.push({...destination,remainingQty:0,remainingValue:0,status:"REVERSED",reversedAt:Number(input.date||Date.now()),updatedAt:Number(input.date||Date.now())});
+  quantity+=qty;value+=cost;
+  if(!Number.isFinite(quantity)||!Number.isSafeInteger(value))throw new Error("جمع مقدار یا ارزش برگشت انتقال معتبر نیست");
+ });
+ if(Math.abs(quantity-Number(transfer.quantity))>1e-6||value!==Number(transfer.value))throw new Error("جمع تخصیص‌های FIFO با مقدار یا ارزش سند انتقال برابر نیست");
+ const sourceLotUpdates=restoreLotSale({lots,allocations:sourceAllocations,date:Number(input.date||Date.now())});
+ return {quantity,value,sourceLotUpdates,destinationLotUpdates:destinationUpdates};
+}
 function summarizeLotProfit(input){
  const lots=Array.isArray(input.lots)?input.lots:[],invoices=Array.isArray(input.invoices)?input.invoices:[];
  const summaries=new Map(),lotById=new Map(lots.map(lot=>[String(lot.id),lot]));
@@ -131,4 +158,4 @@ function buildImportShipmentProfitCsv(input){
  const data=[["کانتینر","شماره محموله","تأمین‌کننده","کالا","وزن اولیه","فروخته‌شده","مانده","بهای اولیه","بهای تمام‌شده فروش","ارزش موجودی مانده","درآمد فروش","سود ناخالص","حاشیه سود درصد","درصد فروش‌رفت"],...report.rows.map(row=>[row.container,row.sourceNumber,row.supplierName,row.productName,row.originalQty,row.soldQty,row.remainingQty,row.originalCost,row.soldCost,row.remainingValue,row.revenue,row.grossProfit,row.grossMarginPercent,row.sellThroughPercent])];
  return "\uFEFF"+data.map(row=>row.map(quote).join(",")).join("\r\n");
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={planLotReceipt,planLotSale,planLotTransfer,restoreLotSale,summarizeLotProfit,summarizeImportShipmentProfit,buildImportShipmentProfitCsv};
+if(typeof module!=="undefined"&&module.exports)module.exports={planLotReceipt,planLotSale,planLotTransfer,planLotTransferReversal,restoreLotSale,summarizeLotProfit,summarizeImportShipmentProfit,buildImportShipmentProfitCsv};

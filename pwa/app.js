@@ -615,7 +615,7 @@ async function receiveImportShipment(id){
  if(shipment.receivedAt)throw Error("این محموله قبلاً رسید انبار شده است");
  if(shipment.status!=="رسیده")throw Error("ابتدا وضعیت محموله را به «رسیده» تغییر دهید");
  const expectedShipmentState={...shipment};
- const [products,parties,warehouses,stockRows,lots,foreignPayables]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock"),all("inventoryLots"),all("foreignPayables")]);
+ const [products,parties,warehouses,stockRows,lots,foreignPayables]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock"),all("inventoryLots"),all("foreignPayables"),all("importChargePayables")]);
  const product=products.find(x=>Number(x.id)===Number(shipment.productId)),party=parties.find(x=>Number(x.id)===Number(shipment.supplierId)),warehouse=warehouses.find(x=>Number(x.id)===Number(shipment.warehouseId));
  if(!product||!party||!warehouse)throw Error("کالا، تأمین‌کننده یا انبار مقصد محموله پیدا نشد");
  const costs=calculateImportShipmentCost({currency:shipment.currency,fx:shipment.fx,weight:shipment.weight,goods:shipment.goods,freight:shipment.freight,customs:shipment.customs,insurance:shipment.insurance,port:shipment.port,inland:shipment.inland,broker:shipment.broker,storage:shipment.storage,bank:shipment.bank,other:shipment.other});
@@ -628,6 +628,9 @@ async function receiveImportShipment(id){
  const movement=calculateWarehouseStockMovement({product,warehouseId:warehouse.id,warehouseRows:stockRows.filter(x=>Number(x.productId)===Number(product.id)),quantity:Number(shipment.weight),direction:"PURCHASE",lineTotal:costs.totalCost});
  product.stock=nextStock;product.value=nextValue;product.avg=nextStock>0?nextValue/nextStock:0;
  const ancillary=costs.totalCost-costs.goodsRial,now=Date.now(),reference="IMPORT-RECEIPT:"+shipment.number;
+ const chargeLabels={freight:"حمل بین‌المللی",customs:"گمرک",insurance:"بیمه",port:"هزینه بندری",inland:"حمل داخلی",broker:"ترخیص",storage:"انبارداری",bank:"کارمزد بانکی",other:"سایر هزینه‌ها"};
+ const chargePayables=Object.entries(costs.breakdown).filter(([,amount])=>Number(amount)>0).map(([category,amountRial])=>({shipmentId:Number(shipment.id),shipmentNumber:shipment.number,category,categoryLabel:chargeLabels[category],amountRial:Number(amountRial),paidRial:0,partyId:null,partyName:"",status:"OPEN",createdAt:now,reference:"IMPORT-CHARGE:"+shipment.id+":"+category}));
+ if(chargePayables.some(x=>importChargePayables.some(old=>old.reference===x.reference)))throw Error("برای یکی از هزینه‌های این محموله قبلاً حساب پرداختنی ساخته شده است");
  shipment.goodsRial=costs.goodsRial;shipment.totalCost=costs.totalCost;shipment.unitCost=costs.unitCost;shipment.status="رسید انبار شده";shipment.statusChangedAt=now;shipment.receivedAt=now;shipment.receivedVoucherNumber="IMP-"+now;
  const linkedPayable=foreignPayables.find(x=>Number(x.sourceShipmentId)===Number(shipment.id));
  const expectedPayableState=linkedPayable?{...linkedPayable}:null;
@@ -641,13 +644,14 @@ async function receiveImportShipment(id){
  if(ancillary>0)journal.push({accountCode:"2102",debitRial:0,creditRial:ancillary,description:"هزینه‌های جانبی واردات پرداختنی"});
  if(journal.reduce((n,x)=>n+x.debitRial,0)!==journal.reduce((n,x)=>n+x.creditRial,0))throw Error("سند رسید محموله تراز نیست");
  await ensureBaseAccounts();
- await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["inventoryLots",lot],...(linkedPayable?[["foreignPayables",linkedPayable]]:[]),["parties",party],["partyLedger",ledger]],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal,[
+ await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["importShipments",shipment],["inventoryLots",lot],...(linkedPayable?[["foreignPayables",linkedPayable]]:[]),["parties",party],["partyLedger",ledger],...chargePayables.map(x=>["importChargePayables",x])],{number:shipment.receivedVoucherNumber,date:now,description:"رسید انبار محموله "+shipment.number,reference},journal,[
   {store:"importShipments",key:Number(shipment.id),expected:expectedShipmentState},
   {store:"products",key:Number(product.id),expected:expectedProductState},
   {store:"parties",key:Number(party.id),expected:expectedPartyState},
   {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:expectedWarehouseRow?{...expectedWarehouseRow}:null},
   {store:"inventoryLots",match:{sourceType:"IMPORT_SHIPMENT",sourceId:Number(shipment.id)},expected:null},
-  {store:"foreignPayables",match:{sourceShipmentId:Number(shipment.id)},expected:expectedPayableState}
+  {store:"foreignPayables",match:{sourceShipmentId:Number(shipment.id)},expected:expectedPayableState},
+  ...chargePayables.map(x=>({store:"importChargePayables",match:{reference:x.reference},expected:null}))
  ]);
  toast("محموله رسید انبار شد؛ بهای تمام‌شده به موجودی کالا اضافه شد");await render();
 }

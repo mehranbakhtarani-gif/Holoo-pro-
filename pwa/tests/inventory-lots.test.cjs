@@ -152,3 +152,10 @@ test("reverses a transfer only while every destination FIFO lot remains untouche
  const changedLots=[...transfer.sourceLotUpdates,...consumed.newLots,...consumed.updates];
  assert.throws(()=>planLotTransferReversal({transfer:{number:"WT-REV",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:15,value:25000,lotAllocations:transfer.allocations},lots:changedLots,date:400}),/مصرف، جابه‌جا یا تغییر/);
 });
+
+test("transfer reversal rejects destination lots whose original source provenance was altered",()=>{
+ const source=receipt("CN-PROVENANCE",10,10000,100);
+ const transfer=planLotTransfer({lots:[source],productId:1,productName:"FDY",sourceWarehouseId:2,destinationWarehouseId:3,quantity:5,sourceWarehouseStock:{stock:10,value:10000},transferId:"WT-PROV",date:300});
+ const tampered=transfer.destinationLots.map(lot=>({...lot,sourceId:"OTHER-SOURCE"}));
+ assert.throws(()=>planLotTransferReversal({transfer:{number:"WT-PROV",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:5,value:5000,lotAllocations:transfer.allocations},lots:[...transfer.sourceLotUpdates,...tampered],date:400}),/منشأ FIFO/);
+});

@@ -37,5 +37,5 @@ test("party search includes the expanded identifying and contact fields",()=>{
 
 test("PWA cache is invalidated for the expanded master-data UI",()=>{
  assert.match(html,/app\.js\?v=fx-active-realized-report-4/);
- assert.match(sw,/holloo-pwa-v174-fx-active-realized-report/);
+ assert.match(sw,/holloo-pwa-v175-fx-reversal-voucher-audit/);
 });

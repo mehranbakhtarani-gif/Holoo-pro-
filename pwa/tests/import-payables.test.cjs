@@ -129,3 +129,21 @@ test("startup migration creates missing received-shipment payables and isolates 
  assert.equal(await migrate(),0);
  assert.equal(writes,1);
 });
+
+test("legacy reconciliation rejects any extra or wrong-party ledger row sharing a payment reference",async()=>{
+ const h=legacyReconciliationHarness();
+ h.db.partyLedger.push({id:14,partyId:99,date:10,debitRial:400,creditRial:0,referenceId:"TREASURY:OLD:9"});
+ await assert.rejects(h.reconcile(5),/گردش تفصیلی پرداخت قدیمی/);
+ assert.equal(h.writes,0);
+ assert.equal(h.db.importChargePayables[0].status,"RECONCILIATION_REQUIRED");
+});
+test("legacy reconciliation rejects duplicate treasury references and invalid payment dates",async()=>{
+ const duplicate=legacyReconciliationHarness();
+ duplicate.db.treasury.push({...duplicate.db.treasury[0],id:10});
+ await assert.rejects(duplicate.reconcile(5),/مرجع پرداخت قدیمی تکراری/);
+ assert.equal(duplicate.writes,0);
+ const invalidDate=legacyReconciliationHarness();
+ invalidDate.db.treasury[0].date="not-a-date";
+ await assert.rejects(invalidDate.reconcile(5),/تاریخ یکی از پرداخت‌های قدیمی/);
+ assert.equal(invalidDate.writes,0);
+});

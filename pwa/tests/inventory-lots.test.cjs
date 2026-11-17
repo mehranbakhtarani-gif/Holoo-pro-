@@ -233,7 +233,7 @@ test("invoice journals map purchase, sale COGS and sale reversal to inventory co
  const saleJournal=app.slice(saleStart,saleEnd);
  assert.match(saleJournal,/accountCode:"5101",debitRial:cogs/);
  assert.match(saleJournal,/accountCode:"1301",debitRial:0,creditRial:cogs/);
- assert.match(app,/journal.push({accountCode:"1301",debitRial:total,creditRial:0,description:"ورود موجودی کالا"})/);
+ assert.ok(app.includes('journal.push({accountCode:"1301",debitRial:total,creditRial:0,description:"ورود موجودی کالا"}'));
  const reversalStart=app.indexOf("async function reversePwaInvoice");
  const reversalEnd=app.indexOf("\\nasync function printInvoiceDocument",reversalStart);
  const reversal=app.slice(reversalStart,reversalEnd);

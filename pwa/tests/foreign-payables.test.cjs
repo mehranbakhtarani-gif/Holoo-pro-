@@ -58,7 +58,7 @@ test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX ac
  assert.match(app,/foreignRateOverrides/);assert.match(app,/foreignPayablePayments/);
  assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(Number\(installment\.amountMinor\),rate\)/);
  assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(foreignAmountMinor,Number\(s\.fx\)\)/);
- assert.match(html,/foreign-payables\.js\?v=reverse-order-2/);
+ assert.match(html,/foreign-payables\.js\?v=reverse-voucher-audit-3/);
  assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v="));
  assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);
 });

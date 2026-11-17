@@ -1411,7 +1411,7 @@ if(page==="allocations"){
   if(!Number.isSafeInteger(invoice.foreignTotalMinor)||invoice.foreignTotalMinor<=0||!Number.isSafeInteger(tr.foreignAmountMinor)||tr.foreignAmountMinor<=0||!Number.isSafeInteger(tr.fxRateRialPerUnit)||tr.fxRateRialPerUnit<=0)throw Error("اطلاعات ارزی فاکتور یا تراکنش ناقص است");
   const foreignAmountMinor=Math.round(amount*tr.foreignAmountMinor/Number(tr.amount));
   if(!Number.isSafeInteger(foreignAmountMinor)||foreignAmountMinor<=0)throw Error("مبلغ ارزی تخصیص معتبر نیست");
-  const previouslyAllocated=allocs.filter(x=>x.invoiceNumber===invoice.number&&x.id!==item?.id).reduce((n,x)=>n+Number(x.foreignAmountMinor||0),0);
+  const previouslyAllocated=allocs.filter(x=>x.invoiceNumber===invoice.number&&x.id!==item?.id&&x.status!=="REVERSED").reduce((n,x)=>n+Number(x.foreignAmountMinor||0),0);
   if(!Number.isSafeInteger(previouslyAllocated)||!Number.isSafeInteger(previouslyAllocated+foreignAmountMinor))throw Error("جمع تخصیص ارزی از محدوده عددی مجاز خارج است");if(previouslyAllocated+foreignAmountMinor>invoice.foreignTotalMinor)throw Error("مبلغ ارزی تخصیص از مانده فاکتور بیشتر است");
   const fx=calculateRealizedForeignExchange({kind:invoice.kind,currency:invoiceCurrency,invoiceAmountMinor:invoice.foreignTotalMinor,settledAmountMinor:foreignAmountMinor,invoiceFxRateRialPerUnit:invoice.fxRateRialPerUnit,settlementFxRateRialPerUnit:tr.fxRateRialPerUnit});
   allocation.foreignAmountMinor=foreignAmountMinor;allocation.currency=invoiceCurrency;allocation.fxGainRial=fx.gainRial;allocation.fxLossRial=fx.lossRial;allocation.bookedRial=fx.bookedRial;allocation.settlementRial=fx.settlementRial;

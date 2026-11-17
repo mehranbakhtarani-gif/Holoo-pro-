@@ -22,8 +22,8 @@ test("PWA applies allocated purchase cost to product, warehouse, lot and reversa
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
  assert.match(app,/HolooInvoiceCosting\.allocatePurchaseInventoryCosts\(lines,total\)/);
- assert.match(app,/row\.product\.value=Number\(row\.product\.value\|\|0\)\+delta/);
- assert.match(app,/row\.warehouseRecord\.value=Number\(row\.warehouseRecord\.value\|\|0\)\+delta/);
+ assert.match(app,/row\.product\.value=nextProductValue/);assert.match(app,/Number\.isSafeInteger\(nextProductValue\)/);assert.match(app,/Number\.isSafeInteger\(nextWarehouseValue\)/);
+ assert.match(app,/row\.warehouseRecord\.value=nextWarehouseValue/);
  assert.match(app,/row\.lot\.originalCost=cost/);
  assert.match(app,/line\.inventoryCostRial\?\?line\.lineTotal/);
  assert.ok(html.indexOf("invoice-costing.js")<html.indexOf("app.js?v="));

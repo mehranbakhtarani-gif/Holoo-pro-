@@ -8,7 +8,7 @@ function reconcilePartyBalances(input){
  const parties=Array.isArray(input.parties)?input.parties:[],partyLedger=Array.isArray(input.partyLedger)?input.partyLedger:[],treasury=Array.isArray(input.treasury)?input.treasury:[],payables=Array.isArray(input.importChargePayables)?input.importChargePayables:[],foreignPayables=Array.isArray(input.foreignPayables)?input.foreignPayables:[],foreignPayments=Array.isArray(input.foreignPayments)?input.foreignPayments:[];
  const knownPartyIds=new Set(parties.map(x=>Number(x.id)));
  const orphanLedgerRows=partyLedger.filter(x=>!knownPartyIds.has(Number(x.partyId)));
- const orphanImportPayables=payables.filter(x=>x.status!=="RECONCILIATION_REQUIRED"&&x.status!=="CANCELLED"&&(!x.partyId||!knownPartyIds.has(Number(x.partyId))));
+ const orphanImportPayables=payables.filter(x=>x.status!=="RECONCILIATION_REQUIRED"&&x.status!=="CANCELLED"&&(!x.partyId?(x.status!=="OPEN"||Number(x.paidRial||0)>0):!knownPartyIds.has(Number(x.partyId))));
  const orphanForeignPayables=foreignPayables.filter(x=>x.status!=="CANCELLED"&&x.shipmentReceivedAt&&(!x.supplierId||!knownPartyIds.has(Number(x.supplierId))));
  const orphanForeignPayments=foreignPayments.filter(x=>!foreignPayables.some(p=>Number(p.id)===Number(x.payableId)));
  const rows=parties.map(party=>{

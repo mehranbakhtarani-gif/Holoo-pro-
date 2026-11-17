@@ -97,6 +97,23 @@ function buildStagnantInventoryReport(input){
  }
  return rows.sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name,"fa"));
 }
+function buildStocktakeSheet(input){
+ const products=input.products||[],stockRows=input.stockRows||[],warehouseId=Number(input.warehouseId),legacyWarehouseId=Number(input.legacyWarehouseId);
+ if(!Number.isSafeInteger(warehouseId)||warehouseId<=0)throw new Error("انبار معتبر برای انبارگردانی انتخاب کنید");
+ const seen=new Set();
+ return products.map(product=>{
+  const productId=Number(product.id);
+  if(!Number.isSafeInteger(productId)||productId<=0||seen.has(productId))throw new Error("فهرست کالاها دارای شناسه نامعتبر یا تکراری است");
+  seen.add(productId);
+  const rows=stockRows.filter(row=>Number(row.productId)===productId),matches=rows.filter(row=>Number(row.warehouseId)===warehouseId);
+  if(matches.length>1)throw new Error("رکورد موجودی این کالا در انبار تکراری است");
+  const row=matches[0]||null,legacy=!rows.length&&warehouseId===legacyWarehouseId;
+  const expectedQty=Number(row?.stock??(legacy?product.stock||0:0)),expectedValue=Number(row?.value??(legacy?product.value||0:0));
+  const productStock=Number(product.stock||0),productValue=Number(product.value||0);
+  if(!Number.isFinite(expectedQty)||expectedQty<0||!Number.isSafeInteger(expectedValue)||expectedValue<0||!Number.isFinite(productStock)||productStock<0||!Number.isSafeInteger(productValue)||productValue<0)throw new Error("مانده دفتری کالا یا انبار معتبر نیست");
+  return {productId,warehouseId,sku:String(product.sku||""),productName:String(product.name||""),expectedQty,expectedValue,expectedProductState:{stock:productStock,value:productValue},expectedWarehouseState:row?{...row}:null,countedQty:null,appliedAt:null};
+ });
+}
 function buildStocktakeComparison(input){
  const stockRows=input.stockRows||[],counts=input.counts||[],products=input.products||[];
  const seen=new Set(),result=[];
@@ -104,13 +121,15 @@ function buildStocktakeComparison(input){
   const productId=Number(count.productId),warehouseId=Number(count.warehouseId),key=productId+":"+warehouseId;
   if(!Number.isSafeInteger(productId)||productId<=0||!Number.isSafeInteger(warehouseId)||warehouseId<=0||seen.has(key))throw new Error("ردیف شمارش نامعتبر یا تکراری است");
   seen.add(key);
-  const counted=Number(count.countedQty),row=stockRows.find(x=>Number(x.productId)===productId&&Number(x.warehouseId)===warehouseId),product=products.find(x=>Number(x.id)===productId);
+  const product=products.find(x=>Number(x.id)===productId),row=stockRows.find(x=>Number(x.productId)===productId&&Number(x.warehouseId)===warehouseId);
+  const hasSnapshot=count.expectedQty!==undefined||count.expectedValue!==undefined,counted=Number(count.countedQty);
   if(!product||!Number.isFinite(counted)||counted<0)throw new Error("کالا یا مقدار شمارش معتبر نیست");
-  const expected=Number(row?.stock??(stockRows.some(x=>Number(x.productId)===productId)?0:product.stock||0)),value=Number(row?.value??(stockRows.some(x=>Number(x.productId)===productId)?0:product.value||0));
+  const expected=Number(hasSnapshot?count.expectedQty:(row?.stock??(stockRows.some(x=>Number(x.productId)===productId)?0:product.stock||0)));
+  const value=Number(hasSnapshot?count.expectedValue:(row?.value??(stockRows.some(x=>Number(x.productId)===productId)?0:product.value||0)));
   if(!Number.isFinite(expected)||expected<0||!Number.isSafeInteger(value)||value<0)throw new Error("مانده دفتری انبار معتبر نیست");
   const delta=counted-expected,unitValue=expected>0?value/expected:Number(product.avg||0),valueDelta=Math.round(delta*unitValue);
   if(!Number.isSafeInteger(valueDelta))throw new Error("ارزش مغایرت شمارش از محدوده عددی خارج است");
-  result.push({productId,warehouseId,productName:product.name||"",sku:product.sku||"",expectedQty:expected,countedQty:counted,deltaQty:delta,unitValue,valueDelta,status:Math.abs(delta)<1e-6?"MATCH":"DIFFERENCE"});
+  result.push({productId,warehouseId,productName:product.name||"",sku:product.sku||"",expectedQty:expected,expectedValue:value,countedQty:counted,deltaQty:delta,unitValue,valueDelta,status:Math.abs(delta)<1e-6?"MATCH":"DIFFERENCE"});
  }
  return result;
 }
@@ -118,5 +137,5 @@ function buildInventoryCsv(rows,headers){
  const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
  return "\uFEFF"+[headers,...rows].map(row=>row.map(quote).join(",")).join("\r\n");
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeComparison,buildInventoryCsv};
+if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv};
 if(typeof globalThis!=="undefined")globalThis.HolooInventoryControl={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeComparison,buildInventoryCsv};

@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {code39Svg,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeComparison,buildInventoryCsv}=require("../inventory-control.js");
+const {code39Svg,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv}=require("../inventory-control.js");
 const day=86400000;
 test("Code 39 label renderer accepts normalized alphanumeric codes and rejects unsupported codes",()=>{
  const svg=code39Svg("ab-123");assert.match(svg,/<svg/);assert.match(svg,/<rect/);assert.match(svg,/AB-123/);
@@ -47,4 +47,20 @@ test("stagnant report distinguishes unknown legacy movement history from genuine
 });
 test("CSV export preserves Persian text and escapes quotes",()=>{
  const csv=buildInventoryCsv([["نخ \"سفید\"",10]],[["کالا","مقدار"]]);assert.ok(csv.startsWith("\uFEFF"));assert.ok(csv.includes('"نخ ""سفید"""'));
+});
+
+test("stocktake sheet snapshots each warehouse balance and assigns legacy stock only to the primary warehouse",()=>{
+ const products=[{id:1,name:"FDY",sku:"A1",stock:10,value:2500,avg:250},{id:2,name:"DTY",stock:4,value:800,avg:200}];
+ const stockRows=[{id:9,productId:1,warehouseId:2,stock:6,value:1500}];
+ const primary=buildStocktakeSheet({products,stockRows,warehouseId:1,legacyWarehouseId:1});
+ assert.equal(primary[0].expectedQty,10);assert.equal(primary[0].expectedValue,2500);assert.equal(primary[1].expectedQty,4);
+ const secondary=buildStocktakeSheet({products,stockRows,warehouseId:2,legacyWarehouseId:1});
+ assert.equal(secondary[0].expectedQty,6);assert.equal(secondary[1].expectedQty,0);
+ assert.deepEqual(secondary[0].expectedWarehouseState,stockRows[0]);
+ assert.throws(()=>buildStocktakeSheet({products,stockRows:[...stockRows,{...stockRows[0]}],warehouseId:2,legacyWarehouseId:1}),/تکراری/);
+});
+test("stocktake comparison uses saved count-session snapshots rather than changed live stock rows",()=>{
+ const products=[{id:1,name:"FDY",avg:250}],counts=[{productId:1,warehouseId:2,expectedQty:10,expectedValue:2500,countedQty:8.5}];
+ const result=buildStocktakeComparison({products,counts,stockRows:[{productId:1,warehouseId:2,stock:100,value:90000}]});
+ assert.equal(result[0].expectedQty,10);assert.equal(result[0].expectedValue,2500);assert.equal(result[0].deltaQty,-1.5);assert.equal(result[0].valueDelta,-375);
 });

@@ -97,8 +97,8 @@ function planLotTransferReversal(input){
   const source=lots.find(row=>String(row.id)===lotId);
   const destinationId="LOT:TRANSFER:"+transferId+":"+index;
   const destination=lots.find(row=>String(row.id)===destinationId);
-  if(!source||Number(source.productId)!==productId||Number(source.warehouseId)!==sourceWarehouseId)throw new Error("بچ مبدأ انتقال با کالا یا انبار مبدأ مطابقت ندارد");
-  if(!destination||String(destination.transferId)!==transferId||String(destination.transferredFromLotId)!==lotId||Number(destination.productId)!==productId||Number(destination.warehouseId)!==destinationWarehouseId)throw new Error("بچ مقصد متعلق به این انتقال نیست یا پیدا نشد");
+  if(!source||Number(source.productId)!==productId||Number(source.warehouseId)!==sourceWarehouseId||String(source.sourceType)!==String(allocation.sourceType)||String(source.sourceId)!==String(allocation.sourceId)||String(source.originLotId||source.id)!==String(allocation.originLotId||lotId))throw new Error("بچ مبدأ انتقال با کالا، انبار یا منشأ FIFO تخصیص مطابقت ندارد");
+  if(!destination||String(destination.transferId)!==transferId||String(destination.transferredFromLotId)!==lotId||Number(destination.productId)!==productId||Number(destination.warehouseId)!==destinationWarehouseId||String(destination.sourceType)!==String(source.sourceType)||String(destination.sourceId)!==String(source.sourceId)||String(destination.originLotId)!==String(source.originLotId||source.id))throw new Error("بچ مقصد متعلق به این انتقال نیست یا منشأ FIFO آن تغییر کرده است");
   if(Math.abs(Number(destination.originalQty)-qty)>1e-6||Math.abs(Number(destination.remainingQty)-qty)>1e-6||Number(destination.originalCost)!==cost||Number(destination.remainingValue)!==cost)throw new Error("بچ مقصد پس از انتقال مصرف، جابه‌جا یا تغییر کرده است؛ برگشت خودکار امن نیست");
   sourceAllocations.push({lotId,quantity:qty,cogs:cost});
   destinationUpdates.push({...destination,remainingQty:0,remainingValue:0,status:"REVERSED",reversedAt:Number(input.date||Date.now()),updatedAt:Number(input.date||Date.now())});

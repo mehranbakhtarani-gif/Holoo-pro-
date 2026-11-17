@@ -29,7 +29,7 @@ test("foreign treasury allocations distribute minor units cumulatively and consu
  const third=calculateTreasuryForeignAllocation({transaction,amount:3334,allocations:rows});
  assert.equal(third,334);
  assert.equal(first+second+third,transaction.foreignAmountMinor);
- assert.throws(()=>calculateTreasuryForeignAllocation({transaction,amount:1,allocations:[...rows,{treasuryId:12,amount:6666,foreignAmountMinor:666,status:"ACTIVE"}]}),/مانده ارزی/);
+ assert.throws(()=>calculateTreasuryForeignAllocation({transaction,amount:1,allocations:[...rows,{treasuryId:12,amount:6666,foreignAmountMinor:666,status:"ACTIVE"}]}),/سوابق تخصیص ارزی/);
 });
 
 test("reversed FX allocations release transaction and invoice foreign minor units",()=>{

@@ -56,3 +56,14 @@ test("rejects unsafe inverse conversions and unsafe realized FX differences",()=
  assert.throws(()=>convertRialToForeignMinor({currency:"USD",rial:Number.MAX_SAFE_INTEGER,fxRateRialPerUnit:1}));
  assert.throws(()=>calculateRealizedForeignExchange({kind:"SALE",currency:"USD",invoiceAmountMinor:Number.MAX_SAFE_INTEGER,settledAmountMinor:Number.MAX_SAFE_INTEGER,invoiceFxRateRialPerUnit:1,settlementFxRateRialPerUnit:Number.MAX_SAFE_INTEGER}));
 });
+
+test("PWA invoice and order totals use the exact inverse FX converter",()=>{
+ const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
+ const sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
+ assert.equal((app.match(/convertRialToForeignMinor\(\{currency,rial:total,fxRateRialPerUnit:fxRate\}\)/g)||[]).length,2);
+ assert.match(html,/foreign-currency\.js\?v=fx-bigint-2/);
+ assert.match(html,/app\.js\?v=fx-bigint-2/);
+ assert.match(sw,/holloo-pwa-v169-fx-bigint-precision/);
+});

@@ -66,5 +66,5 @@ test("transfers legacy product stock when no per-warehouse stock rows exist yet"
 });
 test("does not treat stock in another warehouse as legacy stock for an empty source warehouse",()=>{
  const result=calculateWarehouseTransfer({product:{id:9,name:"FDY",stock:10,value:25000},source:{id:1},destination:{id:2},quantity:1,sourceRows:[{productId:9,warehouseId:3,stock:10,value:25000}],destinationRows:[{productId:9,warehouseId:3,stock:10,value:25000}]});
- assert.throws(()=>result,/never/);
+ assert.throws(()=>calculateWarehouseTransfer({product:{id:9,name:"FDY",stock:10,value:25000},source:{id:1},destination:{id:2},quantity:1,sourceRows:[{productId:9,warehouseId:3,stock:10,value:25000}],destinationRows:[{productId:9,warehouseId:3,stock:10,value:25000}]}),/موجودی انبار مبدأ کافی نیست/);
 });

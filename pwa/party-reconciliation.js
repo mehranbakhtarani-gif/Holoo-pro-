@@ -159,13 +159,15 @@ function reconcilePartyBalances(input){
   return {partyId,partyName:String(party.name||""),partyKind:String(party.kind||""),partyBalance,ledgerBalance,difference,openingMovementCount:openingRows.length,ancillaryPayableCount:assigned.length,ancillaryOutstandingRial,ancillaryLedgerBalanceRial,foreignPayableCount:assignedForeign.length,foreignPayableOutstandingRial,foreignPayableLedgerBalanceRial,ok:issues.length===0,issues};
  });
  const orphanPayableCount=orphanImportPayables.length+orphanForeignPayables.length+orphanForeignPayments.length;
+ const orphanAllocationCount=orphanAllocations.length;
  const orphanIssues=[];
+ if(orphanAllocations.length)orphanIssues.push(orphanAllocations.length+" تخصیص دریافت/پرداخت به فاکتور یا شخص معتبر متصل نیست");
  if(orphanLedgerRows.length)orphanIssues.push(orphanLedgerRows.length+" ردیف گردش تفصیلی به شخص موجود متصل نیست");
  if(orphanTreasuryRows.length)orphanIssues.push(orphanTreasuryRows.length+" گردش خزانه به شخص معتبر متصل نیست");
  if(orphanImportPayables.length)orphanIssues.push(orphanImportPayables.length+" پرداختنی جانبی به شخص معتبر متصل نیست");
  if(orphanForeignPayables.length)orphanIssues.push(orphanForeignPayables.length+" تعهد ارزی به تأمین‌کننده معتبر متصل نیست");
  if(orphanForeignPayments.length)orphanIssues.push(orphanForeignPayments.length+" پرداخت ارزی به تعهد موجود متصل نیست");
- return {total:rows.length,matched:rows.filter(x=>x.ok).length,withIssues:rows.filter(x=>!x.ok).length+(orphanIssues.length?1:0),rows,orphanLedgerRows,orphanTreasuryRows,orphanPayableCount,orphanIssues};
+ return {total:rows.length,matched:rows.filter(x=>x.ok).length,withIssues:rows.filter(x=>!x.ok).length+(orphanIssues.length?1:0),rows,orphanLedgerRows,orphanTreasuryRows,orphanAllocations,orphanAllocationCount,orphanPayableCount,orphanIssues};
 }
 const PartyReconciliation={reconcilePartyBalances};
 if(typeof module!=="undefined"&&module.exports)module.exports=PartyReconciliation;

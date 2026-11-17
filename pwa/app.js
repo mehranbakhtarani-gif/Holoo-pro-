@@ -58,6 +58,7 @@ async function reverseTreasuryAllocationPwa(id){
  const [allocations,parties,vouchers,voucherLines,transactions,invoices]=await Promise.all([all("treasuryAllocations"),all("parties"),all("vouchers"),all("voucherLines"),all("treasury"),all("invoices")]);
  const allocation=allocations.find(row=>Number(row.id)===Number(id));
  if(!allocation||allocation.status==="REVERSED")throw Error("تخصیص فعال پیدا نشد");
+ validateTreasuryAllocationReversalOrder({allocation,allocations});
  const invoice=invoices.find(row=>row.number===allocation.invoiceNumber),transaction=transactions.find(row=>Number(row.id)===Number(allocation.treasuryId));
  if(!invoice||!transaction)throw Error("فاکتور یا گردش خزانه تخصیص پیدا نشد");
  const invoiceSnapshot={...invoice},transactionSnapshot={...transaction},allocationSnapshot={...allocation};

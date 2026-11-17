@@ -43,3 +43,35 @@ test("PWA wires party reconciliation into the party page and offline cache",()=>
  assert.match(html,/party-reconciliation\.js/);
  assert.match(sw,/party-reconciliation\.js/);
 });
+
+test("foreign payable accrual and active payments reconcile to the supplier subledger",()=>{
+ const result=reconcilePartyBalances({
+  parties:[{id:3,name:"Supplier",kind:"SUPPLIER",balance:-600}],
+  foreignPayables:[{id:5,supplierId:3,sourceNumber:"S7",currency:"USD",amountMinor:1000,paidMinor:400,bookedRial:1000,bookedRialPaid:400,status:"PARTIAL",shipmentReceivedAt:1}],
+  foreignPayablePayments:[{id:9,payableId:5,supplierId:3,reference:"FXPAY:S7:1",amountMinor:400,bookedRial:400,settlementRial:450,status:"POSTED"}],
+  treasury:[{id:10,kind:"PAYMENT",partyId:3,amount:450,foreignAmountMinor:400,foreignPayableId:5,reference:"FXPAY:S7:1"}],
+  partyLedger:[{partyId:3,referenceId:"IMPORT-RECEIPT:S7",debitRial:0,creditRial:1000},{partyId:3,referenceId:"FXPAY:S7:1",debitRial:400,creditRial:0}]
+ });
+ assert.equal(result.matched,1);
+ assert.equal(result.rows[0].foreignPayableOutstandingRial,600);
+ assert.equal(result.rows[0].foreignPayableLedgerBalanceRial,-600);
+});
+test("reversed foreign installment restores the payable and supplier ledger",()=>{
+ const result=reconcilePartyBalances({
+  parties:[{id:3,name:"Supplier",kind:"SUPPLIER",balance:-1000}],
+  foreignPayables:[{id:5,supplierId:3,sourceNumber:"S7",currency:"USD",amountMinor:1000,paidMinor:0,bookedRial:1000,bookedRialPaid:0,status:"OPEN",shipmentReceivedAt:1}],
+  foreignPayablePayments:[{id:9,payableId:5,supplierId:3,reference:"FXPAY:S7:1",amountMinor:400,bookedRial:400,settlementRial:450,status:"REVERSED"}],
+  treasury:[{id:10,kind:"PAYMENT",partyId:3,amount:450,foreignAmountMinor:400,foreignPayableId:5,reference:"FXPAY:S7:1",status:"REVERSED"},{id:11,kind:"RECEIPT",partyId:3,amount:450,foreignAmountMinor:400,foreignPayableId:5,reference:"FXPAY-REV:9",reversalOf:"FXPAY:S7:1"}],
+  partyLedger:[{partyId:3,referenceId:"IMPORT-RECEIPT:S7",debitRial:0,creditRial:1000},{partyId:3,referenceId:"FXPAY:S7:1",debitRial:400,creditRial:0},{partyId:3,referenceId:"FXPAY-REV:9",debitRial:0,creditRial:400}]
+ });
+ assert.equal(result.matched,1);
+ assert.equal(result.rows[0].foreignPayableOutstandingRial,1000);
+ assert.equal(result.rows[0].foreignPayableLedgerBalanceRial,-1000);
+});
+test("orphan party-ledger rows and unassigned active payables are surfaced globally",()=>{
+ const result=reconcilePartyBalances({parties:[{id:3,name:"Supplier",kind:"SUPPLIER",balance:0}],partyLedger:[{partyId:99,referenceId:"ORPHAN",debitRial:10,creditRial:0}],importChargePayables:[{id:8,partyId:null,amountRial:100,paidRial:0,status:"OPEN"}]});
+ assert.equal(result.orphanLedgerRows.length,1);
+ assert.equal(result.orphanPayableCount,1);
+ assert.equal(result.withIssues,1);
+ assert.ok(result.orphanIssues.some(x=>x.includes("گردش تفصیلی")));
+});

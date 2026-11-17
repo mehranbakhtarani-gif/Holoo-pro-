@@ -46,3 +46,14 @@ test("invoice and opening control-account journal lines retain their party ident
  assert.match(app,/accountCode:"2101",partyId:commissionParty\.id,debitRial:0,creditRial:commissionAmount/);
  assert.match(app,/for\(const line of plan\.journal\)tx\.objectStore\("voucherLines"\)\.add\(\{\.\.\.line,partyId,voucherId:addVoucher\.result\}\)/);
 });
+
+
+test("all additional payable and FX control-account journal lines carry the responsible party",()=>{
+ assert.match(app,/accountCode:"2101",partyId:party\.id,debitRial:0,creditRial:costs\.goodsRial/);
+ assert.match(app,/accountCode:"2101",partyId:target\.id,debitRial:amount,creditRial:0/);
+ assert.match(app,/accountCode:"1103",partyId:party\.id,debitRial:0,creditRial:amount/);
+ assert.match(app,/accountCode:"2101",partyId:party\.id,debitRial:fx\.gainRial,creditRial:0/);
+ assert.match(app,/accountCode:"1103",partyId:party\.id,debitRial:0,creditRial:fx\.lossRial/);
+ assert.match(app,/accountCode:"2101",partyId:party\.id,debitRial:plan\.bookedRial,creditRial:0/);
+ assert.match(app,/accountCode:"2101",partyId:party\.id,debitRial:0,creditRial:cost,description:"بدهی خرید دارایی/);
+});

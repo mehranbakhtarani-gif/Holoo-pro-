@@ -97,7 +97,7 @@ test("ancillary import payment reversal restores payable, party balance, treasur
  const all=async store=>(db[store]||[]).map(row=>({...row}));
  const applyPartyBalanceDelta=(party,delta)=>{party.balance+=delta};
  const postVoucherAtomic=async(entries,voucher,lines,guards)=>{posted={entries,voucher,lines,guards}};
- const reverse=new Function("all","applyPartyBalanceDelta","postVoucherAtomic",app.slice(start,end)+";return reverseTreasuryPwa;")(all,applyPartyBalanceDelta,postVoucherAtomic);
+ const validatorStart=app.indexOf("function validateReversalVoucherLines("),validatorEnd=app.indexOf("\nfunction applyPartyBalanceDelta",validatorStart);assert.ok(validatorStart>=0&&validatorEnd>validatorStart);const reverse=new Function("all","applyPartyBalanceDelta","postVoucherAtomic",app.slice(validatorStart,validatorEnd)+";"+app.slice(start,end)+";return reverseTreasuryPwa;")(all,applyPartyBalanceDelta,postVoucherAtomic);
  await reverse(1);
  assert.equal(posted.entries.find(x=>x[0]==="importChargePayables")[1].paidRial,0);
  assert.equal(posted.entries.find(x=>x[0]==="importChargePayables")[1].status,"OPEN");

@@ -863,9 +863,9 @@ function bindInventoryTools(products,invoices,adjustments,stockRows,transfers,sh
    const [accounts,vouchers,voucherLines,inventoryLots]=await Promise.all([all("accounts"),all("vouchers"),all("voucherLines"),all("inventoryLots")]);
    const result=HolooInventoryControl.buildInventoryReconciliation({products,warehouseStock:stockRows,inventoryLots,accounts,vouchers,voucherLines});
    const labels={PRODUCT_WAREHOUSE:"تطبیق کالا با جمع انبارها",PRODUCT_FIFO:"تطبیق کالا با بچ‌های FIFO",WAREHOUSE_FIFO:"تطبیق انبار با بچ‌های FIFO",ACCOUNT_1301:"تطبیق حساب ۱۳۰۱",};
-   const metric=x=>x.metric==="quantity"?"مقدار (kg)":x.metric==="value"?"ارزش (ریال)":"حساب";
+   const metric=x=>x.metric==="quantity"?"مقدار (kg)":x.metric==="value"?"ارزش (ریال)":"حساب",display=x=>x===null||x===undefined?"—":fmt(x);
    const rows=result.discrepancies.map(x=>'<tr><td>'+h(labels[x.scope]||x.scope)+'</td><td>'+h(x.productId??"—")+'</td><td>'+h(x.warehouseId??"—")+'</td><td>'+metric(x)+'</td><td>'+fmt(x.expected)+'</td><td>'+fmt(x.actual)+'</td><td>'+fmt(x.difference)+'</td></tr>');
-   const summary='<div class="grid">'+stat("وضعیت تطبیق",result.balanced?"بدون مغایرت":"دارای مغایرت",result.discrepancies.length+" مورد") + stat("ارزش کالاها",money(result.productInventoryValue)+" ریال","مبنای ارزش محصول") + stat("مانده حساب ۱۳۰۱",result.inventoryLedgerBalance===null?"حساب یافت نشد":money(result.inventoryLedgerBalance)+" ریال","مانده بدهکار منهای بستانکار")+'</div>';
+   const summary='<div class="grid">'+stat("وضعیت تطبیق",result.balanced?"بدون مغایرت":"دارای مغایرت",result.discrepancies.length+" مورد") + stat("ارزش کالاها",fmt(result.productInventoryValue)+" ریال","مبنای ارزش محصول") + stat("مانده حساب ۱۳۰۱",result.inventoryLedgerBalance===null?"حساب یافت نشد":fmt(result.inventoryLedgerBalance)+" ریال","مانده بدهکار منهای بستانکار")+'</div>';
    const detail=result.balanced?'<p class="hint">موجودی کالا، انبارها، بچ‌های FIFO و مانده حساب ۱۳۰۱ با یکدیگر برابرند.</p>':table(["کنترل","شناسه کالا","شناسه انبار","معیار","مقدار مورد انتظار","مقدار ثبت‌شده","اختلاف"],rows);
    const target=$("#inventoryReconciliationOutput");if(target)target.innerHTML=summary+detail;
   }catch(error){toast(error.message||"تطبیق موجودی ناموفق بود")}

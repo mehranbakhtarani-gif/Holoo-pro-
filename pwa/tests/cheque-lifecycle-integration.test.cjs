@@ -34,3 +34,13 @@ test("voucher reference uniqueness is enforced inside the atomic transaction",()
  assert.match(app,/objectStore\("vouchers"\)\.getAll\(\);\s*check\.onsuccess/);
  assert.match(app,/سندی با این شناسه مرجع قبلاً ثبت شده است/);
 });
+
+test("reversing a cleared cheque permits historical reversed allocations but blocks active allocations",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ const start=app.indexOf("async function reverseClearedCheckPwa");
+ const end=app.indexOf("async function reverseTreasuryPwa",start);
+ const body=app.slice(start,end);
+ assert.match(body,/allocations\.some\(x=>Number\(x\.treasuryId\)===Number\(original\.id\)&&x\.status!=="REVERSED"\)/);
+ assert.match(body,/\{store:"treasury",key:Number\(original\.id\),expected:treasurySnapshot\}/);
+ assert.doesNotMatch(body,/treasuryAllocations",match:\{treasuryId:Number\(original\.id\)\},expected:null/);
+});

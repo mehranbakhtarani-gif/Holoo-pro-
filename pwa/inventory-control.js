@@ -63,6 +63,12 @@ function buildInventoryMovements(input){
   if(warehouseId!==null&&source!==warehouseId&&destination!==warehouseId)continue;
   if(warehouseId===null||source===warehouseId)add({date:Number(transfer.date||0),type:"TRANSFER_OUT",reference:String(transfer.number||transfer.id||""),description:"انتقال به "+(transfer.destinationWarehouseName||destination),warehouseId:source,quantityIn:0,quantityOut:qty,valueIn:0,valueOut:value,sourceId:transfer.id??null});
   if(warehouseId===null||destination===warehouseId)add({date:Number(transfer.date||0),type:"TRANSFER_IN",reference:String(transfer.number||transfer.id||""),description:"انتقال از "+(transfer.sourceWarehouseName||source),warehouseId:destination,quantityIn:qty,quantityOut:0,valueIn:value,valueOut:0,sourceId:transfer.id??null});
+  if(transfer.status==="REVERSED"||transfer.reversedAt){
+   const reversalDate=Number(transfer.reversedAt||0);
+   if(!Number.isFinite(reversalDate)||reversalDate<=0)throw new Error("تاریخ برگشت انتقال معتبر نیست");
+   if(warehouseId===null||source===warehouseId)add({date:reversalDate,type:"TRANSFER_REVERSAL_IN",reference:String(transfer.number||transfer.id||""),description:"برگشت انتقال از "+(transfer.destinationWarehouseName||destination),warehouseId:source,quantityIn:qty,quantityOut:0,valueIn:value,valueOut:0,sourceId:transfer.id??null});
+   if(warehouseId===null||destination===warehouseId)add({date:reversalDate,type:"TRANSFER_REVERSAL_OUT",reference:String(transfer.number||transfer.id||""),description:"برگشت انتقال به "+(transfer.sourceWarehouseName||source),warehouseId:destination,quantityIn:0,quantityOut:qty,valueIn:0,valueOut:value,sourceId:transfer.id??null});
+  }
  }
  for(const shipment of input.shipments||[]){
   if(Number(shipment.productId)!==productId||!shipment.receivedAt)continue;

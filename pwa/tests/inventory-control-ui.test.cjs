@@ -27,3 +27,11 @@ test("inventory kardex date range includes the full selected end date and locali
  assert.match(app,/SALE_REVERSAL:"برگشت فروش"/);
  assert.match(app,/movementLabel\(x\.type\)/);
 });
+
+test("inventory reorder report is wired to the shared product thresholds and has a separate CSV export",()=>{
+ assert.match(app,/id="runReorderReport"/);
+ assert.match(app,/id="exportReorderCsv"/);
+ assert.match(app,/buildReorderReport\(\{products\}\)/);
+ assert.match(app,/holloo-reorder-suggestions\.csv/);
+ assert.match(fs.readFileSync(path.join(root,"inventory-control.js"),"utf8"),/function buildReorderReport\(input\)/);
+});

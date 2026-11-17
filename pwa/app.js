@@ -835,7 +835,7 @@ function bindBankReconciliation(){
 async function convertSalesOrderToInvoice(id){
  const orders=await all("salesOrders"),order=orders.find(x=>Number(x.id)===Number(id));
  if(!order||order.status!=="APPROVED")throw Error("فقط سفارش تأییدشده قابل تبدیل به فاکتور است");
- if(order.kind==="QUOTE"&&order.validUntil&&order.validUntil<Date.now())throw Error("اعتبار پیش‌فاکتور تمام شده است");
+ if(order.kind==="QUOTE"&&order.validUntil&&order.validUntil<globalThis.HolooOperationDate.resolveOperationDate({mode:operationDateMode,manualValue:operationManualDate}))throw Error("اعتبار پیش‌فاکتور تمام شده است");
  await openForm("invoices");
  const form=$("#entryForm");
  form.elements.kind.value="فروش";form.elements.partyId.value=String(order.partyId);form.elements.currency.value=order.currency||"IRR";form.elements.fxRateRialPerUnit.value=order.fxRateRialPerUnit||1;form.elements.warehouseId.value=String(order.warehouseId);form.elements.priceTier.value=order.priceTier||0;form.elements.commissionPartyId.value=order.commissionPartyId?String(order.commissionPartyId):"";form.elements.commissionRate.value=order.commissionRate||0;form.elements.discount.value=order.discount||0;form.elements.tax.value=order.tax||0;form.elements.orderId.value=String(order.id);
@@ -849,7 +849,7 @@ async function updateSalesOrderStatus(id,next){
  if(!order)throw Error("سفارش پیدا نشد");
  if(next==="APPROVED"){
   if(order.status!=="DRAFT")throw Error("فقط پیش‌نویس قابل تأیید است");
-  if(order.kind==="QUOTE"&&order.validUntil&&order.validUntil<Date.now())throw Error("اعتبار پیش‌فاکتور تمام شده است");
+  if(order.kind==="QUOTE"&&order.validUntil&&order.validUntil<globalThis.HolooOperationDate.resolveOperationDate({mode:operationDateMode,manualValue:operationManualDate}))throw Error("اعتبار پیش‌فاکتور تمام شده است");
  }else if(next==="CANCELLED"){
   if(!["DRAFT","APPROVED"].includes(order.status))throw Error("این سفارش قابل لغو نیست");
  }else throw Error("وضعیت سفارش نامعتبر است");

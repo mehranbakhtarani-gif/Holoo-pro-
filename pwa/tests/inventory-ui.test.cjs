@@ -145,7 +145,8 @@ test("product SKU and barcode uniqueness are enforced in the same transaction as
  assert.match(app,/function putProductUnique\(record\)/);
  assert.match(app,/db\.transaction\(\["products","auditLog"\],"readwrite"\)/);
  assert.match(app,/rows\.some\(row=>row\.sku===record\.sku/);
- assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
+ assert.match(app,/const ownCodes=\[record\.barcode/);
+ assert.match(app,/یکی از بارکدها قبلاً برای کالای دیگری ثبت شده است/);
  assert.match(app,/if\(current\)\{for\(const field of \["stock","value","avg"\]\)value\[field\]=current\[field\]\}/);
  assert.match(app,/await putProductUnique\(v\)/);
 });

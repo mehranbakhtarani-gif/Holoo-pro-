@@ -44,3 +44,16 @@ test("reversing a cleared cheque permits historical reversed allocations but blo
  assert.match(body,/\{store:"treasury",key:Number\(original\.id\),expected:treasurySnapshot\}/);
  assert.doesNotMatch(body,/treasuryAllocations",match:\{treasuryId:Number\(original\.id\)\},expected:null/);
 });
+
+test("endorsed cheque bounce reverses both party balances and the original endorsement voucher",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ const start=app.indexOf("async function reverseEndorsedCheckPwa");
+ const end=app.indexOf("async function reverseTreasuryPwa",start);
+ const body=app.slice(start,end);
+ assert.match(body,/check\.status!=="ENDORSED"/);
+ assert.match(body,/applyPartyBalanceDelta\(source,amount\)/);
+ assert.match(body,/applyPartyBalanceDelta\(target,-amount/);
+ assert.match(body,/CHECK:ENDORSE-REV:/);
+ assert.match(body,/oldLines\.map\(line=>\(\{accountCode:line\.accountCode,debitRial:Number\(line\.creditRial\|\|0\),creditRial:Number\(line\.debitRial\|\|0\)/);
+ assert.match(body,/data-check-reverse-endorsement/);
+});

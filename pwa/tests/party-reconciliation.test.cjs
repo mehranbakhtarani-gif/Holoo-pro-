@@ -189,11 +189,12 @@ test("orphan settlement allocations are exposed in the global reconciliation rep
   partyLedger:[{partyId:1,referenceId:"S-10",debitRial:1000,creditRial:0}],
   treasuryAllocations:[
    {id:30,partyId:1,invoiceNumber:"MISSING-INVOICE",treasuryId:20,amount:100,status:"POSTED"},
-   {id:31,partyId:99,invoiceNumber:"S-10",treasuryId:21,amount:100,status:"POSTED"}
+   {id:31,partyId:99,invoiceNumber:"S-10",treasuryId:21,amount:100,status:"POSTED"},
+   {id:32,partyId:0,invoiceNumber:"S-10",treasuryId:22,amount:100,status:"POSTED"}
   ]
  });
- assert.equal(result.orphanAllocationCount,2);
- assert.equal(result.orphanAllocations.length,2);
+ assert.equal(result.orphanAllocationCount,3);
+ assert.equal(result.orphanAllocations.length,3);
  assert.equal(result.withIssues,2);
  assert.ok(result.orphanIssues.some(x=>x.includes("تخصیص دریافت/پرداخت")));
 });

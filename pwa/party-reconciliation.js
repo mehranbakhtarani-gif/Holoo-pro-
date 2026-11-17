@@ -24,8 +24,9 @@ function reconcilePartyBalances(input){
   const partyId=Number(party?.id),stored=safeRial(party?.balance),subledger=ledgerByParty.get(partyId)||0n,issues=[];
   if(!Number.isSafeInteger(partyId)||partyId<=0)issues.push("شناسه طرف حساب نامعتبر است");
   if(stored===null)issues.push("مانده ثبت‌شده عدد صحیح امن نیست");
-  if(safeNumber(subledger)===null)issues.push("جمع دفتر تفصیلی از محدوده عددی امن خارج است");
-  const delta=stored===null?null:stored-safeNumber(subledger);
+  const ledgerBalance=safeNumber(subledger);
+  if(ledgerBalance===null)issues.push("جمع دفتر تفصیلی از محدوده عددی امن خارج است");
+  const delta=stored===null||ledgerBalance===null?null:stored-ledgerBalance;
   if(delta!==null&&delta!==0)issues.push("مانده طرف حساب با جمع دفتر تفصیلی برابر نیست");
   return {partyId:Number.isSafeInteger(partyId)?partyId:null,partyName:String(party?.name||"طرف حساب"),storedBalanceRial:stored,partyLedgerBalanceRial:safeNumber(subledger),deltaRial:delta,ledgerRows:ledger.filter(row=>Number(row?.partyId)===partyId).length,ok:issues.length===0,issues};
  });

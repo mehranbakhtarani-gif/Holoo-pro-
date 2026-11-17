@@ -30,3 +30,19 @@ test("PWA applies allocated purchase cost to product, warehouse, lot and reversa
  assert.match(sw,/\.\/invoice-costing\.js/);
  assert.match(sw,/invoice-costing\\.js/);
 });
+
+test("allocates multi-line net costs with invoice discount and tax using exact largest remainders",()=>{
+ const lines=[{lineTotal:3333},{lineTotal:3333},{lineTotal:3334}];
+ const snapshot=JSON.stringify(lines);
+ const costs=allocatePurchaseInventoryCosts(lines,10001);
+ assert.deepEqual(costs,[3333,3333,3335]);
+ assert.equal(costs.reduce((sum,value)=>sum+value,0),10001);
+ assert.equal(JSON.stringify(lines),snapshot);
+});
+test("supports the largest safe rial amount without floating-point allocation drift",()=>{
+ assert.deepEqual(allocatePurchaseInventoryCosts([{lineTotal:1}],Number.MAX_SAFE_INTEGER),[Number.MAX_SAFE_INTEGER]);
+});
+test("rejects non-finite and fractional rial inputs",()=>{
+ for(const total of [NaN,Infinity,-Infinity,1.5])assert.throws(()=>allocatePurchaseInventoryCosts([{lineTotal:10}],total));
+ for(const lineTotal of [NaN,Infinity,-Infinity,1.5])assert.throws(()=>allocatePurchaseInventoryCosts([{lineTotal}],10));
+});

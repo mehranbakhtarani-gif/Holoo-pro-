@@ -126,6 +126,29 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   const csvDownload=await csvPromise;
   const statement=await downloadText(csvDownload);
   assert.ok(statement.includes("مشتری آزمایشی ممیزی"));
+
+  await page.locator("#search").fill("");
+  await page.locator("#addBtn").click();
+  await page.locator('#entryForm [name="name"]').fill("مشتری مسدود آزمایشی");
+  await page.locator('#entryForm [name="kind"]').selectOption({label:"مشتری"});
+  await page.locator('#entryForm [name="status"]').selectOption({label:"مسدود"});
+  await page.locator('#entryForm [name="blockedReason"]').fill("چک برگشتی");
+  await page.locator('#entryForm button[type="submit"]').click();
+  await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("مشتری مسدود آزمایشی"));
+  assert.ok((await page.locator("#main").textContent()).includes("مسدود"));
+
+  const blockedRow=page.locator("#main tr").filter({hasText:"مشتری مسدود آزمایشی"}).first();
+  await blockedRow.locator('[data-edit^="parties:"]').click();
+  await page.waitForSelector('#entryForm [name="status"]');
+  assert.equal(await page.locator('#entryForm [name="status"]').inputValue(),"مسدود");
+  await page.locator("#cancelModal").click();
+
+  await page.locator('#sidebar [data-page="invoices"]').click();
+  await page.waitForFunction(()=>document.querySelector("h1")?.textContent.includes("فاکتور"));
+  await page.locator("#addBtn").click();
+  const partyOptions=await page.locator('#entryForm [name="partyId"] option').allTextContents();
+  assert.ok(!partyOptions.some(value=>value.includes("مشتری مسدود آزمایشی")),"blocked party must not be selectable for a new invoice");
+  await page.locator("#cancelModal").click();
  });
 
  await t.test("unit toggle and backup download preserve saved inventory and parties",async()=>{

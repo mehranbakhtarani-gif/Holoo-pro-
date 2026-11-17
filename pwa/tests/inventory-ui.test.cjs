@@ -98,7 +98,7 @@ test("party deletion checks orders, import shipments and foreign payable links",
  
 test("party statements display opening balance before dated movements",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/const opening=Number\(party\.balance\|\|0\)-movement/);
+ assert.match(app,/globalThis\.HolooPartyStatement\.calculatePartyStatement\(party,ledger\)/);
  assert.match(app,/مانده افتتاحیه/);
  assert.match(app,/money\(Math\.abs\(balance\)\)/);
 });

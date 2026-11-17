@@ -136,3 +136,14 @@ button:disabled{opacity:.5;cursor:not-allowed}
  .modal{max-height:calc(100dvh - 24px);padding:16px;border-radius:16px}
  .modal-head{top:-16px}
 }
+
+
+/* Mobile overflow guard for long report toolbars and form controls. */
+@media(max-width:900px){
+ #main,.main,.card,.toolbar,.form-grid,.page-head,.table-wrap{min-width:0;max-width:100%}
+ .toolbar{flex-wrap:wrap}
+ .toolbar .search{flex:1 1 180px;min-width:0;max-width:100%}
+ .toolbar>*{max-width:100%}
+ .form-grid>*{min-width:0}
+ .page-head{flex-wrap:wrap}
+}

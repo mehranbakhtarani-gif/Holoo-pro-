@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {parseBankCsv,getTreasurySignedAmount,findBankMatchCandidates,autoMatchBankLines,validateBankManualMatch}=require("../bank-reconciliation.js");
+const {parseBankCsv,getTreasurySignedAmount,normalizeBankIdentity,findBankMatchCandidates,autoMatchBankLines,validateBankManualMatch}=require("../bank-reconciliation.js");
 
 test("parses quoted CSV fields, Persian digits and signed amounts",()=>{
  const rows=parseBankCsv('تاریخ,مبلغ,شرح,شماره مرجع\n2026-11-01,۱۲۳۴۵,"واریز, مشتری",A-1\n2026-11-02,-۵۰۰۰,برداشت,B-2',"بانک نمونه");

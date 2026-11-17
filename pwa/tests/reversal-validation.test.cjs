@@ -39,7 +39,7 @@ test("rejects extra, missing, duplicated and reordered reversal rows",()=>{
 });
 
 test("rejects source lines attached to another voucher or duplicate source line ids",()=>{
- assert.throws(()=>validateReversalVoucherLines({voucher,lines:[originalLines[0],{...originalLines[1],voucherId:8}],accounts,label:"شناسه سند"}),/به سند دیگری متصل است/);
+ assert.throws(()=>validateReversalVoucherLines({voucher,lines:[originalLines[0],{...originalLines[1],voucherId:8}],accounts,label:"شناسه سند"}),/به سند اصلی متصل نیست/);
  assert.throws(()=>validateReversalVoucherLines({voucher,lines:[originalLines[0],{...originalLines[1],voucherId:undefined}],accounts,label:"مرجع خالی"}),/به سند اصلی متصل نیست/);
  assert.throws(()=>validateReversalVoucherLines({voucher,lines:[originalLines[0],{...originalLines[1],id:1}],accounts,label:"شناسه ردیف"}),/شناسه ردیف.*تکراری/);
 });

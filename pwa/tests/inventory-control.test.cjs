@@ -77,3 +77,20 @@ test("kardex preserves the original invoice and reversal date as separate invent
  assert.equal(result.closing.quantity,10);
  assert.equal(result.closing.value,1000);
 });
+
+test("reorder report suggests replenishment to max stock, or minimum when no maximum is set",()=>{
+ const rows=buildReorderReport({products:[
+  {id:1,sku:"A",name:"below min",stock:4,minStock:5,maxStock:12,avg:200},
+  {id:2,sku:"B",name:"no max",stock:2,minStock:5,maxStock:0,avg:100},
+  {id:3,sku:"C",name:"healthy",stock:6,minStock:5,maxStock:10,avg:300},
+  {id:4,sku:"D",name:"unset",stock:0,minStock:0,maxStock:10,avg:10}
+ ]});
+ assert.equal(rows.length,2);
+ assert.deepEqual(rows.map(x=>x.productId),[1,2]);
+ assert.equal(rows[0].recommendedQty,8);assert.equal(rows[0].estimatedValue,1600);
+ assert.equal(rows[1].recommendedQty,3);assert.equal(rows[1].estimatedValue,300);
+});
+test("reorder report rejects inconsistent stock thresholds and unsafe estimated values",()=>{
+ assert.throws(()=>buildReorderReport({products:[{id:1,name:"bad",stock:2,minStock:8,maxStock:5,avg:10}]}),/حداکثر/);
+ assert.throws(()=>buildReorderReport({products:[{id:1,name:"bad",stock:0,minStock:1,maxStock:0,avg:Number.MAX_SAFE_INTEGER}]}),/محدوده/);
+});

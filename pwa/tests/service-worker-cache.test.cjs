@@ -5,12 +5,13 @@ const path=require("node:path");
 
 test("service worker cache version changes when offline cache behavior changes",()=>{
  const sw=fs.readFileSync(path.resolve(__dirname,"../sw.js"),"utf8");
- assert.match(sw,/holloo-pwa-v176-party-subledger-reconciliation/);
+ assert.match(sw,/holloo-pwa-v177-cheque-lifecycle-reconciliation/);
 });
 
 test("offline cache fallback ignores asset query versions so pre-cached files remain available",()=>{
  const sw=fs.readFileSync(path.resolve(__dirname,"../sw.js"),"utf8");
  assert.match(sw,/cache\.match\(event\.request,\{ignoreSearch:true\}\)/);
  assert.match(sw,/party-reconciliation\\.js/);
+ assert.match(sw,/check-reconciliation\\.js/);
  assert.match(sw,/const cached=await cache\.match\(event\.request,\{ignoreSearch:true\}\)/);
 });

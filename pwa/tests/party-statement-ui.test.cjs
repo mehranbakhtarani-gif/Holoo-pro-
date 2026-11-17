@@ -24,3 +24,16 @@ test("party search includes identifier, contact details, type and balance",()=>{
  assert.match(app,/جست‌وجوی کد، نام، تلفن، نشانی، نوع یا مانده طرف حساب/);
  assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\),x\.status==="BLOCKED"\?"مسدود":"فعال",x\.blockedReason\]/);
 });
+
+test("party statements show the recorded opening balance once and exclude its ledger row from later movements",()=>{
+ assert.match(app,/function partyStatementData\(party,ledger\)/);
+ assert.match(app,/referenceId\|\|\"\"\)==\"OPENING:PARTY:\"\+party\.id/);
+ assert.match(app,/const opening=openingRows\.length\?openingRows\.reduce/);
+ assert.match(app,/const statement=partyStatementData\(party,partyLedger\)/);
+ assert.match(app,/for\(const row of statement\.rows\)/);
+});
+test("party statement rejects malformed debit or credit ledger movements",()=>{
+ assert.match(app,/گردش صورتحساب طرف حساب نامعتبر است/);
+ assert.match(app,/Number\.isSafeInteger\(Number\(r\.debitRial\|\|0\)\)/);
+ assert.match(app,/Number\.isSafeInteger\(Number\(r\.creditRial\|\|0\)\)/);
+});

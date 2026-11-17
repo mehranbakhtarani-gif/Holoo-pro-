@@ -37,7 +37,7 @@ test("inventory reorder report is wired to the shared product thresholds and has
 });
 
 test("stock adjustment reversal persists FIFO provenance and is exposed only for eligible records",()=>{assert.match(app,/fifoAllocations=sale\.allocations\.map/);assert.match(app,/createdLotIds\.push/);assert.match(app,/voucherReference:"STOCK_ADJUSTMENT:"/);assert.match(app,/async function reverseStockAdjustmentPwa/);assert.match(app,/restoreLotSale\(\{lots,allocations:adjustment\.fifoAllocations/);assert.match(app,/STOCK_ADJUSTMENT_REVERSAL:/);assert.match(app,/data-stock-adjustment-reverse=/);assert.match(app,/اطلاعات FIFO قدیمی ناقص/);});
-test("stock adjustment reversal ships with refreshed PWA cache",()=>{assert.match(html,/app\.js\?v=fx-bigint-2/);assert.match(sw,/holloo-pwa-v170-fx-reversal-order/);});
+test("stock adjustment reversal ships with refreshed PWA cache",()=>{assert.match(html,/app\.js\?v=reverse-order-2/);assert.match(sw,/holloo-pwa-v170-fx-reversal-order/);});
 
 test("inventory reports expose read-only reconciliation for warehouse stock, FIFO and account 1301",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");

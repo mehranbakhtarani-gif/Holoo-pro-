@@ -122,11 +122,16 @@ function reconcilePartyBalances(input){
    }
    if(allocated>invoiceTotal)add("جمع تخصیص‌های فعال از مبلغ فاکتور "+invoice.number+" بیشتر است");
    const invoiceLedger=partyLedger.filter(x=>String(x.referenceId||"")===String(invoice.number));
-   if(invoice.status!=="REVERSED"&&invoiceLedger.length!==1)add("گردش تفصیلی فاکتور "+invoice.number+" یکتا نیست یا ثبت نشده است");
+   if(invoiceLedger.length!==1)add("گردش تفصیلی فاکتور "+invoice.number+" یکتا نیست یا ثبت نشده است");
    if(invoiceLedger.length===1){
     const row=invoiceLedger[0],expectedDebit=invoice.kind==="SALE"?invoiceTotal:0,expectedCredit=invoice.kind==="PURCHASE"?invoiceTotal:0;
     if(Number(row.partyId)!==partyId||Number(row.debitRial||0)!==expectedDebit||Number(row.creditRial||0)!==expectedCredit)add("مبلغ یا جهت گردش تفصیلی فاکتور "+invoice.number+" با فاکتور مطابقت ندارد");
    }
+   const reversalRows=partyLedger.filter(x=>String(x.referenceId||"")==="REVERSAL:"+invoice.number);
+   if(invoice.status==="REVERSED"){
+    const expectedDebit=invoice.kind==="PURCHASE"?invoiceTotal:0,expectedCredit=invoice.kind==="SALE"?invoiceTotal:0;
+    if(reversalRows.length!==1||Number(reversalRows[0]?.partyId)!==partyId||Number(reversalRows[0]?.debitRial||0)!==expectedDebit||Number(reversalRows[0]?.creditRial||0)!==expectedCredit)add("گردش تفصیلی برگشت فاکتور "+invoice.number+" با اصل فاکتور مطابقت ندارد");
+   }else if(reversalRows.length)add("برای فاکتور فعال "+invoice.number+" گردش برگشت غیرمنتظره ثبت شده است");
   }
   // Every active allocation must fit inside its source treasury transaction.
   const partyAllocations=allocations.filter(x=>Number(x.partyId)===partyId||invoices.some(inv=>inv.number===x.invoiceNumber&&Number(inv.partyId)===partyId));

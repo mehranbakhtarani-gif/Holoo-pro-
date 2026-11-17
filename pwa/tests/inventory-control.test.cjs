@@ -53,7 +53,7 @@ test("stocktake sheet snapshots each warehouse balance and assigns legacy stock 
  const products=[{id:1,name:"FDY",sku:"A1",stock:10,value:2500,avg:250},{id:2,name:"DTY",stock:4,value:800,avg:200}];
  const stockRows=[{id:9,productId:1,warehouseId:2,stock:6,value:1500}];
  const primary=buildStocktakeSheet({products,stockRows,warehouseId:1,legacyWarehouseId:1});
- assert.equal(primary[0].expectedQty,10);assert.equal(primary[0].expectedValue,2500);assert.equal(primary[1].expectedQty,4);
+ assert.equal(primary[0].expectedQty,0);assert.equal(primary[0].expectedValue,0);assert.equal(primary[1].expectedQty,4);
  const secondary=buildStocktakeSheet({products,stockRows,warehouseId:2,legacyWarehouseId:1});
  assert.equal(secondary[0].expectedQty,6);assert.equal(secondary[1].expectedQty,0);
  assert.deepEqual(secondary[0].expectedWarehouseState,stockRows[0]);

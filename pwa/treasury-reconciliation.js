@@ -38,7 +38,7 @@ function reconcileTreasuryRecords(input){
  const rows=treasury.map(record=>{
   const issues=[],reference=String(record.reference||""),amount=Number(record.amount),isParty=Number.isSafeInteger(Number(record.partyId))&&Number(record.partyId)>0;
   let voucher=null,lines=[],expected=null,sourceOriginal=null,foreignPayment=null,ledgerAmount=amount,party=null;
-  const add=message=>{if(!issues.includes(message))issues.push(message)},safeCashCode=method=>{try{return cashCode(method)}catch(error){add(error.message);return ""}};
+  const add=message=>{if(!issues.includes(message))issues.push(message)},safeCashCode=method=>{try{return cashCode(method)}catch(error){add(error.message);return ""}},readAmount=(value,label)=>{try{return safeAmount(value,label)}catch(error){add(error.message);return 0}};
   if(!reference)add("شناسه مرجع خزانه خالی است");
   if(reference&&referenceCounts.get(reference)!==1)add("شناسه مرجع خزانه تکراری است");
   if(!Number.isSafeInteger(amount)||amount<=0)add("مبلغ خزانه معتبر نیست");
@@ -74,8 +74,8 @@ function reconcileTreasuryRecords(input){
    if(matches.length!==1)add(matches.length?"جزئیات پرداخت ارزی تکراری است":"جزئیات پرداخت ارزی پیدا نشد");
    else{
     foreignPayment=matches[0];ledgerAmount=Number(foreignPayment.bookedRial);
-    const booked=safeAmount(foreignPayment.bookedRial,"ارزش دفتری پرداخت ارزی"),settlement=safeAmount(foreignPayment.settlementRial,"مبلغ تسویه ارزی"),gain=safeAmount(foreignPayment.fxGainRial||0,"سود تسعیر"),loss=safeAmount(foreignPayment.fxLossRial||0,"زیان تسعیر");
-    if(record.kind!=="PAYMENT"||Number(foreignPayment.payableId)!==Number(record.foreignPayableId)||settlement!==amount||Number(foreignPayment.amountMinor)!==Number(record.foreignAmountMinor)||String(foreignPayment.currency||record.currency)!==String(record.currency)||Number(foreignPayment.fxRateRialPerUnit||0)!==Number(record.fxRateRialPerUnit||0)||foreignPayment.method!==record.method||Number(foreignPayment.supplierId)!==Number(record.partyId)||gain>0&&loss>0||booked+loss!==settlement+gain)add("مبلغ، ارز، نرخ یا پیوند پرداخت ارزی با گردش خزانه متفاوت است");
+    const booked=readAmount(foreignPayment.bookedRial,"ارزش دفتری پرداخت ارزی"),settlement=readAmount(foreignPayment.settlementRial,"مبلغ تسویه ارزی"),gain=readAmount(foreignPayment.fxGainRial||0,"سود تسعیر"),loss=readAmount(foreignPayment.fxLossRial||0,"زیان تسعیر");
+    if(booked<=0||settlement<=0||record.kind!=="PAYMENT"||Number(foreignPayment.payableId)!==Number(record.foreignPayableId)||settlement!==amount||Number(foreignPayment.amountMinor)!==Number(record.foreignAmountMinor)||String(foreignPayment.currency||"")!==String(record.currency||"")||Number(foreignPayment.fxRateRialPerUnit||0)!==Number(record.fxRateRialPerUnit||0)||foreignPayment.method!==record.method||Number(foreignPayment.supplierId)!==Number(record.partyId)||gain>0&&loss>0||booked+loss!==settlement+gain)add("مبلغ، ارز، نرخ یا پیوند پرداخت ارزی با گردش خزانه متفاوت است");
     const cash=safeCashCode(record.method);
     expected=[{accountCode:"2101",debitRial:booked,creditRial:0},{accountCode:cash,debitRial:0,creditRial:settlement}];
     if(Number(foreignPayment.fxGainRial||0)>0)expected.push({accountCode:"4301",debitRial:0,creditRial:Number(foreignPayment.fxGainRial)});

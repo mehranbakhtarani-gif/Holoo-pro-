@@ -8,6 +8,7 @@ on:
     branches:
       - feature/pwa-customization-framework
       - feature/pwa-customization-qa
+      - feature/pwa-page-audit-phase-2
     paths:
       - "pwa/**"
       - ".github/workflows/pwa-quality.yml"

@@ -65,3 +65,15 @@ test("manual operation dates are enabled for sales orders and stamp their creati
  const order=stampOperationRecord({store:"salesOrders",record:{date:now,createdAt:now,updatedAt:now,validUntil:now+86400000},mode:"MANUAL",manualValue,now});
  assert.equal(order.date,at);assert.equal(order.createdAt,at);assert.equal(order.updatedAt,at);assert.equal(order.validUntil,now+86400000);
 });
+
+test("default invoice due date is calculated from the selected operation date, not wall-clock time",()=>{
+ const {defaultInvoiceDueDate}=require("../operation-date.js");
+ const invoiceDate=new Date(2026,0,15,9,30).getTime();
+ const due=defaultInvoiceDueDate(invoiceDate,30);
+ const expected=new Date(invoiceDate);expected.setHours(12,0,0,0);expected.setDate(expected.getDate()+30);
+ assert.equal(due,expected.getTime());
+ assert.equal(new Date(due).getDate(),14);
+ assert.equal(defaultInvoiceDueDate(invoiceDate,0),null);
+ assert.throws(()=>defaultInvoiceDueDate(invoiceDate,-1));
+ assert.throws(()=>defaultInvoiceDueDate(Number.MAX_SAFE_INTEGER,1));
+});

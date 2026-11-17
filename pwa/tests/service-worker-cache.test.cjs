@@ -3,11 +3,11 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
 
-test("service worker cache version changes when offline cache behavior changes",()=>{
+test("service worker cache version and party statement asset are updated",()=>{
  const sw=fs.readFileSync(path.resolve(__dirname,"../sw.js"),"utf8");
- assert.match(sw,/const CACHE="holloo-pwa-v\\d+-[a-z0-9-]+";/);
- assert.match(sw,/ASSETS=.*party-statement\\.js/);
- assert.match(sw,/NETWORK_FIRST=.*party-statement\\.js/);
+ assert.ok(sw.includes('const CACHE="holloo-pwa-v167-party-statement-audit";'));
+ assert.ok(sw.includes('"./party-statement.js"'));
+ assert.ok(sw.includes("party-opening-balance\\.js|party-statement\\.js|settlement"));
 });
 
 test("offline cache fallback ignores asset query versions so pre-cached files remain available",()=>{

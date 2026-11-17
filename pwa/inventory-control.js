@@ -111,7 +111,7 @@ function buildStocktakeSheet(input){
   const expectedQty=Number(row?.stock??(legacy?product.stock||0:0)),expectedValue=Number(row?.value??(legacy?product.value||0:0));
   const productStock=Number(product.stock||0),productValue=Number(product.value||0);
   if(!Number.isFinite(expectedQty)||expectedQty<0||!Number.isSafeInteger(expectedValue)||expectedValue<0||!Number.isFinite(productStock)||productStock<0||!Number.isSafeInteger(productValue)||productValue<0)throw new Error("مانده دفتری کالا یا انبار معتبر نیست");
-  return {productId,warehouseId,sku:String(product.sku||""),productName:String(product.name||""),expectedQty,expectedValue,expectedProductState:{stock:productStock,value:productValue},expectedWarehouseState:row?{...row}:null,countedQty:null,appliedAt:null};
+  return {productId,warehouseId,sku:String(product.sku||""),productName:String(product.name||""),expectedQty,expectedValue,expectedProductState:{stock:product.stock,value:product.value},expectedWarehouseState:row?{...row}:null,countedQty:null,appliedAt:null};
  });
 }
 function buildStocktakeComparison(input){

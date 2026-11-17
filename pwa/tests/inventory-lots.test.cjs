@@ -161,7 +161,7 @@ test("transfer reversal rejects destination lots whose original source provenanc
 });
 
 test("reverses a multi-warehouse FIFO transfer chain in reverse order and restores the original lot",()=>{
- const root=receipt("CN-CHAIN",10,10000,100);
+ const root=planLotReceipt({productId:1,productName:"FDY",warehouseId:1,sourceType:"IMPORT_SHIPMENT",sourceId:"CN-CHAIN",sourceNumber:"CN-CHAIN",quantity:10,totalCost:10000,receivedAt:100});
  const first=planLotTransfer({lots:[root],productId:1,productName:"FDY",sourceWarehouseId:1,destinationWarehouseId:2,quantity:6,sourceWarehouseStock:{stock:10,value:10000},transferId:"WT-CHAIN-1",date:200});
  const firstState=new Map([...first.sourceLotUpdates,...first.destinationLots].map(lot=>[String(lot.id),lot]));
  const second=planLotTransfer({lots:[...firstState.values()],productId:1,productName:"FDY",sourceWarehouseId:2,destinationWarehouseId:3,quantity:4,sourceWarehouseStock:{stock:6,value:6000},transferId:"WT-CHAIN-2",date:300});

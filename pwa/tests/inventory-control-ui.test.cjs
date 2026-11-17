@@ -11,7 +11,7 @@ test("inventory reports expose a persistent count sheet and controlled variance 
  assert.match(app,/id="saveStocktakeCounts"/);
  assert.match(app,/data-stocktake-apply=/);
  assert.match(app,/stocktakeId:Number\(options\.stocktakeId\)/);
- assert.match(app,/expectedWarehouseState/);
+ assert.match(app,/expectedWarehouseState/);assert.match(fs.readFileSync(path.join(root,"inventory-control.js"),"utf8"),/globalThis\.HolooInventoryControl=\{[^}]*buildStocktakeSheet/);
 });
 test("stocktake store migration is additive and offline assets receive a new cache version",()=>{
  assert.match(app,/for\(const s of stores\)if\(!d\.objectStoreNames\.contains\(s\)\)d\.createObjectStore\(s/);

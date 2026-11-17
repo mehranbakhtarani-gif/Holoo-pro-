@@ -2,9 +2,11 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const {spawn}=require("node:child_process");
 const {chromium}=require("playwright");
+const {after}=require("node:test");
 
 let server,browser,context,page;
 const origin="http://127.0.0.1:4179";
+after(async()=>{try{await context?.close()}catch(_){}try{await browser?.close()}catch(_){}try{server?.kill()}catch(_){}});
 
 async function downloadText(download){
  const stream=await download.createReadStream();
@@ -67,7 +69,7 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   await page.locator('#entryForm [name="maxStock"]').fill("100");
   await page.locator('#entryForm [name="price1"]').fill("120000");
   await page.locator('#entryForm button[type="submit"]').click();
-  await page.waitForFunction(()=>!document.querySelector("#modal").hidden);
+  await page.waitForFunction(()=>document.querySelector("#modal").hidden===true);
   await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.includes("ذخیره اطلاعات"));
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("نخ آزمایشی ممیزی"));
   await page.locator("#search").fill("ALT-002");

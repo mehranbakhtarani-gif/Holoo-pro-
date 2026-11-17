@@ -75,7 +75,8 @@ async function reconcileLegacyImportChargePwa(id){
  for(const payment of candidates){
   const amount=Number(payment.amount),reference=String(payment.reference||"");
   if(payment.kind!=="PAYMENT"||!Number.isSafeInteger(amount)||amount<=0||!reference||(payment.currency&&payment.currency!=="IRR"))throw Error("اطلاعات یکی از پرداخت‌های قدیمی معتبر نیست؛ تطبیق خودکار متوقف شد");
-  if(seen.has(reference))throw Error("مرجع پرداخت قدیمی تکراری است؛ ابتدا مغایرت را دستی بررسی کنید");
+  if(seen.has(reference)||treasury.filter(x=>x.reference===reference).length!==1)throw Error("مرجع پرداخت قدیمی تکراری یا غیر یکتا است؛ ابتدا مغایرت را دستی بررسی کنید");
+  if(!Number.isFinite(Number(payment.date)))throw Error("تاریخ یکی از پرداخت‌های قدیمی معتبر نیست");
   seen.add(reference);
   if(payment.importChargePayableId&&Number(payment.importChargePayableId)!==Number(payable.id))throw Error("این پرداخت قبلاً به هزینه دیگری متصل شده است");
   if(!["بانک","صندوق"].includes(payment.method))throw Error("روش یکی از پرداخت‌های قدیمی مشخص نیست");
@@ -89,8 +90,8 @@ async function reconcileLegacyImportChargePwa(id){
   const debit2102=lines.filter(x=>String(x.accountCode)==="2102"&&Number(x.debitRial)===amount&&Number(x.creditRial||0)===0);
   const creditCash=lines.filter(x=>String(x.accountCode)===cashCode&&Number(x.creditRial)===amount&&Number(x.debitRial||0)===0);
   if(lines.length!==2||debit2102.length!==1||creditCash.length!==1)throw Error("سند یکی از پرداخت‌های قدیمی دقیقاً با بدهکار ۲۱۰۲ و بستانکار صندوق/بانک تطبیق ندارد");
-  const ledgerRows=partyLedger.filter(x=>x.referenceId===reference&&Number(x.partyId)===partyId&&Number(x.debitRial||0)===amount&&Number(x.creditRial||0)===0);
-  if(ledgerRows.length!==1)throw Error("گردش تفصیلی پرداخت قدیمی یکتا نیست؛ برای جلوگیری از دوباره‌کاری تطبیق خودکار متوقف شد");
+  const ledgerRows=partyLedger.filter(x=>x.referenceId===reference);
+  if(ledgerRows.length!==1||Number(ledgerRows[0].partyId)!==partyId||Number(ledgerRows[0].debitRial||0)!==amount||Number(ledgerRows[0].creditRial||0)!==0)throw Error("گردش تفصیلی پرداخت قدیمی یکتا نیست یا با طلبکار و مبلغ پرداخت تطبیق ندارد؛ برای جلوگیری از دوباره‌کاری تطبیق خودکار متوقف شد");
   snapshots.push({...payment});
   paymentAmounts.push(amount);
  }

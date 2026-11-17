@@ -849,7 +849,7 @@ function bindInventoryTools(products,invoices,adjustments,stockRows,transfers,sh
  const run=$("#runKardex");if(run)run.onclick=()=>{try{
   const parseDate=(value,endOfDay=false)=>{if(!value)return null;const [y,m,d]=value.split("-").map(Number);return endOfDay?new Date(y,m-1,d,23,59,59,999).getTime():new Date(y,m-1,d).getTime()};
   const result=HolooInventoryControl.buildInventoryKardex({productId:Number($("#kardexProduct").value),warehouseId:$("#kardexWarehouse").value||null,from:parseDate($("#kardexFrom").value),to:parseDate($("#kardexTo").value,true),products,invoices,adjustments,transfers,shipments,warehouseStock:stockRows});
-  const movementLabels={PURCHASE:"خرید",SALE:"فروش",ADJUSTMENT:"اصلاح موجودی",TRANSFER_OUT:"انتقال خروجی",TRANSFER_IN:"انتقال ورودی",IMPORT_RECEIPT:"رسید محموله",PURCHASE_REVERSAL:"برگشت خرید",SALE_REVERSAL:"برگشت فروش"};
+  const movementLabels={PURCHASE:"خرید",SALE:"فروش",ADJUSTMENT:"اصلاح موجودی",TRANSFER_OUT:"انتقال خروجی",TRANSFER_IN:"انتقال ورودی",TRANSFER_REVERSAL_IN:"برگشت انتقال ورودی",TRANSFER_REVERSAL_OUT:"برگشت انتقال خروجی",IMPORT_RECEIPT:"رسید محموله",PURCHASE_REVERSAL:"برگشت خرید",SALE_REVERSAL:"برگشت فروش"};
   const movementLabel=type=>movementLabels[type]||type;
   const headers=["تاریخ","نوع","شماره سند","شرح","ورود kg","خروج kg","ارزش ورود ریال","ارزش خروج ریال","مانده kg","ارزش مانده ریال"];
   const body=result.rows.map(x=>'<tr><td>'+date(x.date)+'</td><td>'+h(movementLabel(x.type))+'</td><td>'+h(x.reference)+'</td><td>'+h(x.description)+'</td><td>'+fmt(x.quantityIn)+'</td><td>'+fmt(x.quantityOut)+'</td><td>'+money(x.valueIn)+'</td><td>'+money(x.valueOut)+'</td><td>'+fmt(x.balanceQty)+'</td><td>'+money(x.balanceValue)+'</td></tr>');

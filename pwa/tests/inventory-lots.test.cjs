@@ -143,12 +143,12 @@ test("reverses a transfer only while every destination FIFO lot remains untouche
  const first=receipt("CN-REV-A",10,10000,100),second=receipt("CN-REV-B",10,20000,200);
  const transfer=planLotTransfer({lots:[first,second],productId:1,productName:"FDY",sourceWarehouseId:2,destinationWarehouseId:3,quantity:15,sourceWarehouseStock:{stock:20,value:30000},transferId:"WT-REV",date:300});
  const allLots=[...transfer.sourceLotUpdates,...transfer.destinationLots];
- const reversed=planLotTransferReversal({transfer:{number:"WT-REV",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:15,value:25000,lotAllocations:transfer.allocations},lots:allLots,date:400});
- assert.equal(reversed.quantity,15);assert.equal(reversed.value,25000);
+ const reversed=planLotTransferReversal({transfer:{number:"WT-REV",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:15,value:20000,lotAllocations:transfer.allocations},lots:allLots,date:400});
+ assert.equal(reversed.quantity,15);assert.equal(reversed.value,20000);
  assert.equal(reversed.sourceLotUpdates.find(x=>x.id===first.id).remainingQty,10);
  assert.equal(reversed.sourceLotUpdates.find(x=>x.id===first.id).remainingValue,10000);
  assert.ok(reversed.destinationLotUpdates.every(x=>x.remainingQty===0&&x.remainingValue===0&&x.status==="REVERSED"));
- const consumed=planLotSale({productId:1,productName:"FDY",warehouseId:3,quantity:1,warehouseStock:{stock:15,value:25000},lots:transfer.destinationLots,date:350});
+ const consumed=planLotSale({productId:1,productName:"FDY",warehouseId:3,quantity:1,warehouseStock:{stock:15,value:20000},lots:transfer.destinationLots,date:350});
  const changedLots=[...transfer.sourceLotUpdates,...consumed.newLots,...consumed.updates];
  assert.throws(()=>planLotTransferReversal({transfer:{number:"WT-REV",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:15,value:25000,lotAllocations:transfer.allocations},lots:changedLots,date:400}),/مصرف، جابه‌جا یا تغییر/);
 });

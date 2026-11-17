@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {getInvoiceSettlement,validateTreasuryAllocation,calculateTreasuryForeignAllocation,getActiveInvoiceForeignAllocatedMinor}=require("../settlement.js");
+const {getInvoiceSettlement,validateTreasuryAllocation,calculateTreasuryForeignAllocation,getActiveInvoiceForeignAllocatedMinor,validateTreasuryAllocationReversalOrder}=require("../settlement.js");
 
 test("draft invoices cannot be settled or allocated",()=>{
  const draft={number:"D-1",status:"DRAFT",total:500};
@@ -61,4 +61,15 @@ test("reversed foreign allocations release the invoice booked and foreign balanc
  const rows=[{invoiceNumber:"FX-3",amount:900000,bookedRial:900000,foreignAmountMinor:150,status:"REVERSED"}];
  assert.deepEqual(getInvoiceSettlement(invoice,rows),{paid:0,outstanding:900000,status:"UNPAID"});
  assert.equal(getActiveInvoiceForeignAllocatedMinor("FX-3",rows),0);
+});
+
+test("cumulative FX allocation reversals must follow reverse order across invoice and treasury chains",()=>{
+ const first={id:10,treasuryId:3,invoiceNumber:"INV-A",currency:"USD",foreignAmountMinor:300};
+ const second={id:11,treasuryId:4,invoiceNumber:"INV-A",currency:"USD",foreignAmountMinor:200};
+ const third={id:12,treasuryId:3,invoiceNumber:"INV-B",currency:"USD",foreignAmountMinor:100};
+ const rows=[first,second,third];
+ assert.throws(()=>validateTreasuryAllocationReversalOrder({allocation:first,allocations:rows}),/جدیدترین تخصیص/);
+ assert.throws(()=>validateTreasuryAllocationReversalOrder({allocation:second,allocations:rows}),/جدیدترین تخصیص/);
+ assert.equal(validateTreasuryAllocationReversalOrder({allocation:third,allocations:rows}),true);
+ assert.equal(validateTreasuryAllocationReversalOrder({allocation:second,allocations:[first,second]}),true);
 });

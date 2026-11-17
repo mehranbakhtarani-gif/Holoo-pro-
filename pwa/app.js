@@ -327,7 +327,7 @@ async function createPartyWithOpeningBalance(record,plan){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(["parties","partyLedger","vouchers","voucherLines","auditLog"],"readwrite");
   let partyId=null;
-  const partyRecord=stamp({store:"parties",record:{...record},mode,manualValue});
+  const partyRecord=withoutUndefinedId(stamp({store:"parties",record:{...record},mode,manualValue}));
   const addParty=tx.objectStore("parties").add(partyRecord);
   addParty.onsuccess=()=>{
    partyId=addParty.result;

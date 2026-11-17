@@ -555,7 +555,6 @@ async function adjustStockPwa(id,options={}){
  if(raw===null)return false;
  const delta=Number(String(raw).replace(",","."));
  if(!Number.isFinite(delta)||Math.abs(delta)<0.000001)throw Error("مقدار اصلاح معتبر نیست");
- if(!Number.isFinite(delta)||Math.abs(delta)<0.000001)throw Error("مقدار اصلاح معتبر نیست");
  const [warehouses,allStockRows,inventoryLots]=await Promise.all([all("warehouses"),all("warehouseStock"),all("inventoryLots")]);
  if(!warehouses.length)throw Error("ابتدا حداقل یک انبار تعریف کنید");
  let warehouse=options.warehouseId!==undefined?warehouses.find(w=>Number(w.id)===Number(options.warehouseId)):warehouses[0];

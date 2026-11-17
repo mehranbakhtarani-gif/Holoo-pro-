@@ -75,3 +75,8 @@ test("legacy import-order writes apply the shared automatic or manual operation 
  assert.match(app,/stamp\(\{store:"imports",record,mode:operationDateMode,manualValue:operationManualDate\}\)/);
  assert.match(app,/const value=stamp\(\{store:"imports",record,mode:operationDateMode,manualValue:operationManualDate\}\)/);
 });
+
+test("legacy import order and payable booking share exact two-decimal FX conversion",()=>{
+ assert.match(app,/goodsRial=convertForeignGoodsToRial\(goods,fx\)\.goodsRial/);
+ assert.match(app,/amountMinor=convertForeignGoodsToRial\(shipment\.goods,shipment\.fx\)\.goodsMinor/);
+});

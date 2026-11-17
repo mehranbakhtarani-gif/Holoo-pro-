@@ -120,3 +120,17 @@ test("ledger CSV exports filtered rows, opening-aware balances and escaped Persi
  assert.match(csv,/1050/);
  assert.doesNotMatch(csv,/بعدی/);
 });
+
+test("ledger running balances ignore movements after the report end date",()=>{
+ const result=buildLedgerRunningRows({
+  accounts:[{id:"1101",openingDebitRial:1000,openingCreditRial:0}],
+  rows:[
+   {date:100,number:"1",accountCode:"1101",debit:100,credit:0},
+   {date:200,number:"2",accountCode:"1101",debit:0,credit:25},
+   {date:300,number:"3",accountCode:"1101",debit:0,credit:900}
+  ],
+  accountCode:"1101",fromDate:100,toDate:200
+ });
+ assert.deepEqual(result.rows.map(x=>[x.number,x.runningBalance]),[["1",1100],["2",1075]]);
+ assert.equal(result.openingBalances["1101"],1000);
+});

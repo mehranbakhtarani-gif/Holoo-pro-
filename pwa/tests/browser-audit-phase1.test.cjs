@@ -30,7 +30,7 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
  page.on("pageerror",error=>pageErrors.push(error.message));
  page.on("dialog",dialog=>dialog.accept());
  await page.goto(origin,{waitUntil:"networkidle"});
- await page.waitForFunction(()=>window.__HOLLOO_READY__===true,{timeout:20000});
+ try{await page.waitForFunction(()=>window.__HOLLOO_READY__===true,{timeout:12000})}catch(error){const diagnostics=await page.evaluate(()=>({ready:window.__HOLLOO_READY__,stage:window.__HOLLOO_STAGE__,main:document.querySelector("#main")?.innerText,body:document.body.innerText.slice(0,1800)}));throw new Error("PWA startup failed: "+JSON.stringify(diagnostics)+" pageErrors="+pageErrors.join(" | "));}
 
  await t.test("dashboard loads with no runtime error and primary navigation is wired",async()=>{
   assert.match(await page.locator("h1").first().textContent(),/داشبورد/);

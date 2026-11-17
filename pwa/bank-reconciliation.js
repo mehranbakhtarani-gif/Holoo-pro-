@@ -42,11 +42,11 @@ function parseBankCsv(text,defaultBank=""){
 }
 function getTreasurySignedAmount(row){return row.kind==="RECEIPT"?Number(row.amount):-Number(row.amount)}
 function normalizeBankIdentity(value){
- return String(value||"").normalize("NFKC").replace(/[يى]/g,"ی").replace(/ك/g,"ک").toLocaleLowerCase("fa").replace(/[\\s\\u200c\\-_/\\.،,()]+/g,"").trim();
+ return String(value||"").normalize("NFKC").replace(/[يى]/g,"ی").replace(/ك/g,"ک").toLocaleLowerCase("fa").replace(/[\s\u200c\-_/\.،,()]+/g,"").trim();
 }
 function bankIdentityMatches(line,row){
  const statementBank=normalizeBankIdentity(line&&line.bank),accountName=normalizeBankIdentity(row&&row.accountName),accountCode=String(row&&row.accountCode||"");
- if(accountCode&&!/^1102\\d*$/.test(accountCode))return false;
+ if(accountCode&&!/^1102\d*$/.test(accountCode))return false;
  if(!statementBank)return true;
  if(!accountName)return false;
  return accountName===statementBank||accountName.includes(statementBank)||statementBank.includes(accountName);

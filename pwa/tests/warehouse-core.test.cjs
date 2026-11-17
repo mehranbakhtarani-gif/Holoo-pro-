@@ -55,3 +55,16 @@ test("PWA wires warehouse core into invoice and transfer workflows", () => {
  assert.match(sw,/\.\/warehouse-stock\.js/);
  assert.match(sw,/\.\/warehouse-transfer\.js/);
 });
+
+test("transfers legacy product stock when no per-warehouse stock rows exist yet",()=>{
+ const result=calculateWarehouseTransfer({product:{id:9,name:"FDY",stock:10,value:25000},source:{id:1},destination:{id:2},quantity:4,sourceRows:[],destinationRows:[]});
+ assert.equal(result.sourceRecord.stock,6);
+ assert.equal(result.sourceRecord.value,15000);
+ assert.equal(result.destinationRecord.stock,4);
+ assert.equal(result.destinationRecord.value,10000);
+ assert.equal(result.sourceRecord.value+result.destinationRecord.value,25000);
+});
+test("does not treat stock in another warehouse as legacy stock for an empty source warehouse",()=>{
+ const result=calculateWarehouseTransfer({product:{id:9,name:"FDY",stock:10,value:25000},source:{id:1},destination:{id:2},quantity:1,sourceRows:[{productId:9,warehouseId:3,stock:10,value:25000}],destinationRows:[{productId:9,warehouseId:3,stock:10,value:25000}]});
+ assert.throws(()=>result,/never/);
+});

@@ -36,7 +36,7 @@ function reconcileTreasuryRecords(input){
  const rows=treasury.map(record=>{
   const issues=[],reference=String(record.reference||""),amount=Number(record.amount),isParty=Number.isSafeInteger(Number(record.partyId))&&Number(record.partyId)>0;
   let voucher=null,lines=[],expected=null,sourceOriginal=null,foreignPayment=null,ledgerAmount=amount,party=null;
-  const add=message=>{if(!issues.includes(message))issues.push(message)};
+  const add=message=>{if(!issues.includes(message))issues.push(message)},safeCashCode=method=>{try{return cashCode(method)}catch(error){add(error.message);return ""}};
   if(!reference)add("شناسه مرجع خزانه خالی است");
   if(reference&&referenceCounts.get(reference)!==1)add("شناسه مرجع خزانه تکراری است");
   if(!Number.isSafeInteger(amount)||amount<=0)add("مبلغ خزانه معتبر نیست");
@@ -63,7 +63,7 @@ function reconcileTreasuryRecords(input){
     }
     if(sourceOriginal.foreignPayableId){
      foreignPayment=foreignPayments.find(x=>x.reference===sourceOriginal.reference)||null;
-     if(!foreignPayment)add("جزئیات پرداخت ارزی اصلی برای برگشت پیدا نشد");
+     if(!foreignPayment)add("جزئیات پرداخت ارزی اصلی برای برگشت پیدا نشد");else ledgerAmount=Number(foreignPayment.bookedRial);
     }
    }
   }else if(record.foreignPayableId){
@@ -72,7 +72,7 @@ function reconcileTreasuryRecords(input){
    else{
     foreignPayment=matches[0];ledgerAmount=Number(foreignPayment.bookedRial);
     if(Number(foreignPayment.payableId)!==Number(record.foreignPayableId)||Number(foreignPayment.settlementRial)!==amount||Number(foreignPayment.amountMinor)!==Number(record.foreignAmountMinor)||foreignPayment.method!==record.method||Number(foreignPayment.supplierId)!==Number(record.partyId))add("مبلغ یا پیوند پرداخت ارزی با گردش خزانه متفاوت است");
-    const cash=cashCode(record.method);
+    const cash=safeCashCode(record.method);
     expected=[{accountCode:"2101",debitRial:Number(foreignPayment.bookedRial),creditRial:0},{accountCode:cash,debitRial:0,creditRial:Number(foreignPayment.settlementRial)}];
     if(Number(foreignPayment.fxGainRial||0)>0)expected.push({accountCode:"4301",debitRial:0,creditRial:Number(foreignPayment.fxGainRial)});
     if(Number(foreignPayment.fxLossRial||0)>0)expected.push({accountCode:"5501",debitRial:Number(foreignPayment.fxLossRial),creditRial:0});

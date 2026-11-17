@@ -418,6 +418,8 @@ function putCheckUnique(record,expected=null){
  });
 }
 function putImportOrderUnique(record){
+ const stamp=globalThis.HolooOperationDate?.stampOperationRecord;if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");
+ const value=stamp({store:"imports",record,mode:operationDateMode,manualValue:operationManualDate});
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(["imports","auditLog"],"readwrite"),store=tx.objectStore("imports"),read=store.getAll();
   let savedId,conflict="",missing=false;
@@ -426,7 +428,6 @@ function putImportOrderUnique(record){
    if(record.id!==undefined&&!current){missing=true;try{tx.abort()}catch(_){};return}
    if(rows.some(row=>Number(row.id)!==Number(record.id)&&String(row.container||"").trim().toLowerCase()===String(record.container||"").trim().toLowerCase()))conflict="شماره کانتینر قبلاً ثبت شده است";
    if(conflict){try{tx.abort()}catch(_){};return}
-   const value={...record};
    if(current)value.status=current.status||value.status;
    const write=store.put(value);
    write.onsuccess=()=>{savedId=write.result;tx.objectStore("auditLog").add({action:"ثبت/ویرایش",store:"imports",recordId:savedId,at:Date.now(),summary:"ذخیره سفارش واردات"})};

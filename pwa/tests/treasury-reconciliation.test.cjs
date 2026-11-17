@@ -88,3 +88,19 @@ test("foreign payment requires matching currency, exchange rate, payment directi
  const badFx={...good,foreignPayments:[{...payment,fxLossRial:90}]};
  assert.ok(TreasuryIntegrity.reconcileTreasuryRecords(badFx).rows[0].issues.some(x=>x.includes("ارز، نرخ")));
 });
+
+const fs=require("node:fs");
+const path=require("node:path");
+const root=path.resolve(__dirname,"..");
+test("treasury page uses the reconciliation module and refreshes its PWA asset cache",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
+ const sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
+ assert.match(app,/HolooTreasuryIntegrity\.reconcileTreasuryRecords\(\{treasury,vouchers,voucherLines,accounts,parties,partyLedger,checks,payroll:payrollRows,foreignPayments\}\)/);
+ assert.match(app,/تطبیق خزانه با سند حسابداری و تفصیلی/);
+ assert.ok(html.includes("treasury-reconciliation.js?v=treasury-integrity-3"));
+ assert.ok(html.indexOf("treasury-reconciliation.js")<html.indexOf("app.js"));
+ assert.ok(sw.includes('"./treasury-reconciliation.js"'));
+ assert.match(sw,/holloo-pwa-v169-treasury-reconciliation/);
+ assert.match(sw,/treasury-reconciliation\\.js/);
+});

@@ -15,8 +15,8 @@ test("inventory reports expose a persistent count sheet and controlled variance 
 });
 test("stocktake store migration is additive and offline assets receive a new cache version",()=>{
  assert.match(app,/for\(const s of stores\)if\(!d\.objectStoreNames\.contains\(s\)\)d\.createObjectStore\(s/);
- assert.match(html,/inventory-control\.js\?v=inventory-control-4/);
- assert.match(sw,/holloo-pwa-v165-transfer-kardex-reversal/);
+ assert.match(html,/inventory-control\.js\?v=inventory-control-5/);
+ assert.match(sw,/holloo-pwa-v166-inventory-reconciliation/);
  assert.match(sw,/\.\/inventory-control\.js/);
 });
 
@@ -37,7 +37,7 @@ test("inventory reorder report is wired to the shared product thresholds and has
 });
 
 test("stock adjustment reversal persists FIFO provenance and is exposed only for eligible records",()=>{assert.match(app,/fifoAllocations=sale\.allocations\.map/);assert.match(app,/createdLotIds\.push/);assert.match(app,/voucherReference:"STOCK_ADJUSTMENT:"/);assert.match(app,/async function reverseStockAdjustmentPwa/);assert.match(app,/restoreLotSale\(\{lots,allocations:adjustment\.fifoAllocations/);assert.match(app,/STOCK_ADJUSTMENT_REVERSAL:/);assert.match(app,/data-stock-adjustment-reverse=/);assert.match(app,/اطلاعات FIFO قدیمی ناقص/);});
-test("stock adjustment reversal ships with refreshed PWA cache",()=>{assert.match(html,/app\.js\?v=warehouse-transfer-reversal-1/);assert.match(sw,/holloo-pwa-v165-transfer-kardex-reversal/);});
+test("stock adjustment reversal ships with refreshed PWA cache",()=>{assert.match(html,/app\.js\?v=warehouse-transfer-reversal-1/);assert.match(sw,/holloo-pwa-v166-inventory-reconciliation/);});
 
 test("inventory reports expose read-only reconciliation for warehouse stock, FIFO and account 1301",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");

@@ -118,11 +118,17 @@ function reconcileForeignPayablePayments(input){
   if(!active){
    if(originalTreasury.length===1&&originalTreasury[0].status!=="REVERSED")issues.push("گردش خزانه اصلی وضعیت برگشت ندارد");
    if(reversalTreasury.length!==1)issues.push(reversalTreasury.length?"گردش برگشت خزانه تکراری":"گردش برگشت خزانه پیدا نشد");
-   else if(reversalTreasury[0].kind!=="RECEIPT"||Number(reversalTreasury[0].amount)!==Number(payment.settlementRial))issues.push("مبلغ گردش برگشت خزانه مغایر است");
+   else if(reversalTreasury[0].kind!=="RECEIPT"||Number(reversalTreasury[0].amount)!==Number(payment.settlementRial)||Number(reversalTreasury[0].foreignAmountMinor)!==Number(payment.amountMinor)||Number(reversalTreasury[0].foreignPayableId)!==Number(payment.payableId)||String(reversalTreasury[0].reversalOf||"")!==reference||reversalTreasury[0].method!==payment.method)issues.push("مبلغ یا مشخصات گردش برگشت خزانه مغایر است");
    if(reversalLedger.length!==1)issues.push(reversalLedger.length?"گردش برگشت طرف حساب تکراری":"گردش برگشت طرف حساب پیدا نشد");
-   else if(Number(reversalLedger[0].partyId)!==Number(payment.supplierId)||Number(reversalLedger[0].creditRial)!==Number(payment.bookedRial))issues.push("گردش برگشت طرف حساب مغایر است");
+   else if(Number(reversalLedger[0].partyId)!==Number(payment.supplierId)||Number(reversalLedger[0].debitRial||0)!==0||Number(reversalLedger[0].creditRial)!==Number(payment.bookedRial))issues.push("گردش برگشت طرف حساب مغایر است");
    if(reversalVouchers.length!==1)issues.push(reversalVouchers.length?"سند برگشت تکراری":"سند برگشت حسابداری پیدا نشد");
-   else{const debit=reversalLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=reversalLines.reduce((n,x)=>n+Number(x.creditRial||0),0);if(!reversalLines.length||debit!==credit)issues.push("سند برگشت نامتوازن است")}
+   else{
+    const debit=reversalLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=reversalLines.reduce((n,x)=>n+Number(x.creditRial||0),0);
+    if(!reversalLines.length||debit!==credit)issues.push("سند برگشت نامتوازن است");
+    const aggregate=rows=>{const map=new Map();for(const line of rows){const code=String(line.accountCode),current=map.get(code)||{debit:0,credit:0};current.debit+=Number(line.debitRial||0);current.credit+=Number(line.creditRial||0);map.set(code,current)}return map};
+    const originalByAccount=aggregate(lines),reversalByAccount=aggregate(reversalLines),codes=new Set([...originalByAccount.keys(),...reversalByAccount.keys()]);
+    for(const code of codes){const original=originalByAccount.get(code)||{debit:0,credit:0},reversal=reversalByAccount.get(code)||{debit:0,credit:0};if(original.debit!==reversal.credit||original.credit!==reversal.debit){issues.push("سند برگشت به‌صورت معکوس با حساب "+code+" تطبیق ندارد");break}}
+   }
   }else if(reversalTreasury.length||reversalLedger.length||reversalVouchers.length)issues.push("برای پرداخت فعال، سند برگشت غیرمنتظره وجود دارد");
   return {paymentId:payment.id,reference,sourceNumber:payment.sourceNumber,status:active?"فعال":"برگشت‌شده",ok:issues.length===0,issues};
  });

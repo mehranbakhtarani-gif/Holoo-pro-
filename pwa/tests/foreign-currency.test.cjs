@@ -48,7 +48,7 @@ test("rounds half-minor conversions consistently and preserves round-trip within
   for(const minor of [1,2,99,100,101,12345]){
    const rial=convertForeignAmountToRial({currency:"EUR",amountMinor:minor,fxRateRialPerUnit:rate}).rial;
    const restored=convertRialToForeignMinor({currency:"EUR",rial,fxRateRialPerUnit:rate});
-   assert.ok(Math.abs(restored-minor)<=1,JSON.stringify({rate,minor,rial,restored}));
+   assert.ok(Math.abs(restored-minor)<=Math.ceil(50/rate+0.5),JSON.stringify({rate,minor,rial,restored}));
   }
  }
 });

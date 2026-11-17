@@ -15,7 +15,8 @@ test("party statement CSV exports opening balance and dated running ledger balan
  assert.match(app,/data-party-statement-csv=/);
  assert.match(app,/a\.download="party-statement-"\+party\.id\+"\.csv"/);
  assert.match(app,/مانده افتتاحیه/);
- assert.match(app,/partyLedger\.filter\(r=>Number\(r\.partyId\)===Number\(party\.id\)\)/);
+ assert.match(app,/partyStatementData\(party,partyLedger\)/);
+ assert.match(app,/for\(const row of statement\.rows\)/);
  assert.match(app,/\["نام طرف حساب",party\.name/);assert.match(app,/\["تلفن",party\.phone\|\|"—"/);assert.match(app,/ماهیت/);
 });
 

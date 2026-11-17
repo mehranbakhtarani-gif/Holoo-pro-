@@ -96,3 +96,8 @@ test("aging receivables and payables report offers a print-ready A4 export",()=>
  assert.match(app,/section\("مطالبات مشتریان",aging\.receivables\)/);
  assert.match(app,/section\("بدهی تأمین‌کنندگان",aging\.payables\)/);
 });
+
+test("accounting ledger and fiscal-close end-date filters include the final millisecond of the selected day",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.ok((app.match(/T23:59:59\.999/g)||[]).length>=4);
+});

@@ -21,7 +21,7 @@ test("foreign receipts and payments retain currency and exchange rate", () => {
 
 test("settlement recognizes FX gains and losses with balanced ledger accounts", () => {
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/calculateRealizedForeignExchange\(/);
+ assert.match(app,/calculateCumulativeRealizedForeignExchange\(/);
  assert.match(app,/4301/);
  assert.match(app,/5501/);
  assert.match(app,/fxGainRial/);

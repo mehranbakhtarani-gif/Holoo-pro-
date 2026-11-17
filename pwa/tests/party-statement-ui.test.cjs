@@ -57,3 +57,8 @@ test("all additional payable and FX control-account journal lines carry the resp
  assert.match(app,/accountCode:"2101",partyId:party\.id,debitRial:plan\.bookedRial,creditRial:0/);
  assert.match(app,/accountCode:"2101",partyId:party\.id,debitRial:0,creditRial:cost,description:"بدهی خرید دارایی/);
 });
+
+
+test("foreign payable reversal control-account line retains supplier identity",()=>{
+ assert.match(app,/accountCode:"2101",partyId:party\.id,debitRial:0,creditRial:plan\.bookedRial,description:"برگشت بدهی ارزی "/);
+});

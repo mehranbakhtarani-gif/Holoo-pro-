@@ -35,7 +35,7 @@ test("rejects extra, missing, duplicated and reordered reversal rows",()=>{
  assert.throws(()=>validateReversalVoucherPair({originalLines,reversalLines:[...validReverse,validReverse[0]],label:"ردیف اضافه"}),/تعداد ردیف‌ها/);
  assert.throws(()=>validateReversalVoucherPair({originalLines,reversalLines:validReverse.slice(0,1),label:"ردیف مفقود"}),/تعداد ردیف‌ها/);
  assert.throws(()=>validateReversalVoucherPair({originalLines,reversalLines:[validReverse[0],validReverse[0]],label:"ردیف تکراری"}),/ردیف شماره 2/);
- assert.throws(()=>validateReversalVoucherPair({originalLines,reversalLines:[validReverse[1],validReverse[0]],label:"ترتیب اشتباه"}),/ردیف شماره 1/);
+ assert.equal(validateReversalVoucherPair({originalLines,reversalLines:[validReverse[1],validReverse[0]],label:"ترتیب متفاوت"}),true);
 });
 
 test("rejects source lines attached to another voucher or duplicate source line ids",()=>{

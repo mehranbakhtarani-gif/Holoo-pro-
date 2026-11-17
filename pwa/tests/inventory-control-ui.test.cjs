@@ -35,3 +35,6 @@ test("inventory reorder report is wired to the shared product thresholds and has
  assert.match(app,/holloo-reorder-suggestions\.csv/);
  assert.match(fs.readFileSync(path.join(root,"inventory-control.js"),"utf8"),/function buildReorderReport\(input\)/);
 });
+
+test("stock adjustment reversal persists FIFO provenance and is exposed only for eligible records",()=>{assert.match(app,/fifoAllocations=sale\.allocations\.map/);assert.match(app,/createdLotIds\.push/);assert.match(app,/voucherReference:"STOCK_ADJUSTMENT:"/);assert.match(app,/async function reverseStockAdjustmentPwa/);assert.match(app,/restoreLotSale\(\{lots,allocations:adjustment\.fifoAllocations/);assert.match(app,/STOCK_ADJUSTMENT_REVERSAL:/);assert.match(app,/data-stock-adjustment-reverse=/);assert.match(app,/اطلاعات FIFO قدیمی ناقص/);});
+test("stock adjustment reversal ships with refreshed PWA cache",()=>{assert.match(html,/app\.js\?v=inventory-adjustment-reversal-1/);assert.match(sw,/holloo-pwa-v163-adjustment-reversal/);});

@@ -51,6 +51,14 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
    assert.ok(!/undefined|null/i.test(heading),tab.key+" rendered an invalid heading: "+heading);
    assert.equal(await page.locator("#sidebar .nav.active").getAttribute("data-page"),tab.key);
   }
+  await page.setViewportSize({width:390,height:844});
+  for(const tab of tabs){
+   await page.locator('#mobileNav [data-page="'+tab.key+'"]').click();
+   await page.waitForFunction(()=>Boolean(document.querySelector("#main h1")?.textContent.trim()));
+   const layout=await page.evaluate(()=>({width:document.querySelector("#main").clientWidth,scroll:document.querySelector("#main").scrollWidth}));
+   assert.ok(layout.scroll<=layout.width+2,tab.key+" overflows the mobile workspace");
+  }
+  await page.setViewportSize({width:1440,height:900});
   await page.locator('#sidebar [data-page="home"]').click();
   await page.waitForFunction(()=>document.querySelector("#main h1")?.textContent.includes("داشبورد"));
  });

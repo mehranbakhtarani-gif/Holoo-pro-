@@ -5,7 +5,7 @@ const path=require("node:path");
 
 test("service worker cache version and party statement asset are updated",()=>{
  const sw=fs.readFileSync(path.resolve(__dirname,"../sw.js"),"utf8");
- assert.ok(sw.includes('const CACHE="holloo-pwa-v167-party-statement-audit";'));
+ assert.ok(sw.includes('const CACHE="holloo-pwa-v168-import-decimal-cost";'));
  assert.ok(sw.includes('"./party-statement.js"'));
  assert.ok(sw.includes("party-opening-balance\\.js|party-statement\\.js|settlement"));
 });

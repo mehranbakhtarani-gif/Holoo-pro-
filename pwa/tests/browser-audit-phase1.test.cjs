@@ -173,10 +173,10 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   const statement=await downloadText(csvDownload);
   assert.ok(statement.includes("مشتری آزمایشی ممیزی"));
 
-  const searchBeforeClear=await page.locator("#search").elementHandle();
+  await page.locator("#search").fill("__NO_MATCH_FOR_AUDIT__");
+  await page.waitForFunction(()=>document.querySelector("#main .empty")?.textContent.includes("هنوز اطلاعاتی ثبت نشده"));
   await page.locator("#search").fill("");
-  await page.waitForFunction(old=>document.querySelector("#search")!==old,searchBeforeClear);
-  await searchBeforeClear.dispose();
+  await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("مشتری آزمایشی ممیزی"));
   await page.locator("#addBtn").click();
   await page.waitForFunction(()=>document.querySelector("#modal")?.hidden===false);
   await page.locator('#entryForm [name="name"]').fill("مشتری مسدود آزمایشی");

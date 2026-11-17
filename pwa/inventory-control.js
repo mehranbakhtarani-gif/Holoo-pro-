@@ -34,7 +34,7 @@ function buildInventoryMovements(input){
  const rows=[];
  const add=(row)=>{if(Number.isFinite(row.date)&&Number.isFinite(row.quantityIn)&&Number.isFinite(row.quantityOut)&&Number.isSafeInteger(row.valueIn)&&Number.isSafeInteger(row.valueOut))rows.push(row)};
  for(const invoice of input.invoices||[]){
-  if(invoice.status==="REVERSED"||invoice.status==="DRAFT"||!["PURCHASE","SALE"].includes(invoice.kind))continue;
+  if(invoice.status==="DRAFT"||!["PURCHASE","SALE"].includes(invoice.kind))continue;
   for(const [index,line] of (Array.isArray(invoice.lines)?invoice.lines:[]).entries()){
    if(Number(line.productId)!==productId)continue;
    const wid=Number(line.warehouseId||invoice.warehouseId||0);if(warehouseId!==null&&wid!==warehouseId)continue;
@@ -44,6 +44,10 @@ function buildInventoryMovements(input){
    const amount=inbound?Number(line.inventoryCostRial??line.lineTotal??0):Number(line.cogs??(allocated||0));
    if(!Number.isSafeInteger(amount)||amount<0)throw new Error("بهای ردیف فاکتور برای کاردکس معتبر نیست");
    add({date:Number(invoice.date||0),type:inbound?"PURCHASE":"SALE",reference:String(invoice.number||invoice.id||""),description:(inbound?"خرید ":"فروش ")+(invoice.number||""),warehouseId:wid,quantityIn:inbound?qty:0,quantityOut:inbound?0:qty,valueIn:inbound?amount:0,valueOut:inbound?0:amount,sourceId:invoice.id??null,lineIndex:index});
+   if(invoice.status==="REVERSED"){
+    const reversalDate=Number(invoice.reversedAt??invoice.date??0);
+    add({date:reversalDate,type:inbound?"PURCHASE_REVERSAL":"SALE_REVERSAL",reference:String(invoice.number||invoice.id||""),description:"برگشت "+(inbound?"خرید ":"فروش ")+(invoice.number||""),warehouseId:wid,quantityIn:inbound?0:qty,quantityOut:inbound?qty:0,valueIn:inbound?0:amount,valueOut:inbound?amount:0,sourceId:invoice.id??null,lineIndex:index});
+   }
   }
  }
  for(const adjustment of input.adjustments||[]){

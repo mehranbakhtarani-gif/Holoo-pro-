@@ -89,6 +89,21 @@ function reconcilePartyBalances(input){
    foreignPayableLedgerBalanceRial+=relatedNet;if(!Number.isSafeInteger(foreignPayableLedgerBalanceRial))add("جمع گردش تفصیلی تعهدات ارزی از محدوده عددی مجاز خارج است");
    if(relatedNet!==-outstanding)add("مانده تعهد ارزی با گردش تفصیلی همان محموله برابر نیست");
   }
+  // Cross-check ordinary party-linked treasury movements against the subledger.
+  // Ancillary and foreign-payable settlements have richer source-specific checks above.
+  const partyTreasury=treasury.filter(x=>Number(x.partyId)===partyId&&!x.importAncillaryPayment&&!x.foreignPayableId&&String(x.reference||"").trim());
+  for(const transaction of partyTreasury){
+   const reference=String(transaction.reference),sameReference=treasury.filter(x=>String(x.reference||"")===reference);
+   if(sameReference.length!==1)add("شناسه مرجع گردش خزانه برای طرف حساب تکراری است");
+   if(!["RECEIPT","PAYMENT"].includes(transaction.kind)){add("نوع گردش خزانه طرف حساب معتبر نیست");continue}
+   let amount;
+   try{amount=safeRial(transaction.amount,"مبلغ گردش خزانه")}catch(e){add(e.message);continue}
+   if(amount<=0){add("مبلغ گردش خزانه باید مثبت باشد");continue}
+   const movements=partyLedger.filter(x=>String(x.referenceId||"")===reference);
+   if(movements.length!==1){add(movements.length?"گردش تفصیلی گردش خزانه تکراری است":"گردش تفصیلی گردش خزانه ثبت نشده است");continue}
+   const movement=movements[0],expectedDebit=transaction.kind==="PAYMENT"?amount:0,expectedCredit=transaction.kind==="RECEIPT"?amount:0;
+   if(Number(movement.partyId)!==partyId||Number(movement.debitRial||0)!==expectedDebit||Number(movement.creditRial||0)!==expectedCredit)add("مبلغ یا طرف حساب گردش تفصیلی با گردش خزانه مطابقت ندارد");
+  }
   return {partyId,partyName:String(party.name||""),partyKind:String(party.kind||""),partyBalance,ledgerBalance,difference,openingMovementCount:openingRows.length,ancillaryPayableCount:assigned.length,ancillaryOutstandingRial,ancillaryLedgerBalanceRial,foreignPayableCount:assignedForeign.length,foreignPayableOutstandingRial,foreignPayableLedgerBalanceRial,ok:issues.length===0,issues};
  });
  const orphanPayableCount=orphanImportPayables.length+orphanForeignPayables.length+orphanForeignPayments.length;

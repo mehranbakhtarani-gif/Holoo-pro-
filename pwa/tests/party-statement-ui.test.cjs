@@ -38,3 +38,11 @@ test("party statement rejects malformed debit or credit ledger movements",()=>{
  assert.match(app,/Number\.isSafeInteger\(Number\(r\.debitRial\|\|0\)\)/);
  assert.match(app,/Number\.isSafeInteger\(Number\(r\.creditRial\|\|0\)\)/);
 });
+
+
+test("invoice and opening control-account journal lines retain their party identity",()=>{
+ assert.match(app,/accountCode:"1103",partyId:p\.id,debitRial:total/);
+ assert.match(app,/accountCode:"2101",partyId:p\.id,debitRial:0,creditRial:total/);
+ assert.match(app,/accountCode:"2101",partyId:commissionParty\.id,debitRial:0,creditRial:commissionAmount/);
+ assert.match(app,/for\(const line of plan\.journal\)tx\.objectStore\("voucherLines"\)\.add\(\{\.\.\.line,partyId,voucherId:addVoucher\.result\}\)/);
+});

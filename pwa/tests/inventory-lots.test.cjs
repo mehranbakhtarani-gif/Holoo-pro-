@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {planLotReceipt,planLotSale,planLotTransfer,restoreLotSale,summarizeLotProfit}=require("../inventory-lots.js");
+const {planLotReceipt,planLotSale,planLotTransfer,planLotTransferReversal,restoreLotSale,summarizeLotProfit}=require("../inventory-lots.js");
 const receipt=(id,qty,cost,date,sourceType="IMPORT_SHIPMENT")=>planLotReceipt({productId:1,productName:"FDY سفید 60D",warehouseId:2,sourceType,sourceId:id,sourceNumber:id,container:"C-"+id,supplierName:"Supplier",quantity:qty,totalCost:cost,receivedAt:date});
 test("creates immutable source metadata and full-cost lot for an inbound shipment",()=>{
  const lot=receipt("CN-1",100,125000,100);
@@ -137,4 +137,18 @@ test("summarizes realized shipment profit, margin, sell-through and remaining in
  assert.equal(report.rows[0].soldCost,40000);assert.equal(report.rows[0].grossProfit,20000);
  assert.ok(Math.abs(report.rows[0].grossMarginPercent-100/3)<1e-10);assert.equal(report.rows[0].sellThroughPercent,40);
  assert.equal(report.totals.remainingValue,60000);assert.ok(buildImportShipmentProfitCsv({lots,invoices}).startsWith("\uFEFF"));
+});
+
+test("reverses a transfer only while every destination FIFO lot remains untouched",()=>{
+ const first=receipt("CN-REV-A",10,10000,100),second=receipt("CN-REV-B",10,20000,200);
+ const transfer=planLotTransfer({lots:[first,second],productId:1,productName:"FDY",sourceWarehouseId:2,destinationWarehouseId:3,quantity:15,sourceWarehouseStock:{stock:20,value:30000},transferId:"WT-REV",date:300});
+ const allLots=[...transfer.sourceLotUpdates,...transfer.destinationLots];
+ const reversed=planLotTransferReversal({transfer:{number:"WT-REV",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:15,value:25000,lotAllocations:transfer.allocations},lots:allLots,date:400});
+ assert.equal(reversed.quantity,15);assert.equal(reversed.value,25000);
+ assert.equal(reversed.sourceLotUpdates.find(x=>x.id===first.id).remainingQty,10);
+ assert.equal(reversed.sourceLotUpdates.find(x=>x.id===first.id).remainingValue,10000);
+ assert.ok(reversed.destinationLotUpdates.every(x=>x.remainingQty===0&&x.remainingValue===0&&x.status==="REVERSED"));
+ const consumed=planLotSale({productId:1,productName:"FDY",warehouseId:3,quantity:1,warehouseStock:{stock:15,value:25000},lots:transfer.destinationLots,date:350});
+ const changedLots=[...transfer.sourceLotUpdates,...consumed.newLots,...consumed.updates];
+ assert.throws(()=>planLotTransferReversal({transfer:{number:"WT-REV",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:15,value:25000,lotAllocations:transfer.allocations},lots:changedLots,date:400}),/مصرف، جابه‌جا یا تغییر/);
 });

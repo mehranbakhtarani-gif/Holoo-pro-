@@ -1018,7 +1018,6 @@ const import2102Balance=import2102Opening+import2102Credit-import2102Debit;
 const receivedAncillary=importShipmentRows.filter(x=>x.receivedAt).reduce((n,x)=>n+Math.max(0,Number(x.totalCost||0)-Number(x.goodsRial||0)),0);
 const receiptCreditGap=import2102Credit-receivedAncillary;
 const importChargePaid=importChargePayableRows.reduce((n,x)=>n+Number(x.paidRial||0),0);
-const importChargePayableTotal=importChargePayableRows.reduce((n,x)=>n+Number(x.amountRial||0),0);
 const importChargeOutstanding=importChargePayableRows.filter(x=>x.status!=="RECONCILIATION_REQUIRED").reduce((n,x)=>n+Math.max(0,Number(x.amountRial||0)-Number(x.paidRial||0)),0);
 const importChargeUnassigned=importChargePayableRows.filter(x=>!x.partyId).length;
 const importChargeNeedsReconcile=importChargePayableRows.filter(x=>x.status==="RECONCILIATION_REQUIRED").length;

@@ -37,3 +37,19 @@ test("sale invoice reversal verifies FIFO allocation quantity and COGS against e
   "جمع مقدار یا بهای تخصیص‌های FIFO با ردیف فاکتور فروش یکسان نیست"
  ]) assert.ok(body.includes(expected),"Missing FIFO reversal validation: "+expected);
 });
+
+
+test("invoice reversal verifies FIFO lot ownership before restoring or removing a lot",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ const start=app.indexOf("async function reversePwaInvoice");
+ const end=app.indexOf("\nasync function printInvoiceDocument",start);
+ const body=app.slice(start,end);
+ for(const expected of [
+  'Number(allocatedLot.productId)!==Number(product.id)',
+  'Number(allocatedLot.warehouseId)!==warehouseId',
+  'sourceLot.sourceType!=="PURCHASE_INVOICE"',
+  'String(sourceLot.sourceId)!==String(invoice.number)',
+  'Math.abs(Number(sourceLot.remainingQty)-Number(sourceLot.originalQty))>1e-6',
+  'Number(sourceLot.remainingValue)!==Number(sourceLot.originalCost)'
+ ]) assert.ok(body.includes(expected),"Missing FIFO lot ownership/integrity guard: "+expected);
+});

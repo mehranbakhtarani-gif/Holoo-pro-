@@ -1,6 +1,6 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {code39Svg,buildInventoryKardex,buildStagnantInventoryReport,buildReorderReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv}=require("../inventory-control.js");
+const {code39Svg,buildInventoryKardex,buildStagnantInventoryReport,buildReorderReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv,buildInventoryReconciliation}=require("../inventory-control.js");
 const day=86400000;
 test("Code 39 label renderer accepts normalized alphanumeric codes and rejects unsupported codes",()=>{
  const svg=code39Svg("ab-123");assert.match(svg,/<svg/);assert.match(svg,/<rect/);assert.match(svg,/AB-123/);

@@ -179,3 +179,63 @@ test("reverses a multi-warehouse FIFO transfer chain in reverse order and restor
  assert.equal(reverseFirst.sourceLotUpdates.find(x=>String(x.id)===String(root.id)).remainingValue,10000);
  assert.equal(reverseFirst.destinationLotUpdates.find(x=>x.transferId==="WT-CHAIN-1").remainingQty,0);
 });
+
+
+test("end-to-end FIFO value chain: purchase, A-to-B-to-C transfers, sale, sale reversal and transfer reversals",()=>{
+ const {planLotReceipt,planLotTransfer,planLotSale,restoreLotSale,planLotTransferReversal}=require("../inventory-lots.js");
+ const root=planLotReceipt({productId:71,productName:"FDY",warehouseId:1,sourceType:"PURCHASE_INVOICE",sourceId:"PUR-CHAIN",sourceNumber:"PUR-CHAIN",quantity:100,totalCost:100000,receivedAt:100});
+ let lots=[root],stock=new Map([[1,{stock:100,value:100000}],[2,{stock:0,value:0}],[3,{stock:0,value:0}]]);
+ let account1301=100000;
+ const first=planLotTransfer({lots,productId:71,productName:"FDY",sourceWarehouseId:1,destinationWarehouseId:2,quantity:80,sourceWarehouseStock:stock.get(1),transferId:"CHAIN-AB",date:200});
+ lots=lots.filter(x=>!first.sourceLotUpdates.some(y=>y.id===x.id)).concat(first.sourceLotUpdates,first.destinationLots);
+ stock.set(1,{stock:first.sourceRemainingStock,value:first.sourceRemainingValue});
+ stock.set(2,{stock:80,value:first.transferValue});
+ assert.equal(account1301,100000,"internal transfer A→B must not post to 1301");
+ const second=planLotTransfer({lots,productId:71,productName:"FDY",sourceWarehouseId:2,destinationWarehouseId:3,quantity:50,sourceWarehouseStock:stock.get(2),transferId:"CHAIN-BC",date:300});
+ lots=lots.filter(x=>!second.sourceLotUpdates.some(y=>y.id===x.id)).concat(second.sourceLotUpdates,second.destinationLots);
+ stock.set(2,{stock:second.sourceRemainingStock,value:second.sourceRemainingValue});
+ stock.set(3,{stock:50,value:second.transferValue});
+ assert.equal(account1301,100000,"internal transfer B→C must not post to 1301");
+ const sale=planLotSale({productId:71,productName:"FDY",warehouseId:3,quantity:20,warehouseStock:stock.get(3),lots,date:400});
+ lots=lots.filter(x=>!sale.updates.some(y=>y.id===x.id)).concat(sale.newLots,sale.updates);
+ stock.set(3,{stock:sale.remainingStock,value:sale.remainingValue});
+ account1301-=sale.cogs;
+ assert.equal(sale.cogs,20000);
+ assert.equal(account1301,80000,"sale COGS must credit inventory control by exact FIFO cost");
+ const restored=restoreLotSale({lots,allocations:sale.allocations,date:500});
+ lots=lots.filter(x=>!restored.some(y=>y.id===x.id)).concat(restored);
+ stock.set(3,{stock:50,value:50000});
+ account1301+=sale.cogs;
+ assert.equal(account1301,100000,"sale reversal must restore the exact inventory-control value");
+ const reverseSecond=planLotTransferReversal({transfer:{number:"CHAIN-BC",productId:71,sourceWarehouseId:2,destinationWarehouseId:3,quantity:50,value:50000,lotAllocations:second.allocations},lots,date:600});
+ lots=lots.filter(x=>![...reverseSecond.sourceLotUpdates,...reverseSecond.destinationLotUpdates].some(y=>y.id===x.id)).concat(reverseSecond.sourceLotUpdates,reverseSecond.destinationLotUpdates);
+ stock.set(2,{stock:80,value:80000});stock.set(3,{stock:0,value:0});
+ const reverseFirst=planLotTransferReversal({transfer:{number:"CHAIN-AB",productId:71,sourceWarehouseId:1,destinationWarehouseId:2,quantity:80,value:80000,lotAllocations:first.allocations},lots,date:700});
+ lots=lots.filter(x=>![...reverseFirst.sourceLotUpdates,...reverseFirst.destinationLotUpdates].some(y=>y.id===x.id)).concat(reverseFirst.sourceLotUpdates,reverseFirst.destinationLotUpdates);
+ stock.set(1,{stock:100,value:100000});stock.set(2,{stock:0,value:0});
+ assert.equal(account1301,100000,"transfer reversals must leave 1301 unchanged");
+ assert.deepEqual(stock.get(1),{stock:100,value:100000});
+ assert.deepEqual(stock.get(2),{stock:0,value:0});
+ assert.deepEqual(stock.get(3),{stock:0,value:0});
+ const activeLots=lots.filter(x=>x.status!=="REVERSED");
+ assert.equal(activeLots.reduce((sum,x)=>sum+x.remainingQty,0),100);
+ assert.equal(activeLots.reduce((sum,x)=>sum+x.remainingValue,0),100000);
+ assert.equal(activeLots.find(x=>x.id===root.id).remainingQty,100);
+ assert.equal(activeLots.find(x=>x.id===root.id).remainingValue,100000);
+});
+
+test("invoice journals map purchase, sale COGS and sale reversal to inventory control 1301",()=>{
+ const fs=require("node:fs"),path=require("node:path");
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ const saleStart=app.indexOf('if(kind==="SALE"){',app.indexOf("const voucherNumber="));
+ const saleEnd=app.indexOf('}else{journal.push({accountCode:"1301"',saleStart);
+ assert.ok(saleStart>=0&&saleEnd>saleStart);
+ const saleJournal=app.slice(saleStart,saleEnd);
+ assert.match(saleJournal,/accountCode:"5101",debitRial:cogs/);
+ assert.match(saleJournal,/accountCode:"1301",debitRial:0,creditRial:cogs/);
+ assert.match(app,/journal.push({accountCode:"1301",debitRial:total,creditRial:0,description:"ورود موجودی کالا"})/);
+ const reversalStart=app.indexOf("async function reversePwaInvoice");
+ const reversalEnd=app.indexOf("\\nasync function printInvoiceDocument",reversalStart);
+ const reversal=app.slice(reversalStart,reversalEnd);
+ assert.match(reversal,/oldLines\.map\(l=>\(\{accountCode:l\.accountCode,debitRial:Number\(l\.creditRial\|\|0\),creditRial:Number\(l\.debitRial\|\|0\)/);
+});

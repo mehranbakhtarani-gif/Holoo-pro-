@@ -34,3 +34,10 @@ test("import shipment list exposes landed cost per kg and receipt action", () =>
  assert.match(app,/data-receive-shipment/);
  assert.match(app,/receiveImportShipment\(b.dataset.receiveShipment\)/);
 });
+
+
+test("foreign payable settlement label does not imply ancillary import charges are settled", () => {
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.equal((app.match(/sourceShipment\.status=plan\.updated\.status===\"PAID\"\?\"بهای کالا تسویه‌شده\":\"رسید انبار شده\"/g)||[]).length,2);
+ assert.match(app,/accountCode:\"2102\"/);
+});

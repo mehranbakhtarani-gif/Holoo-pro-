@@ -24,7 +24,7 @@ test("FX allocation reversal posts a reversing voucher and restores party balanc
  assert.match(app,/data-allocation-reverse/);
 });
 
-test("manual operation date is applied to allocation reversal timestamp",()=>{
+test("FX allocation reversal validates original gain/loss accounts before reversing the voucher",()=>{\n const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");\n assert.match(app,/const debitAccount=invoice\.kind===\"SALE\"/);\n assert.match(app,/accountTotals\.size!==2/);\n assert.match(app,/حساب‌های سند تسعیر اصلی با نوع فاکتور و سود\/زیان تخصیص مطابقت ندارد/);\n});\n\ntest("manual operation date is applied to allocation reversal timestamp",()=>{
  const op=fs.readFileSync(path.resolve(__dirname,"../operation-date.js"),"utf8");
  assert.match(op,/treasuryAllocations:\["reversedAt"\]/);
 });

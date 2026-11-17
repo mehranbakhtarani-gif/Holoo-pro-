@@ -65,7 +65,7 @@ function foreignHarness(fxAccount="5501"){
  const all=async store=>(db[store]||[]).map(row=>({...row}));
  const ensureBaseAccounts=async()=>{};
  const postVoucherAtomic=async(...args)=>{written=args};
- const fn=new Function("all","HolooForeignPayables","ensureBaseAccounts","postVoucherAtomic",validatorSource+";"+extract("async function reverseForeignPayablePaymentPwa(id){","\nasync function exportBackup")+";return reverseForeignPayablePaymentPwa;")(all,foreignPayables,ensureBaseAccounts,postVoucherAtomic);
+ const fn=new Function("all","HolooForeignPayables","ensureBaseAccounts","postVoucherAtomic","applyPartyBalanceDelta",validatorSource+";"+extract("async function reverseForeignPayablePaymentPwa(id){","\nasync function exportBackup")+";return reverseForeignPayablePaymentPwa;")(all,foreignPayables,ensureBaseAccounts,postVoucherAtomic,(party,delta)=>{party.balance+=delta});
  return {db,fn,get written(){return written}};
 }
 

@@ -41,9 +41,19 @@ function parseBankCsv(text,defaultBank=""){
  });
 }
 function getTreasurySignedAmount(row){return row.kind==="RECEIPT"?Number(row.amount):-Number(row.amount)}
+function normalizeBankIdentity(value){
+ return String(value||"").normalize("NFKC").replace(/[يى]/g,"ی").replace(/ك/g,"ک").toLocaleLowerCase("fa").replace(/[\\s\\u200c\\-_/\\.،,()]+/g,"").trim();
+}
+function bankIdentityMatches(line,row){
+ const statementBank=normalizeBankIdentity(line&&line.bank),accountName=normalizeBankIdentity(row&&row.accountName),accountCode=String(row&&row.accountCode||"");
+ if(accountCode&&!/^1102\\d*$/.test(accountCode))return false;
+ if(!statementBank)return true;
+ if(!accountName)return false;
+ return accountName===statementBank||accountName.includes(statementBank)||statementBank.includes(accountName);
+}
 function findBankMatchCandidates(line,treasury,matchedTreasuryIds=[],toleranceDays=3){
  const used=new Set(matchedTreasuryIds.map(Number)),tolerance=toleranceDays*86400000;
- return (treasury||[]).filter(row=>row.method==="بانک"&&row.status!=="REVERSED"&&!used.has(Number(row.id))&&getTreasurySignedAmount(row)===Number(line.signedAmount)&&Math.abs(Number(row.date)-Number(line.date))<=tolerance)
+ return (treasury||[]).filter(row=>row.method==="بانک"&&row.status!=="REVERSED"&&!used.has(Number(row.id))&&bankIdentityMatches(line,row)&&getTreasurySignedAmount(row)===Number(line.signedAmount)&&Math.abs(Number(row.date)-Number(line.date))<=tolerance)
   .sort((a,b)=>Math.abs(Number(a.date)-Number(line.date))-Math.abs(Number(b.date)-Number(line.date)));
 }
 function autoMatchBankLines(lines,treasury,toleranceDays=3){
@@ -59,8 +69,9 @@ function autoMatchBankLines(lines,treasury,toleranceDays=3){
 function validateBankManualMatch(line,treasury,matchedTreasuryIds=[]){
  if(!line||line.status==="MATCHED")throw new Error("این ردیف قبلاً تطبیق داده شده است");
  if(!treasury||treasury.method!=="بانک"||treasury.status==="REVERSED")throw new Error("گردش انتخابی از حساب بانکی فعال نیست");
+ if(!bankIdentityMatches(line,treasury))throw new Error("بانک یا حساب انتخاب‌شده با صورت‌حساب یکسان نیست");
  if(getTreasurySignedAmount(treasury)!==Number(line.signedAmount))throw new Error("مبلغ یا جهت گردش بانکی یکسان نیست");
  if(matchedTreasuryIds.map(Number).includes(Number(treasury.id)))throw new Error("این گردش قبلاً با ردیف دیگری تطبیق داده شده است");
  return true;
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={parseBankCsv,getTreasurySignedAmount,findBankMatchCandidates,autoMatchBankLines,validateBankManualMatch};
+if(typeof module!=="undefined"&&module.exports)module.exports={parseBankCsv,getTreasurySignedAmount,normalizeBankIdentity,bankIdentityMatches,findBankMatchCandidates,autoMatchBankLines,validateBankManualMatch};

@@ -97,6 +97,50 @@ function buildStagnantInventoryReport(input){
  }
  return rows.sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name,"fa"));
 }
+function stableStocktakeSnapshot(value){
+ if(Array.isArray(value))return value.map(stableStocktakeSnapshot);
+ if(value&&typeof value==="object"){const result={};for(const key of Object.keys(value).sort())result[key]=stableStocktakeSnapshot(value[key]);return result}
+ return value;
+}
+function stocktakeSnapshotSignature(value){return JSON.stringify(stableStocktakeSnapshot(value))}
+function buildStocktakeSnapshot(input){
+ const warehouseId=Number(input.warehouseId),products=input.products||[],stockRows=input.stockRows||[],inventoryLots=input.inventoryLots||[];
+ if(!Number.isSafeInteger(warehouseId)||warehouseId<=0)throw new Error("انبار برای انبارگردانی معتبر نیست");
+ const productIds=products.map(x=>Number(x.id)).sort((a,b)=>a-b);
+ if(productIds.some(x=>!Number.isSafeInteger(x)||x<=0)||new Set(productIds).size!==productIds.length)throw new Error("فهرست کالاها برای شروع انبارگردانی معتبر یا یکتا نیست");
+ const lines=products.map(product=>{
+  const productId=Number(product.id),rows=stockRows.filter(x=>Number(x.productId)===productId&&Number(x.warehouseId)===warehouseId);
+  if(rows.length>1)throw new Error("برای یک کالا در انبار چند ردیف موجودی ثبت شده است");
+  const row=rows[0]||null,expectedQty=Number(row?.stock||0),expectedValue=Number(row?.value||0);
+  if(!Number.isFinite(expectedQty)||expectedQty<0||!Number.isSafeInteger(expectedValue)||expectedValue<0)throw new Error("مانده دفتری "+(product.name||productId)+" برای انبارگردانی معتبر نیست");
+  const lots=inventoryLots.filter(x=>Number(x.productId)===productId&&Number(x.warehouseId)===warehouseId).slice().sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  const lotIds=lots.map(x=>String(x.id)).sort();
+  if(lotIds.some(x=>!x||x==="undefined")||new Set(lotIds).size!==lotIds.length)throw new Error("شناسه بچ‌های "+(product.name||productId)+" معتبر یا یکتا نیست");
+  return {productId,productName:product.name||"",sku:product.sku||"",warehouseId,expectedQty,expectedValue,countedQty:null,status:"PENDING",stockRowSnapshot:stocktakeSnapshotSignature(row),lotSnapshot:stocktakeSnapshotSignature(lots),lotIds};
+ });
+ return {productIds,lines};
+}
+function validateStocktakeSnapshot(input){
+ const header=input.header,lines=input.lines||[],products=input.products||[],stockRows=input.stockRows||[],inventoryLots=input.inventoryLots||[];
+ if(!header||!Number.isSafeInteger(Number(header.warehouseId)))throw new Error("سربرگ انبارگردانی معتبر نیست");
+ const currentProductIds=products.map(x=>Number(x.id)).sort((a,b)=>a-b),snapshotProductIds=Array.isArray(header.productIds)?header.productIds.map(Number).sort((a,b)=>a-b):lines.map(x=>Number(x.productId)).sort((a,b)=>a-b);
+ if(lines.length!==Number(header.lineCount)||lines.length!==snapshotProductIds.length||new Set(snapshotProductIds).size!==snapshotProductIds.length)throw new Error("تعداد یا شناسه ردیف‌های انبارگردانی با تصویر اولیه برابر نیست");
+ if(currentProductIds.length!==snapshotProductIds.length||currentProductIds.some((id,index)=>id!==snapshotProductIds[index]))throw new Error("فهرست کالاها از زمان شروع انبارگردانی تغییر کرده است؛ انبارگردانی را دوباره شروع کنید");
+ const seen=new Set();
+ for(const line of lines){
+  const productId=Number(line.productId),key=String(productId);
+  if(!Number.isSafeInteger(productId)||seen.has(key)||Number(line.warehouseId)!==Number(header.warehouseId)||line.stocktakeNumber!==header.number)throw new Error("ردیف شمارش به سربرگ یا انبار اشتباه متصل شده است");
+  seen.add(key);
+  if(typeof line.stockRowSnapshot!=="string"||typeof line.lotSnapshot!=="string"||!Array.isArray(line.lotIds))throw new Error("تصویر اولیه موجودی یا بچ‌ها در این انبارگردانی وجود ندارد؛ آن را دوباره شروع کنید");
+  const rows=stockRows.filter(x=>Number(x.productId)===productId&&Number(x.warehouseId)===Number(header.warehouseId));
+  if(rows.length>1)throw new Error("برای یک کالا چند ردیف موجودی انبار ثبت شده است");
+  if(stocktakeSnapshotSignature(rows[0]||null)!==line.stockRowSnapshot)throw new Error("ردیف موجودی دفتری "+(line.productName||productId)+" پس از شروع شمارش تغییر کرده است");
+  const lots=inventoryLots.filter(x=>Number(x.productId)===productId&&Number(x.warehouseId)===Number(header.warehouseId)).slice().sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  const lotIds=lots.map(x=>String(x.id)).sort();
+  if(stocktakeSnapshotSignature(lots)!==line.lotSnapshot||lotIds.length!==line.lotIds.length||lotIds.some((id,index)=>id!==String(line.lotIds[index])))throw new Error("بچ‌های FIFO "+(line.productName||productId)+" پس از شروع شمارش تغییر کرده‌اند");
+ }
+ return true;
+}
 function buildStocktakeComparison(input){
  const stockRows=input.stockRows||[],counts=input.counts||[],products=input.products||[];
  const seen=new Set(),result=[];
@@ -118,5 +162,5 @@ function buildInventoryCsv(rows,headers){
  const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
  return "\uFEFF"+[headers,...rows].map(row=>row.map(quote).join(",")).join("\r\n");
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeComparison,buildInventoryCsv};
-if(typeof globalThis!=="undefined")globalThis.HolooInventoryControl={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeComparison,buildInventoryCsv};
+if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeSnapshot,validateStocktakeSnapshot,buildStocktakeComparison,buildInventoryCsv};
+if(typeof globalThis!=="undefined")globalThis.HolooInventoryControl={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeSnapshot,validateStocktakeSnapshot,buildStocktakeComparison,buildInventoryCsv};

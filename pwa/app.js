@@ -124,7 +124,7 @@ async function reversePwaInvoice(number){
   let valueChange=0;
   if(invoice.kind==="SALE"){
    const cost=Number(line.cogs||0);if(!Number.isSafeInteger(cost)||cost<0)throw Error("بهای تمام‌شده ردیف فروش برای برگشت نامعتبر است");
-   if(Array.isArray(line.lotAllocations)&&line.lotAllocations.length){const allocatedQty=line.lotAllocations.reduce((sum,row)=>sum+Number(row.quantity),0),allocatedCogs=line.lotAllocations.reduce((sum,row)=>sum+Number(row.cogs),0);if(!Number.isFinite(allocatedQty)||Math.abs(allocatedQty-totalQty)>1e-6||!Number.isSafeInteger(allocatedCogs)||allocatedCogs!==cost)throw Error("جمع مقدار یا بهای تخصیص‌های FIFO با ردیف فاکتور فروش یکسان نیست؛ برگشت متوقف شد");lotAllocationsToRestore.push(...line.lotAllocations);}
+   if(Array.isArray(line.lotAllocations)&&line.lotAllocations.length){for(const allocation of line.lotAllocations){const allocatedLot=inventoryLots.find(row=>String(row.id)===String(allocation.lotId));if(!allocatedLot||Number(allocatedLot.productId)!==Number(product.id)||Number(allocatedLot.warehouseId)!==warehouseId)throw Error("بچ تخصیص‌یافته به این ردیف کالا یا انبار متعلق نیست؛ برگشت متوقف شد")}const allocatedQty=line.lotAllocations.reduce((sum,row)=>sum+Number(row.quantity),0),allocatedCogs=line.lotAllocations.reduce((sum,row)=>sum+Number(row.cogs),0);if(!Number.isFinite(allocatedQty)||Math.abs(allocatedQty-totalQty)>1e-6||!Number.isSafeInteger(allocatedCogs)||allocatedCogs!==cost)throw Error("جمع مقدار یا بهای تخصیص‌های FIFO با ردیف فاکتور فروش یکسان نیست؛ برگشت متوقف شد");lotAllocationsToRestore.push(...line.lotAllocations);}
    stockRow.stock=warehouseStock+totalQty;stockRow.value=warehouseValue+cost;product.stock=productStock+totalQty;product.value=productValue+cost;valueChange=cost;
   }else{
    if(warehouseStock+1e-9<totalQty||productStock+1e-9<totalQty)throw Error("موجودی برای برگشت خرید در انبار یا کل کالا کافی نیست");
@@ -132,7 +132,8 @@ async function reversePwaInvoice(number){
    if(line.inboundLotId){
     const sourceLot=inventoryLots.find(x=>String(x.id)===String(line.inboundLotId));
     if(!sourceLot)throw Error("بچ خرید برای برگشت پیدا نشد");
-    if(Number(sourceLot.remainingQty)+1e-6<Number(sourceLot.originalQty))throw Error("بخشی از این بچ قبلاً فروخته یا منتقل شده است؛ برگشت فاکتور خرید امن نیست");
+    if(Number(sourceLot.productId)!==Number(product.id)||Number(sourceLot.warehouseId)!==warehouseId||sourceLot.sourceType!=="PURCHASE_INVOICE"||String(sourceLot.sourceId)!==String(invoice.number))throw Error("بچ مرجع با کالا، انبار یا فاکتور خرید مطابقت ندارد؛ برگشت متوقف شد");
+    if(!Number.isFinite(Number(sourceLot.remainingQty))||Math.abs(Number(sourceLot.remainingQty)-Number(sourceLot.originalQty))>1e-6||Number(sourceLot.remainingValue)!==Number(sourceLot.originalCost))throw Error("بچ خرید قبلاً مصرف، جابه‌جا یا از نظر مقدار/ارزش تغییر کرده است؛ برگشت فاکتور خرید امن نیست");
     cost=Number(sourceLot.remainingValue);
     if(!Number.isSafeInteger(cost)||cost!==Number(line.inventoryCostRial??line.lineTotal??0))throw Error("بهای بچ خرید با فاکتور یکسان نیست");
     lotUpdates.push({...sourceLot,remainingQty:0,remainingValue:0,status:"REVERSED",reversedAt:Date.now()});

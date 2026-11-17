@@ -6,7 +6,7 @@ const root=path.resolve(__dirname,"..");
 
 test("bank statement stores migrate without clearing existing records",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/DB_VERSION=11/);
+ assert.match(app,/DB_VERSION=12/);
  assert.match(app,/bankStatements/);
  assert.match(app,/bankStatementLines/);
 });

@@ -59,7 +59,7 @@ async function reverseTreasuryPwa(id){
  if(original.importAncillaryPayment){
  const payable=payables.find(x=>Number(x.id)===Number(original.importChargePayableId));if(!payable||Number(payable.partyId)!==Number(party.id)||Number(payable.paidRial)<Number(original.amount))throw Error("حساب پرداختنی هزینه جانبی با پرداخت خزانه تطبیق ندارد");
  const payableSnapshot={...payable};payable.paidRial=Number(payable.paidRial)-Number(original.amount);payable.status=payable.paidRial===0?"OPEN":"PARTIAL";payable.updatedAt=now;
- party.balance=Number(party.balance||0)-Number(original.amount);if(!Number.isSafeInteger(party.balance))throw Error("مانده طلبکار پس از برگشت نامعتبر است");
+ applyPartyBalanceDelta(party,-Number(original.amount),"طلبکار هزینه واردات");
  const movement={partyId:party.id,date:now,debitRial:0,creditRial:Number(original.amount),description:"برگشت پرداخت "+(original.importChargeCategoryLabel||"هزینه جانبی"),referenceId:reference};
  reversalEntries.push(["importChargePayables",payable],["parties",party],["partyLedger",movement]);reversalGuards.push({store:"importChargePayables",key:Number(payable.id),expected:payableSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot});
  }else{const movement={partyId:party.id,date:now,debitRial:original.kind==="RECEIPT"?Number(original.amount):0,creditRial:original.kind==="PAYMENT"?Number(original.amount):0,description:"برگشت گردش خزانه",referenceId:reference};applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));reversalEntries.push(["parties",party],["partyLedger",movement]);reversalGuards.push({store:"parties",key:Number(party.id),expected:partySnapshot});}

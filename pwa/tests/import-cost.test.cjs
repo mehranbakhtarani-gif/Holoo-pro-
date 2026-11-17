@@ -78,3 +78,13 @@ test("adds itemized direct import costs to landed cost and returns breakdown",()
  assert.deepEqual(result.breakdown,{freight:100000,customs:200000,insurance:30000,port:40000,inland:50000,broker:60000,storage:70000,bank:8000,other:12000});
  assert.throws(()=>calculateImportShipmentCost({currency:"USD",fx:1,goods:1,weight:1,storage:-1}));
 });
+
+test("supports two-decimal foreign goods amounts and matches foreign payable booking conversion",()=>{
+ const {convertForeignGoodsToRial}=require("../import-cost.js");
+ const {convertMinorAtRate}=require("../foreign-payables.js");
+ const result=calculateImportShipmentCost({currency:"USD",fx:50000,goods:1000.5,weight:10000,freight:500});
+ assert.equal(result.goodsRial,50025000);
+ assert.equal(convertForeignGoodsToRial(1000.5,50000).goodsMinor,100050);
+ assert.equal(result.goodsRial,convertMinorAtRate(100050,50000));
+ assert.throws(()=>calculateImportShipmentCost({currency:"USD",fx:50000,goods:1000.501,weight:10000}),/دو رقم اعشار/);
+});

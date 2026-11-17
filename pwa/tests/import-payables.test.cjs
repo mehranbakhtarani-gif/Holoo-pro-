@@ -79,3 +79,31 @@ test("legacy reconciliation refuses a mismatched 2102 voucher without changing r
  assert.equal(h.db.parties[0].balance,400);
  assert.equal(h.db.importChargePayables[0].status,"RECONCILIATION_REQUIRED");
 });
+
+test("ancillary import payment reversal restores payable, party balance, treasury and journal atomically",async()=>{
+ const app=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","app.js"),"utf8");
+ const start=app.indexOf("async function reverseTreasuryPwa(id){"),end=app.indexOf("async function reconcileLegacyImportChargePwa(id){",start);
+ assert.ok(start>=0&&end>start);
+ const db={
+  treasury:[{id:1,kind:"PAYMENT",method:"بانک",partyId:3,partyName:"طلبکار",currency:"IRR",amount:200,date:10,reference:"TREASURY:IMPORT-CHARGE:5:10",importAncillaryPayment:true,importChargePayableId:5,status:"POSTED"}],
+  parties:[{id:3,name:"طلبکار",balance:-800}],
+  vouchers:[{id:10,reference:"TREASURY:IMPORT-CHARGE:5:10"}],
+  voucherLines:[{voucherId:10,accountCode:"2102",debitRial:200,creditRial:0},{voucherId:10,accountCode:"1102",debitRial:0,creditRial:200}],
+  treasuryAllocations:[],
+  importChargePayables:[{id:5,partyId:3,partyName:"طلبکار",amountRial:500,paidRial:200,status:"PARTIAL"}],
+  partyLedger:[]
+ };
+ let posted=null;
+ const all=async store=>(db[store]||[]).map(row=>({...row}));
+ const applyPartyBalanceDelta=(party,delta)=>{party.balance+=delta};
+ const postVoucherAtomic=async(entries,voucher,lines,guards)=>{posted={entries,voucher,lines,guards}};
+ const reverse=new Function("all","applyPartyBalanceDelta","postVoucherAtomic",app.slice(start,end)+";return reverseTreasuryPwa;")(all,applyPartyBalanceDelta,postVoucherAtomic);
+ await reverse(1);
+ assert.equal(posted.entries.find(x=>x[0]==="importChargePayables")[1].paidRial,0);
+ assert.equal(posted.entries.find(x=>x[0]==="importChargePayables")[1].status,"OPEN");
+ assert.equal(posted.entries.find(x=>x[0]==="parties")[1].balance,-1000);
+ assert.equal(posted.entries.find(x=>x[0]==="treasury")[1].status,"REVERSED");
+ assert.equal(posted.entries.find(x=>x[0]==="partyLedger")[1].creditRial,200);
+ assert.deepEqual(posted.lines.map(x=>[x.accountCode,x.debitRial,x.creditRial]),[["2102",0,200],["1102",200,0]]);
+ assert.ok(posted.guards.some(x=>x.store==="importChargePayables"&&x.key===5));
+});

@@ -107,7 +107,7 @@ test("party statements display opening balance before dated movements",()=>{
 test("parties page filters by ID, name, type, phone, address and balance",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/جست‌وجوی کد، نام، تلفن، نشانی، نوع یا مانده طرف حساب/);
- assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\)\]/);
+ assert.match(app,/parties\.filter\(x=>\[x\.id,x\.name,x\.kind==="CUSTOMER"\?"مشتری":x\.kind==="SUPPLIER"\?"تأمین‌کننده":"هر دو",x\.group,x\.region,x\.phone,x\.email,x\.nationalId,x\.economicCode,x\.postalCode,x\.address,x\.balance,fmt\(x\.balance\|\|0\),x\.status==="BLOCKED"\?"مسدود":"فعال",x\.blockedReason\]/);
 });
 
  

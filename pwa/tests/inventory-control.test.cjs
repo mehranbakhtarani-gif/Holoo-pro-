@@ -67,7 +67,7 @@ test("stocktake comparison uses saved count-session snapshots rather than change
 
 test("kardex preserves the original invoice and reversal date as separate inventory movements",()=>{
  const result=buildInventoryKardex({productId:1,products:[{id:1,stock:10,value:1000}],invoices:[
-  {id:1,kind:"PURCHASE",number:"P-REV",date:100,kind:"PURCHASE",status:"REVERSED",reversedAt:300,lines:[{productId:1,qty:5,inventoryCostRial:500}]}
+  {id:1,kind:"PURCHASE",number:"P-REV",date:100,status:"REVERSED",reversedAt:300,lines:[{productId:1,qty:5,inventoryCostRial:500}]}
  ]});
  assert.equal(result.rows.length,2);
  assert.equal(result.rows[0].type,"PURCHASE");

@@ -15,3 +15,55 @@ test("service worker cache is refreshed with the payable release",()=>{const sw=
 
 test("legacy payment reconciliation validates the original 2102 and cash journal before linking",()=>{const app=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","app.js"),"utf8");assert.match(app,/async function reconcileLegacyImportChargePwa/);assert.match(app,/String\(x\.accountCode\)===\"2102\"/);assert.match(app,/const cashCode=payment\.method===\"بانک\"\?\"1102\":\"1101\"/);assert.match(app,/ledgerRows\.length!==1/);assert.match(app,/paidRial>totalRial/);});
 test("legacy reconciliation is exposed in the UI and writes atomically without a new voucher",()=>{const app=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","app.js"),"utf8");assert.match(app,/data-import-charge-reconcile/);assert.match(app,/reconcileLegacyImportChargePwa\(button\.dataset\.importChargeReconcile\)/);assert.match(app,/await putManyGuarded\(entries,guards\)/);});
+
+function legacyReconciliationHarness(voucherAccount="2102") {
+ const fs=require("node:fs"), path=require("node:path");
+ const app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
+ const start=app.indexOf("async function reconcileLegacyImportChargePwa(id){");
+ const end=app.indexOf("async function reverseTreasuryAllocationPwa(id){",start);
+ if(start<0||end<=start)throw Error("legacy reconciliation function not found");
+ const db={
+  importChargePayables:[{id:5,shipmentId:7,shipmentNumber:"S-7",category:"freight",categoryLabel:"حمل",amountRial:1000,paidRial:0,partyId:null,status:"RECONCILIATION_REQUIRED",reference:"IMPORT-CHARGE:7:freight"}],
+  treasury:[{id:9,kind:"PAYMENT",method:"بانک",partyId:3,partyName:"طلبکار",amount:400,currency:"IRR",date:10,reference:"TREASURY:OLD:9",importAncillaryPayment:true,importShipmentId:7,importChargeCategory:"freight"}],
+  parties:[{id:3,name:"طلبکار",kind:"SUPPLIER",balance:400}],
+  vouchers:[{id:11,reference:"TREASURY:OLD:9"}],
+  voucherLines:[{voucherId:11,accountCode:voucherAccount,debitRial:400,creditRial:0},{voucherId:11,accountCode:"1102",debitRial:0,creditRial:400}],
+  partyLedger:[{id:13,partyId:3,date:10,debitRial:400,creditRial:0,referenceId:"TREASURY:OLD:9"}],
+  treasuryAllocations:[]
+ };
+ let writes=0;
+ const all=async store=>(db[store]||[]).map(row=>({...row}));
+ const safeRialTotal=values=>values.reduce((sum,value)=>{if(!Number.isSafeInteger(value)||!Number.isSafeInteger(sum+value))throw Error("unsafe total");return sum+value},0);
+ const applyPartyBalanceDelta=(party,delta)=>{party.balance+=delta};
+ const putManyGuarded=async entries=>{
+  writes++;
+  for(const [store,value] of entries){
+   const rows=db[store]||(db[store]=[]);
+   const index=rows.findIndex(row=>Number(row.id)===Number(value.id));
+   if(index>=0)rows[index]={...value};
+   else rows.push({...value,id:store==="partyLedger"?Math.max(0,...rows.map(row=>Number(row.id)||0))+1:value.id});
+  }
+ };
+ const reconcile=new Function("all","safeRialTotal","applyPartyBalanceDelta","putManyGuarded",app.slice(start,end)+";return reconcileLegacyImportChargePwa;")(all,safeRialTotal,applyPartyBalanceDelta,putManyGuarded);
+ return {db,reconcile,get writes(){return writes}};
+}
+
+test("legacy reconciliation links verified payments and records the payable accrual once",async()=>{
+ const h=legacyReconciliationHarness();
+ await h.reconcile(5);
+ assert.equal(h.db.importChargePayables[0].status,"PARTIAL");
+ assert.equal(h.db.importChargePayables[0].paidRial,400);
+ assert.equal(h.db.importChargePayables[0].partyId,3);
+ assert.equal(h.db.parties[0].balance,-600);
+ assert.equal(h.db.treasury[0].importChargePayableId,5);
+ assert.ok(h.db.partyLedger.some(row=>row.referenceId==="IMPORT-CHARGE-ACCRUAL:5"&&row.creditRial===1000));
+ assert.equal(h.writes,1);
+});
+
+test("legacy reconciliation refuses a mismatched 2102 voucher without changing records",async()=>{
+ const h=legacyReconciliationHarness("2101");
+ await assert.rejects(h.reconcile(5),/سند یکی از پرداخت‌های قدیمی/);
+ assert.equal(h.writes,0);
+ assert.equal(h.db.parties[0].balance,400);
+ assert.equal(h.db.importChargePayables[0].status,"RECONCILIATION_REQUIRED");
+});

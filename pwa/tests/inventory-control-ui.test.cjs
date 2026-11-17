@@ -19,3 +19,11 @@ test("stocktake store migration is additive and offline assets receive a new cac
  assert.match(sw,/holloo-pwa-v161-stocktake/);
  assert.match(sw,/\.\/inventory-control\.js/);
 });
+
+test("inventory kardex date range includes the full selected end date and localizes movement types",()=>{
+ assert.match(app,/to:parseDate\(\$\("#kardexTo"\)\.value,true\)/);
+ assert.match(app,/new Date\(y,m-1,d,23,59,59,999\)\.getTime\(\)/);
+ assert.match(app,/PURCHASE_REVERSAL:"برگشت خرید"/);
+ assert.match(app,/SALE_REVERSAL:"برگشت فروش"/);
+ assert.match(app,/movementLabel\(x\.type\)/);
+});

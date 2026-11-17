@@ -23,6 +23,6 @@ test("invoice print format is visible in list, print document, search and CSV ex
 });
 
 test("invoice print-format update refreshes the PWA script and offline cache",()=>{
- assert.match(html,/app\.js\?v=fx-allocation-residual-3/);
- assert.match(sw,/holloo-pwa-v173-fx-settlement-guard/);
+ assert.match(html,/app\.js\?v=fx-active-realized-report-4/);
+ assert.match(sw,/holloo-pwa-v174-fx-active-realized-report/);
 });

@@ -98,3 +98,11 @@ test("bank statement with an identified bank cannot match a legacy treasury row 
  assert.deepEqual(findBankMatchCandidates(line,[legacy]),[]);
  assert.throws(()=>validateBankManualMatch(line,legacy,[]),/بانک یا حساب/);
 });
+
+
+test("manual bank matching rejects dates outside the permitted window",()=>{
+ const line={status:"UNMATCHED",signedAmount:1000,date:1000,bank:"بانک ملت"};
+ const sameBank={id:8,method:"بانک",accountCode:"1102101",accountName:"بانک ملت • جاری",kind:"RECEIPT",amount:1000,date:1000+31*86400000};
+ assert.throws(()=>validateBankManualMatch(line,sameBank,[]),/تاریخ گردش بانکی/);
+ assert.equal(validateBankManualMatch(line,{...sameBank,date:1000+30*86400000},[]),true);
+});

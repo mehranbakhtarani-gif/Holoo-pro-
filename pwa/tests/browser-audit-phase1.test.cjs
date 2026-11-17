@@ -40,6 +40,21 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   assert.equal(await page.locator(".quick-grid [data-page]").count(),4);
  });
 
+ await t.test("all primary navigation sections render without missing headings or undefined labels",async()=>{
+  const tabs=await page.locator("#sidebar [data-page]").evaluateAll(nodes=>nodes.map(node=>({key:node.dataset.page,label:node.textContent.trim()})));
+  assert.equal(tabs.length,24);
+  for(const tab of tabs){
+   await page.locator('#sidebar [data-page="'+tab.key+'"]').click();
+   await page.waitForFunction(()=>Boolean(document.querySelector("#main h1")?.textContent.trim()));
+   const heading=(await page.locator("#main h1").first().textContent()).trim();
+   assert.ok(heading.length>0,tab.key+" did not render a heading");
+   assert.ok(!/undefined|null/i.test(heading),tab.key+" rendered an invalid heading: "+heading);
+   assert.equal(await page.locator("#sidebar .nav.active").getAttribute("data-page"),tab.key);
+  }
+  await page.locator('#sidebar [data-page="home"]').click();
+  await page.waitForFunction(()=>document.querySelector("#main h1")?.textContent.includes("داشبورد"));
+ });
+
  await t.test("desktop and mobile layout do not clip the main workspace",async()=>{
   const desktop=await page.evaluate(()=>({sidebar:getComputedStyle(document.querySelector("#sidebar")).display,mainWidth:document.querySelector("#main").clientWidth,mainScroll:document.querySelector("#main").scrollWidth,viewport:innerWidth}));
   assert.notEqual(desktop.sidebar,"none");

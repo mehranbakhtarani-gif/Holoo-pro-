@@ -24,8 +24,8 @@ function validateTreasuryAllocation(input){
  if(!transaction||transaction.status==="REVERSED"||!invoice||(invoice.status&&invoice.status!=="POSTED")||!Number.isSafeInteger(amount)||amount<=0)throw new Error("تراکنش و فاکتور ثبت‌شده و مبلغ تخصیص معتبر الزامی است");
  if(transaction.partyId!==invoice.partyId)throw new Error("طرف حساب تراکنش با فاکتور یکسان نیست");
  if(!((transaction.kind==="RECEIPT"&&invoice.kind==="SALE")||(transaction.kind==="PAYMENT"&&invoice.kind==="PURCHASE")))throw new Error("نوع دریافت/پرداخت با نوع فاکتور سازگار نیست");
- const other=rows.filter(row=>row.id!==currentId&&row.status!=="REVERSED");
- const allocatedForTransaction=other.filter(row=>row.treasuryId===transaction.id).reduce((sum,row)=>sum+Number(row.amount||0),0);
+ const other=rows.filter(row=>(currentId==null||Number(row.id)!==Number(currentId))&&row.status!=="REVERSED");
+ const allocatedForTransaction=other.filter(row=>Number(row.treasuryId)===Number(transaction.id)).reduce((sum,row)=>sum+Number(row.amount||0),0);
  const allocatedForInvoice=other.filter(row=>row.invoiceNumber===invoice.number).reduce((sum,row)=>sum+Number(row.amount||0),0);
  const transactionTotal=Number(transaction.amount||0),invoiceTotal=Number(invoice.total||0);if(!Number.isSafeInteger(allocatedForTransaction)||!Number.isSafeInteger(allocatedForInvoice)||!Number.isSafeInteger(transactionTotal)||!Number.isSafeInteger(invoiceTotal)||!Number.isSafeInteger(allocatedForTransaction+amount)||!Number.isSafeInteger(allocatedForInvoice+amount))throw new Error("جمع تخصیص از محدوده عددی مجاز خارج است");
  if(allocatedForTransaction+amount>transactionTotal)throw new Error("مبلغ تخصیص از مانده تراکنش بیشتر است");

@@ -55,6 +55,11 @@ function summarizeForeignPayable(input){
 function planForeignPayableReversal(input){
  const payable=input.payable,payment=input.payment,date=Number(input.date||Date.now());
  if(!payable||!payment||payment.status==="REVERSED"||Number(payment.payableId)!==Number(payable.id)||!Number.isSafeInteger(date)||date<=0)throw new Error("پرداخت برای برگشت معتبر نیست یا قبلاً برگشت خورده است");
+ const paymentId=Number(payment.id);
+ if(Array.isArray(input.payments)){
+  if(!Number.isSafeInteger(paymentId)||paymentId<=0)throw new Error("شناسه پرداخت برای کنترل ترتیب برگشت معتبر نیست");
+  if(input.payments.some(row=>row&&Number(row.payableId)===Number(payable.id)&&row.status!=="REVERSED"&&Number(row.id)>paymentId))throw new Error("ابتدا جدیدترین پرداخت فعال این تعهد را برگشت دهید تا تخصیص اقساط و مانده‌ها به‌هم نریزد");
+ }
  const paidMinor=toSafeMinor(payable.paidMinor||0,"مبلغ پرداخت‌شده ارزی"),amountMinor=toSafeMinor(payment.amountMinor,"مبلغ قسط ارزی");
  const bookedPaid=toSafeMinor(payable.bookedRialPaid||0,"ارزش دفتری تسویه‌شده"),bookedRial=toSafeMinor(payment.bookedRial,"ارزش دفتری قسط");
  const settlementPaid=toSafeMinor(payable.settlementRialPaid||0,"جمع پرداخت ریالی"),settlementRial=toSafeMinor(payment.settlementRial,"مبلغ ریالی قسط");

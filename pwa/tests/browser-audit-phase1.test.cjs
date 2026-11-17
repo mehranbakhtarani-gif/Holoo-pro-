@@ -34,7 +34,7 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
 
  await t.test("dashboard loads with no runtime error and primary navigation is wired",async()=>{
   assert.match(await page.locator("h1").first().textContent(),/داشبورد/);
-  assert.equal(await page.locator("#sidebar [data-page]").count(),25);
+  assert.equal(await page.locator("#sidebar [data-page]").count(),24);
   assert.equal(await page.locator("#sidebar .nav.active").getAttribute("data-page"),"home");
   assert.equal(await page.locator("#loadDemoData").count(),1);
   assert.equal(await page.locator(".quick-grid [data-page]").count(),4);

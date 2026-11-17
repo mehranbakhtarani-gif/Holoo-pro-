@@ -1246,18 +1246,23 @@ if(page==="treasury"){
  ]);
 }}
 async function reverseForeignPayablePaymentPwa(id){
- const [payments,payables,parties,treasury,shipments]=await Promise.all([all("foreignPayablePayments"),all("foreignPayables"),all("parties"),all("treasury"),all("importShipments")]);
+ const [payments,payables,parties,treasury,shipments,vouchers,voucherLines,accounts,partyLedgerRows]=await Promise.all([all("foreignPayablePayments"),all("foreignPayables"),all("parties"),all("treasury"),all("importShipments"),all("vouchers"),all("voucherLines"),all("accounts"),all("partyLedger")]);
  const payment=payments.find(x=>Number(x.id)===Number(id));
  if(!payment||payment.status==="REVERSED")throw Error("پرداخت ارزی پیدا نشد یا قبلاً برگشت خورده است");
  const payable=payables.find(x=>Number(x.id)===Number(payment.payableId)),party=parties.find(x=>Number(x.id)===Number(payment.supplierId)),sourceShipment=shipments.find(x=>Number(x.id)===Number(payable?.sourceShipmentId));
- const originalTreasury=treasury.find(x=>x.reference===payment.reference);
- if(!payable||!party||!sourceShipment||!originalTreasury)throw Error("تعهد، محموله، تأمین‌کننده یا گردش خزانه پرداخت پیدا نشد");
+ const originalTreasuryRows=treasury.filter(x=>x.reference===payment.reference),originalTreasury=originalTreasuryRows[0];
+ if(!payable||!party||!sourceShipment||originalTreasuryRows.length!==1||originalTreasury.status==="REVERSED")throw Error("تعهد، محموله، تأمین‌کننده یا گردش خزانه یکتای پرداخت پیدا نشد");
  const paymentSnapshot={...payment},payableSnapshot={...payable},partySnapshot={...party},sourceShipmentSnapshot={...sourceShipment},originalTreasurySnapshot={...originalTreasury};
  const now=Date.now(),plan=HolooForeignPayables.planForeignPayableReversal({payable,payment,date:now}),reference="FXPAY-REV:"+payment.id;
  if(treasury.some(x=>x.reference===reference))throw Error("سند برگشت این پرداخت قبلاً ثبت شده است");
- const cashAccount=payment.method==="بانک"?"1102":"1101",journal=[{accountCode:cashAccount,debitRial:plan.settlementRial,creditRial:0,description:"برگشت وجه پرداخت ارزی "+payment.sourceNumber},{accountCode:"2101",debitRial:0,creditRial:plan.bookedRial,description:"برگشت بدهی ارزی "+payment.sourceNumber}];
- if(plan.fxGainRial>0)journal.push({accountCode:"4301",debitRial:plan.fxGainRial,creditRial:0,description:"برگشت سود تسعیر پرداخت "+payment.sourceNumber});
- if(plan.fxLossRial>0)journal.push({accountCode:"5501",debitRial:0,creditRial:plan.fxLossRial,description:"برگشت زیان تسعیر پرداخت "+payment.sourceNumber});
+ if(originalTreasury.kind!=="PAYMENT"||Number(originalTreasury.partyId)!==Number(party.id)||originalTreasury.method!==payment.method||Number(originalTreasury.amount)!==Number(plan.settlementRial)||String(originalTreasury.currency||"")!==String(payment.currency||"")||Number(originalTreasury.foreignAmountMinor||0)!==Number(payment.amountMinor||0))throw Error("گردش خزانه پرداخت ارزی با پرداخت و تعهد مطابقت ندارد");
+ const matchingVouchers=vouchers.filter(x=>x.reference===payment.reference),originalVoucher=matchingVouchers[0];if(matchingVouchers.length!==1)throw Error("سند حسابداری یکتای پرداخت ارزی پیدا نشد");
+ const cashAccount=payment.method==="بانک"?"1102":payment.method==="صندوق"?"1101":"";if(!cashAccount)throw Error("روش پرداخت ارزی معتبر نیست");
+ const expectedLines=[{accountCode:"2101",debitRial:plan.bookedRial,creditRial:0},{accountCode:cashAccount,debitRial:0,creditRial:plan.settlementRial}];
+ if(plan.fxGainRial>0)expectedLines.push({accountCode:"4301",debitRial:0,creditRial:plan.fxGainRial});
+ if(plan.fxLossRial>0)expectedLines.push({accountCode:"5501",debitRial:plan.fxLossRial,creditRial:0});
+ const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(originalVoucher.id)),journal=validateReversalVoucherLines({voucher:originalVoucher,lines:oldLines,accounts,expectedLines,expectedTotal:plan.settlementRial+plan.fxGainRial,label:"پرداخت تعهد ارزی"});
+ const paymentLedgerRows=partyLedgerRows.filter(x=>x.referenceId===payment.reference&&Number(x.partyId)===Number(party.id)&&Number(x.debitRial||0)===Number(plan.bookedRial)&&Number(x.creditRial||0)===0);if(paymentLedgerRows.length!==1)throw Error("گردش تفصیلی پرداخت ارزی یکتا یا هم‌مبلغ نیست");
  const nextPartyBalance=Number(party.balance||0)-plan.bookedRial;if(!Number.isSafeInteger(nextPartyBalance))throw Error("مانده حساب تأمین‌کننده برای برگشت از محدوده عددی مجاز خارج است");party.balance=nextPartyBalance;sourceShipment.status=plan.updated.status==="PAID"?"بهای کالا تسویه‌شده":"رسید انبار شده";sourceShipment.statusChangedAt=now;
  const originalTreasuryUpdated={...originalTreasury,status:"REVERSED",reversedAt:now};
  const reversalTreasury={kind:"RECEIPT",method:payment.method,partyId:party.id,partyName:party.name,amount:plan.settlementRial,currency:payment.currency,foreignAmountMinor:payment.amountMinor,fxRateRialPerUnit:payment.fxRateRialPerUnit,date:now,note:"برگشت پرداخت ارزی "+payment.sourceNumber,reference,foreignPayableId:payable.id,reversalOf:payment.reference};
@@ -1269,6 +1274,7 @@ async function reverseForeignPayablePaymentPwa(id){
   {store:"importShipments",key:Number(sourceShipment.id),expected:sourceShipmentSnapshot},
   {store:"parties",key:party.id,expected:partySnapshot},
   {store:"treasury",key:originalTreasury.id,expected:originalTreasurySnapshot},
+  ...[...new Set(expectedLines.map(line=>String(line.accountCode)))].map(code=>{const account=accounts.find(row=>String(row.id)===code);if(!account)throw Error("حساب "+code+" برای برگشت پرداخت ارزی پیدا نشد");return {store:"accounts",key:account.id,expected:{id:account.id,type:account.type}}}),
   {store:"treasury",match:{reference},expected:null}
  ]);
 }

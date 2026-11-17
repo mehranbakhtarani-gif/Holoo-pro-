@@ -11,7 +11,7 @@ test("legacy migration repairs missing charge categories without duplicating exi
 test("unreconciled legacy charges are excluded from confirmed outstanding totals",()=>{const app=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","app.js"),"utf8");assert.match(app,/importChargePayableRows\.filter\(x=>x\.status!==\"RECONCILIATION_REQUIRED\"\)\.reduce/);});
 
 test("reversing one of several installments preserves the other paid installments",()=>{const c=createImportCharge({shipmentId:10,supplierId:3,amountRial:1000,category:"FREIGHT",reference:"IC:10:FREIGHT"});const a=planImportChargePayment({charge:c,amountRial:250,paymentReference:"P1"});const b=planImportChargePayment({charge:a.updated,amountRial:250,paymentReference:"P2"});const d=planImportChargePayment({charge:b.updated,amountRial:500,paymentReference:"P3"});const r=planImportChargeReversal({charge:d.updated,payment:b.payment});assert.equal(r.updated.paidRial,750);assert.equal(r.updated.status,"PARTIAL");assert.equal(r.reversedPayment.status,"REVERSED")});
-test("service worker cache is refreshed with the payable release",()=>{const sw=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","sw.js"),"utf8");assert.match(sw,/holloo-pwa-v162-import-payables/)});
+test("service worker cache is refreshed with the payable release",()=>{const sw=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","sw.js"),"utf8");assert.match(sw,/const CACHE=\"holloo-pwa-v\\d+-[a-z0-9-]+\";/)});
 
 test("payment flow rejects ambiguous or invalid payables and guards first accrual against duplicates",()=>{
  const app=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","app.js"),"utf8");

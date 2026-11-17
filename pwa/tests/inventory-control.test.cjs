@@ -32,8 +32,8 @@ test("kardex filters by warehouse and includes transfer receipts and issues",()=
  assert.equal(result.opening.quantity,2);assert.equal(result.rows[0].quantityIn,5);assert.equal(result.closing.quantity,7);
 });
 test("company-wide stagnant report counts warehouse transfers as movement",()=>{
- const rows=buildStagnantInventoryReport({asOf:100*day,staleDays:90,products:[{id:1,name:"moved",stock:5,value:500}],transfers:[{productId:1,sourceWarehouseId:1,destinationWarehouseId:2,quantity:1,value:100,date:20*day}]});
- assert.equal(rows[0].status,"STAGNANT");assert.equal(rows[0].daysSinceLastMovement,80);
+ const rows=buildStagnantInventoryReport({asOf:100*day,staleDays:90,products:[{id:1,name:"moved",stock:5,value:500}],transfers:[{productId:1,sourceWarehouseId:1,destinationWarehouseId:2,quantity:1,value:100,date:5*day}]});
+ assert.equal(rows[0].status,"STAGNANT");assert.equal(rows[0].daysSinceLastMovement,95);
 });
 test("stocktake comparison calculates differences without mutating ledger inputs",()=>{
  const stockRows=[{productId:1,warehouseId:2,stock:10,value:2500}],products=[{id:1,name:"FDY",sku:"A1"}],counts=[{productId:1,warehouseId:2,countedQty:8.5}],before=JSON.stringify(stockRows);

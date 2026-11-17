@@ -64,8 +64,8 @@ test("PWA invoice and order totals use the exact inverse FX converter",()=>{
  const sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
  assert.equal((app.match(/convertRialToForeignMinor\(\{currency,rial:total,fxRateRialPerUnit:fxRate\}\)/g)||[]).length,2);
  assert.match(html,/foreign-currency\.js\?v=fx-cumulative-settlement-3/);
- assert.match(html,/app\.js\?v=fx-allocation-residual-2/);
- assert.match(sw,/holloo-pwa-v171-fx-allocation-residual/);
+ assert.match(html,/app\.js\?v=fx-allocation-residual-3/);
+ assert.match(sw,/holloo-pwa-v172-fx-cumulative-settlement/);
 });
 
 test("cumulative FX settlement assigns rounding residuals so invoice and treasury totals reconcile exactly",()=>{

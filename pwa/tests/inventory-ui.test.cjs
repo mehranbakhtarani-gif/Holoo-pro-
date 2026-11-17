@@ -5,7 +5,7 @@ const path=require("node:path");
 
 test("inventory search covers product identifiers, yarn attributes and denier",()=>{
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
- assert.match(app,/x\.sku,x\.barcode,x\.name,x\.group,x\.group1,x\.group2,x\.group3,x\.unit,x\.yarn,x\.color,x\.denier/);
+ assert.ok(app.includes("x.sku,x.barcode,...(Array.isArray(x.barcodes)?x.barcodes:[]),x.name,x.group,x.group1,x.group2,x.group3,x.unit,x.yarn,x.color,x.denier"));
  assert.match(app,/toLocaleLowerCase\("fa"\)/);
  assert.match(app,/جست‌وجوی کد، بارکد، نام، گروه، نوع نخ، دنیر یا رنگ/);
 });
@@ -57,7 +57,7 @@ test("inventory supports unique barcodes and minimum-stock alerts",()=>{
  assert.ok(app.includes('["barcode","بارکد اصلی","text"]'));
  assert.match(app,/جست‌وجوی کد، بارکد، نام/);
  assert.ok(app.includes('["minStock","حداقل موجودی هشدار (کیلوگرم)","number"]'));
- assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
+ assert.ok(app.includes("productBarcodeValues(row).some(existing=>candidateBarcodes.some(candidate=>normalizeProductBarcode(candidate)===normalizeProductBarcode(existing)))"));
  assert.match(app,/Number\(x\.stock\|\|0\)<=Number\(x\.minStock\)/);
  assert.match(app,/حداقل تعیین نشده/);
 });
@@ -143,7 +143,7 @@ test("product SKU and barcode uniqueness are enforced in the same transaction as
  assert.match(app,/function putProductUnique\(record\)/);
  assert.match(app,/db\.transaction\(\["products","auditLog"\],"readwrite"\)/);
  assert.match(app,/rows\.some\(row=>row\.sku===record\.sku/);
- assert.match(app,/rows\.some\(row=>row\.barcode===record\.barcode/);
+ assert.ok(app.includes("productBarcodeValues(row).some(existing=>candidateBarcodes.some(candidate=>normalizeProductBarcode(candidate)===normalizeProductBarcode(existing)))"));
  assert.match(app,/if\(current\)\{for\(const field of \["stock","value","avg"\]\)value\[field\]=current\[field\]\}/);
  assert.match(app,/await putProductUnique\(v\)/);
 });
@@ -156,4 +156,32 @@ test("party type reclassification and balance preservation are rechecked atomica
  assert.match(app,/relatedStores=\["invoices","treasury","checks","partyLedger","imports","salesOrders","importShipments","foreignPayables","foreignPayablePayments","fixedAssets"\]/);
  assert.match(app,/if\(current\.kind!==record\.kind\)/);
  assert.match(app,/const merged=\{\.\.\.record,balance:current\.balance\}/);
+});
+
+
+test("product aliases normalize Persian and Arabic digits and deduplicate against the primary barcode",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.ok(app.includes("function normalizeProductBarcode(value)"));
+ assert.ok(app.includes('replace(/[۰-۹]/g,d=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))'));
+ assert.ok(app.includes('replace(/[٠-٩]/g,d=>String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))'));
+ assert.ok(app.includes("function productBarcodeValues(record)"));
+ assert.ok(app.includes("const seen=new Set()"));
+});
+
+test("inventory form, list and search expose every product barcode",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.ok(app.includes('["barcodes","بارکدهای جایگزین (با ویرگول جدا کنید)","text"]'));
+ assert.ok(app.includes('productBarcodeValues(x).join("، ")'));
+ assert.ok(app.includes("...(Array.isArray(x.barcodes)?x.barcodes:[])"));
+});
+
+test("all primary and alternate barcodes are unique within the atomic product create/edit transaction",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ const start=app.indexOf("function putProductUnique");
+ const end=app.indexOf("function putPartyGuarded",start);
+ const writer=app.slice(start,end);
+ assert.ok(writer.includes('db.transaction(["products","auditLog"],"readwrite")'));
+ assert.ok(writer.includes("candidateBarcodes=productBarcodeValues(record)"));
+ assert.ok(writer.includes("productBarcodeValues(row).some(existing=>candidateBarcodes.some"));
+ assert.ok(writer.includes("یکی از بارکدهای کالا قبلاً برای کالای دیگری ثبت شده است"));
 });

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { convertForeignAmountToRial, convertRialToForeignMinor, calculateRealizedForeignExchange, calculateCumulativeRealizedForeignExchange } = require("../foreign-currency.js");
+const { convertForeignAmountToRial, convertRialToForeignMinor, calculateRealizedForeignExchange, calculateCumulativeRealizedForeignExchange, buildRealizedForeignExchangeRows } = require("../foreign-currency.js");
 
 test("converts foreign minor units to Rial using a whole-unit FX rate", () => {
  assert.deepEqual(convertForeignAmountToRial({currency:"USD",amountMinor:125050,fxRateRialPerUnit:600000}),{
@@ -84,4 +84,29 @@ test("cumulative FX settlement assigns rounding residuals so invoice and treasur
 test("cumulative FX settlement rejects over-settlement and inconsistent prior book values",()=>{
  assert.throws(()=>calculateCumulativeRealizedForeignExchange({kind:"SALE",currency:"USD",invoiceAmountMinor:100,settledAmountMinor:101,invoiceTotalRial:600000,invoiceFxRateRialPerUnit:600000,treasuryAmountMinor:100,treasuryTotalRial:650000,settlementFxRateRialPerUnit:650000}));
  assert.throws(()=>calculateCumulativeRealizedForeignExchange({kind:"SALE",currency:"USD",invoiceAmountMinor:100,settledAmountMinor:50,previousInvoiceSettledMinor:50,previousInvoiceBookedRial:700000,invoiceTotalRial:600000,invoiceFxRateRialPerUnit:600000,treasuryAmountMinor:100,treasuryTotalRial:650000,settlementFxRateRialPerUnit:650000}));
+});
+
+test("realized FX report excludes reversed allocations and reversed payable payments",()=>{
+ const rows=buildRealizedForeignExchangeRows({
+  allocations:[
+   {id:1,invoiceNumber:"INV-A",fxGainRial:500,fxLossRial:0,date:10,status:"ACTIVE"},
+   {id:2,invoiceNumber:"INV-B",fxGainRial:700,fxLossRial:0,date:30,status:"REVERSED"},
+   {id:3,invoiceNumber:"INV-C",fxGainRial:0,fxLossRial:200,date:20}
+  ],
+  foreignPayments:[
+   {id:4,sourceNumber:"PAY-A",fxGainRial:0,fxLossRial:300,date:40,status:"ACTIVE"},
+   {id:5,sourceNumber:"PAY-B",fxGainRial:900,fxLossRial:0,date:50,status:"REVERSED"},
+   {id:6,sourceNumber:"PAY-C",fxGainRial:0,fxLossRial:0,date:60,status:"ACTIVE"}
+  ]
+ });
+ assert.deepEqual(rows.map(x=>x.id),[4,3,1]);
+ assert.equal(rows.reduce((n,x)=>n+Number(x.fxGainRial||0),0),500);
+ assert.equal(rows.reduce((n,x)=>n+Number(x.fxLossRial||0),0),500);
+});
+
+test("realized FX report does not mutate original settlement history",()=>{
+ const allocations=[{id:7,status:"REVERSED",fxGainRial:120,date:1}],payments=[{id:8,status:"ACTIVE",fxLossRial:40,date:2}];
+ const before=JSON.stringify({allocations,payments});
+ buildRealizedForeignExchangeRows({allocations,foreignPayments:payments});
+ assert.equal(JSON.stringify({allocations,payments}),before);
 });

@@ -277,7 +277,7 @@ function postVoucherAtomic(entries,voucher,lines,guards=[]){
   const names=[...new Set([...entries.map(x=>x[0]),...guards.map(x=>x.store),"vouchers","voucherLines","auditLog"])],tx=db.transaction(names,"readwrite");
   let duplicateReference=false,staleState=false,overlappingClose=false;
   const writeEntriesAndVoucher=()=>{
-   for(const [store,value] of entries)tx.objectStore(store).put(value);
+   for(const [store,value] of entries)tx.objectStore(store).put(withoutUndefinedId(value));
    const check=tx.objectStore("vouchers").getAll();
    check.onsuccess=()=>{
     if(voucher.reference&&check.result.some(v=>v.reference===voucher.reference)){duplicateReference=true;try{tx.abort()}catch(_){}return}
@@ -350,7 +350,8 @@ async function createPartyWithOpeningBalance(record,plan){
  });
 }
 function all(s){return new Promise((res,rej)=>{const q=db.transaction(s).objectStore(s).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
-function put(s,v){if(globalThis.HolooOperationDate?.stampOperationRecord)v=globalThis.HolooOperationDate.stampOperationRecord({store:s,record:v,mode:operationDateMode,manualValue:operationManualDate});return new Promise((res,rej)=>{const t=db.transaction([s,"auditLog"],"readwrite"),q=t.objectStore(s).put(v);let id;q.onsuccess=()=>{id=q.result;t.objectStore("auditLog").add({action:"ثبت/ویرایش",store:s,recordId:id,at:Date.now(),summary:"ذخیره رکورد در "+s})};q.onerror=()=>{try{t.abort()}catch(_){}};t.oncomplete=()=>res(id);t.onerror=()=>rej(t.error||new Error("ذخیره‌سازی ناموفق بود"));t.onabort=()=>rej(t.error||new Error("ذخیره‌سازی لغو شد"))})}
+function withoutUndefinedId(record){const value={...record};if(value.id===undefined)delete value.id;return value}
+function put(s,v){v=withoutUndefinedId(v);if(globalThis.HolooOperationDate?.stampOperationRecord)v=withoutUndefinedId(globalThis.HolooOperationDate.stampOperationRecord({store:s,record:v,mode:operationDateMode,manualValue:operationManualDate}));return new Promise((res,rej)=>{const t=db.transaction([s,"auditLog"],"readwrite"),q=t.objectStore(s).put(v);let id;q.onsuccess=()=>{id=q.result;t.objectStore("auditLog").add({action:"ثبت/ویرایش",store:s,recordId:id,at:Date.now(),summary:"ذخیره رکورد در "+s})};q.onerror=()=>{try{t.abort()}catch(_){}};t.oncomplete=()=>res(id);t.onerror=()=>rej(t.error||new Error("ذخیره‌سازی ناموفق بود"));t.onabort=()=>rej(t.error||new Error("ذخیره‌سازی لغو شد"))})}
 function putWarehouseUnique(record){
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(["warehouses","auditLog"],"readwrite"),store=tx.objectStore("warehouses"),read=store.getAll();
@@ -361,7 +362,7 @@ function putWarehouseUnique(record){
    const normalized=String(record.name||"").trim().toLocaleLowerCase("fa");
    if(rows.some(row=>Number(row.id)!==Number(record.id)&&String(row.name||"").trim().toLocaleLowerCase("fa")===normalized))conflict="نام انبار تکراری است";
    if(conflict){try{tx.abort()}catch(_){};return}
-   const value={...record,createdAt:current?.createdAt||record.createdAt||Date.now()};
+   const value=withoutUndefinedId({...record,createdAt:current?.createdAt||record.createdAt||Date.now()});
    const write=store.put(value);
    write.onsuccess=()=>{savedId=write.result;tx.objectStore("auditLog").add({action:"ثبت/ویرایش",store:"warehouses",recordId:savedId,at:Date.now(),summary:"ذخیره انبار"})};
    write.onerror=()=>{try{tx.abort()}catch(_){}};
@@ -543,7 +544,7 @@ function putProductUnique(record){
    if(conflict){try{tx.abort()}catch(_){};return}
    const current=record.id===undefined?null:rows.find(row=>Number(row.id)===Number(record.id));
    if(record.id!==undefined&&!current){missing=true;try{tx.abort()}catch(_){};return}
-   const value={...record};
+   const value=withoutUndefinedId(record);
    if(current){for(const field of ["stock","value","avg"])value[field]=current[field]}
    const write=store.put(value);
    write.onsuccess=()=>{savedId=write.result;tx.objectStore("auditLog").add({action:"ثبت/ویرایش",store:"products",recordId:savedId,at:Date.now(),summary:"ذخیره یکتای کالا"})};
@@ -603,13 +604,13 @@ function putPreservingFields(store,record,fields){
   tx.onabort=()=>reject(missing?new Error("رکورد برای ویرایش پیدا نشد؛ فهرست را تازه‌سازی کنید"):tx.error||new Error("ذخیره‌سازی امن لغو شد"));
  });
 }
-function putMany(entries){const stamp=globalThis.HolooOperationDate?.stampOperationRecord;if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");entries=entries.map(([store,value])=>[store,stamp({store,record:value,mode:operationDateMode,manualValue:operationManualDate})]);return new Promise((res,rej)=>{const names=[...new Set([...entries.map(x=>x[0]),"auditLog"])],t=db.transaction(names,"readwrite");for(const [store,value] of entries){const q=t.objectStore(store).put(value);q.onsuccess=()=>t.objectStore("auditLog").add({action:"ثبت گروهی",store,recordId:q.result,at:Date.now(),summary:"ذخیره گروهی در "+store})}t.oncomplete=()=>res();t.onerror=()=>rej(t.error||new Error("ذخیره‌سازی ناموفق بود"));t.onabort=()=>rej(t.error||new Error("ذخیره‌سازی لغو شد"))})}
+function putMany(entries){const stamp=globalThis.HolooOperationDate?.stampOperationRecord;if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");entries=entries.map(([store,value])=>[store,stamp({store,record:value,mode:operationDateMode,manualValue:operationManualDate})]);return new Promise((res,rej)=>{const names=[...new Set([...entries.map(x=>x[0]),"auditLog"])],t=db.transaction(names,"readwrite");for(const [store,value] of entries){const q=t.objectStore(store).put(withoutUndefinedId(value));q.onsuccess=()=>t.objectStore("auditLog").add({action:"ثبت گروهی",store,recordId:q.result,at:Date.now(),summary:"ذخیره گروهی در "+store})}t.oncomplete=()=>res();t.onerror=()=>rej(t.error||new Error("ذخیره‌سازی ناموفق بود"));t.onabort=()=>rej(t.error||new Error("ذخیره‌سازی لغو شد"))})}
 function putManyGuarded(entries,guards=[]){
  const stamp=globalThis.HolooOperationDate?.stampOperationRecord;if(!stamp)throw new Error("ماژول تاریخ عملیات بارگذاری نشده است");
  entries=entries.map(([store,value])=>[store,stamp({store,record:value,mode:operationDateMode,manualValue:operationManualDate})]);
  return new Promise((resolve,reject)=>{
   const names=[...new Set([...entries.map(x=>x[0]),...guards.map(x=>x.store),"auditLog"])],tx=db.transaction(names,"readwrite");let stale=false;
-  const write=()=>{for(const [store,value] of entries){const request=tx.objectStore(store).put(value);request.onsuccess=()=>tx.objectStore("auditLog").add({action:"ثبت گروهی",store,recordId:request.result,at:Date.now(),summary:"ذخیره گروهی کنترل‌شده در "+store})}};
+  const write=()=>{for(const [store,value] of entries){const request=tx.objectStore(store).put(withoutUndefinedId(value));request.onsuccess=()=>tx.objectStore("auditLog").add({action:"ثبت گروهی",store,recordId:request.result,at:Date.now(),summary:"ذخیره گروهی کنترل‌شده در "+store})}};
   const validate=()=>{if(!guards.length){write();return}let completed=0,failed=false;for(const guard of guards){const store=tx.objectStore(guard.store),request=guard.match?store.getAll():store.get(guard.key);request.onsuccess=()=>{if(failed)return;const current=guard.match?request.result.find(row=>Object.entries(guard.match).every(([key,value])=>String(row[key])===String(value))):request.result;const valid=guard.expected===null?current===undefined:!!current&&Object.entries(guard.expected||{}).every(([key,value])=>sameGuardValue(current[key],value));if(!valid){failed=true;stale=true;try{tx.abort()}catch(_){};return}completed++;if(completed===guards.length)write()};request.onerror=()=>{failed=true;try{tx.abort()}catch(_){}}}};
   validate();tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error("ذخیره گروهی ناموفق بود"));tx.onabort=()=>reject(stale?new Error("موجودی یا بچ انبار هم‌زمان تغییر کرده است؛ صفحه را تازه‌سازی و انتقال را دوباره انجام دهید"):tx.error||new Error("انتقال انبار لغو شد"));
  });

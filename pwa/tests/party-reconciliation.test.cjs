@@ -69,7 +69,7 @@ test("reversed foreign installment restores the payable and supplier ledger",()=
  assert.equal(result.rows[0].foreignPayableLedgerBalanceRial,-1000);
 });
 test("orphan party-ledger rows and unassigned active payables are surfaced globally",()=>{
- const result=reconcilePartyBalances({parties:[{id:3,name:"Supplier",kind:"SUPPLIER",balance:0}],partyLedger:[{partyId:99,referenceId:"ORPHAN",debitRial:10,creditRial:0}],importChargePayables:[{id:8,partyId:null,amountRial:100,paidRial:0,status:"OPEN"}]});
+ const result=reconcilePartyBalances({parties:[{id:3,name:"Supplier",kind:"SUPPLIER",balance:0}],partyLedger:[{partyId:99,referenceId:"ORPHAN",debitRial:10,creditRial:0}],importChargePayables:[{id:8,partyId:null,amountRial:100,paidRial:50,status:"PARTIAL"}]});
  assert.equal(result.orphanLedgerRows.length,1);
  assert.equal(result.orphanPayableCount,1);
  assert.equal(result.withIssues,1);

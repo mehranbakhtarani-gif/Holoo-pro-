@@ -244,7 +244,9 @@ async function reversePwaInvoice(number){
   if(!Number.isSafeInteger(originalInventoryDebit)||originalInventoryDebit<0)throw Error("بهای ثبت‌شده موجودی در سند خرید معتبر نیست");
   const adjustment=globalThis.HolooAccountingReports?.buildPurchaseReversalAdjustment;
   if(typeof adjustment!=="function")throw Error("ماژول تعدیل بهای برگشت خرید بارگذاری نشده است");
-  reverseVoucherLines.push(...adjustment({actualInventoryCostRial:purchaseReversalInventoryCost,originalInventoryDebitRial:originalInventoryDebit}));
+  const purchaseAdjustmentLines=adjustment({actualInventoryCostRial:purchaseReversalInventoryCost,originalInventoryDebitRial:originalInventoryDebit});
+  reverseVoucherLines.push(...purchaseAdjustmentLines);
+  globalThis.HolooReversalValidation.validateReversalVoucherPair({originalLines:oldLines,reversalLines:reverseVoucherLines,additionalLines:purchaseAdjustmentLines,label:"فاکتور خرید"});
  }
  const debit=reverseVoucherLines.reduce((n,l)=>n+l.debitRial,0),credit=reverseVoucherLines.reduce((n,l)=>n+l.creditRial,0);
  if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==credit||debit<=0)throw Error("سند معکوس تراز نیست");
@@ -334,25 +336,10 @@ async function loadDemoData(){
 }
 async function ensureBaseAccounts(){const definitions=[["1101","صندوق","ASSET"],["1102","بانک","ASSET"],["1103","حساب‌های دریافتنی","ASSET"],["1301","موجودی کالا","ASSET"],["2101","حساب‌های پرداختنی","LIABILITY"],["2102","هزینه‌های واردات پرداختنی","LIABILITY"],["2103","مالیات پرداختنی","LIABILITY"],["2104","حقوق پرداختنی","LIABILITY"],["2105","کسورات حقوق پرداختنی","LIABILITY"],["1501","دارایی ثابت مشهود","ASSET"],["1502","استهلاک انباشته دارایی","ASSET"],["3101","سرمایه","EQUITY"],["3102","مانده افتتاحیه اشخاص","EQUITY"],["3201","سود و زیان انباشته","EQUITY"],["4101","فروش کالا","REVENUE"],["4201","مازاد و افزایش موجودی انبار","REVENUE"],["4301","سود تسعیر ارز","REVENUE"],["5101","بهای تمام‌شده کالای فروش‌رفته","EXPENSE"],["5201","کسری و کاهش موجودی انبار","EXPENSE"],["5202","اختلاف بهای برگشت خرید","EXPENSE"],["5203","هزینه پورسانت فروش","EXPENSE"],["5301","هزینه حقوق و دستمزد","EXPENSE"],["5401","هزینه استهلاک","EXPENSE"],["5501","زیان تسعیر ارز","EXPENSE"]];const existing=await all("accounts"),byId=new Map(existing.map(a=>[String(a.id),a]));await putMany(definitions.map(([id,title,type])=>["accounts",{...(byId.get(id)||{}),id,title:byId.get(id)?.title||title,type:byId.get(id)?.type||type,openingDebitRial:Number(byId.get(id)?.openingDebitRial||0),openingCreditRial:Number(byId.get(id)?.openingCreditRial||0)}]))}
 function incrementAllocationVersion(record,label="سند"){const next=Number(record.allocationVersion||0)+1;if(!Number.isSafeInteger(next)||next<1)throw Error("نسخه تخصیص "+label+" از محدوده عددی مجاز خارج است");record.allocationVersion=next;return next}
-function validateReversalVoucherLines({voucher,lines,accounts,expectedLines=null,expectedTotal=null,label="سند"}){
- if(!voucher||!Number.isSafeInteger(Number(voucher.id))||Number(voucher.id)<=0)throw Error("سند اصلی "+label+" معتبر نیست");
- if(!Array.isArray(lines)||lines.length<2)throw Error("ردیف‌های سند اصلی "+label+" ناقص است");
- const accountCodes=new Set((accounts||[]).map(account=>String(account.id)));
- const normalize=line=>{
-  const accountCode=String(line.accountCode??"").trim(),debitRial=Number(line.debitRial||0),creditRial=Number(line.creditRial||0);
-  if(!accountCode||!accountCodes.has(accountCode))throw Error("کد حساب "+(accountCode||"(خالی)")+" در سند اصلی "+label+" معتبر نیست");
-  if(!Number.isSafeInteger(debitRial)||debitRial<0||!Number.isSafeInteger(creditRial)||creditRial<0||((debitRial>0)===(creditRial>0)))throw Error("مبلغ یا ماهیت یکی از ردیف‌های سند اصلی "+label+" معتبر نیست");
-  return {accountCode,debitRial,creditRial};
- };
- const actual=lines.map(normalize),debit=actual.reduce((sum,line)=>sum+line.debitRial,0),credit=actual.reduce((sum,line)=>sum+line.creditRial,0);
- if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit<=0||debit!==credit)throw Error("سند اصلی "+label+" تراز یا معتبر نیست");
- if(expectedTotal!==null&&expectedTotal!==undefined&&(!Number.isSafeInteger(Number(expectedTotal))||debit!==Number(expectedTotal)))throw Error("جمع سند اصلی "+label+" با مبلغ عملیات مطابقت ندارد");
- if(expectedLines){
-  const expected=expectedLines.map(normalize),signature=line=>line.accountCode+"|"+line.debitRial+"|"+line.creditRial;
-  const actualSignatures=actual.map(signature).sort(),expectedSignatures=expected.map(signature).sort();
-  if(actualSignatures.length!==expectedSignatures.length||actualSignatures.some((value,index)=>value!==expectedSignatures[index]))throw Error("حساب یا مبلغ یکی از ردیف‌های سند اصلی "+label+" با عملیات مرجع مطابقت ندارد");
- }
- return actual.map(line=>({accountCode:line.accountCode,debitRial:line.creditRial,creditRial:line.debitRial,description:"برگشت "+label}));
+function validateReversalVoucherLines(args){
+ const validator=globalThis.HolooReversalValidation;
+ if(!validator||typeof validator.validateReversalVoucherLines!=="function")throw Error("ماژول کنترل ردیف‌های سند معکوس بارگذاری نشده است");
+ return validator.validateReversalVoucherLines(args);
 }
 function applyPartyBalanceDelta(party,delta,label="طرف حساب"){
  const current=Number(party?.balance||0),change=Number(delta),next=current+change;

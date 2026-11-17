@@ -15,6 +15,7 @@ test("service worker cache is refreshed with the payable release",()=>{const sw=
 
 test("payment flow rejects ambiguous or invalid payables and guards first accrual against duplicates",()=>{
  const app=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","app.js"),"utf8");
+ globalThis.HolooReversalValidation=require("../reversal-validation.js");
  assert.match(app,/matches\.length!==1/);
  assert.match(app,/!\["OPEN","PARTIAL"\]\.includes\(payable\.status\)/);
  assert.match(app,/accrualRows\.length!==1/);

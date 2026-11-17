@@ -37,5 +37,5 @@ test("party search includes the expanded identifying and contact fields",()=>{
 
 test("PWA cache is invalidated for the expanded master-data UI",()=>{
  assert.match(html,/app\.js\?v=fx-allocation-residual-3/);
- assert.match(sw,/holloo-pwa-v172-fx-cumulative-settlement/);
+ assert.match(sw,/holloo-pwa-v173-fx-settlement-guard/);
 });

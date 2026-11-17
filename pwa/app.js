@@ -632,7 +632,7 @@ async function reverseWarehouseTransferPwa(number){
  if(!Number.isFinite(quantity)||quantity<=0||!Number.isSafeInteger(value)||value<0)throw Error("مقدار یا ارزش انتقال معتبر نیست");
  const sourceStock=Number(sourceRow.stock||0),sourceValue=Number(sourceRow.value||0),destinationStock=Number(destinationRow.stock||0),destinationValue=Number(destinationRow.value||0);
  if(!Number.isFinite(sourceStock)||sourceStock<0||!Number.isSafeInteger(sourceValue)||sourceValue<0||!Number.isFinite(destinationStock)||destinationStock<quantity-1e-9||!Number.isSafeInteger(destinationValue)||destinationValue<value)throw Error("موجودی مقصد برای برگشت کامل انتقال کافی نیست");
- const plan=HolooInventoryLots.planLotTransferReversal({transfer,lots,date:Date.now()});
+ const plan=planLotTransferReversal({transfer,lots,date:Date.now()});
  const nextSourceStock=sourceStock+quantity,nextSourceValue=sourceValue+value,nextDestinationStock=destinationStock-quantity,nextDestinationValue=destinationValue-value;
  if(!Number.isFinite(nextSourceStock)||!Number.isSafeInteger(nextSourceValue)||!Number.isFinite(nextDestinationStock)||nextDestinationStock< -1e-6||!Number.isSafeInteger(nextDestinationValue)||nextDestinationValue<0)throw Error("مانده موجودی پس از برگشت انتقال معتبر نیست");
  const now=Date.now(),sourceUpdate={...sourceRow,stock:nextSourceStock,value:nextSourceValue,average:nextSourceStock>1e-9?nextSourceValue/nextSourceStock:0,updatedAt:now},destinationUpdate={...destinationRow,stock:Math.max(0,nextDestinationStock),value:nextDestinationValue,average:nextDestinationStock>1e-9?nextDestinationValue/nextDestinationStock:0,updatedAt:now};

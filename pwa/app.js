@@ -60,6 +60,51 @@ async function reverseTreasuryPwa(id){
  }else{const movement={partyId:party.id,date:now,debitRial:original.kind==="RECEIPT"?Number(original.amount):0,creditRial:original.kind==="PAYMENT"?Number(original.amount):0,description:"برگشت گردش خزانه",referenceId:reference};applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));reversalEntries.push(["parties",party],["partyLedger",movement]);reversalGuards.push({store:"parties",key:Number(party.id),expected:partySnapshot});}
  await postVoucherAtomic(reversalEntries,{number:"TVR-"+now,date:now,description:"برگشت گردش خزانه "+original.id,reference},reversalLines,reversalGuards);
 }
+async function reconcileLegacyImportChargePwa(id){
+ const [payables,treasury,parties,vouchers,voucherLines,partyLedger,allocations]=await Promise.all([all("importChargePayables"),all("treasury"),all("parties"),all("vouchers"),all("voucherLines"),all("partyLedger"),all("treasuryAllocations")]);
+ const payable=payables.find(x=>Number(x.id)===Number(id));
+ if(!payable||payable.status!=="RECONCILIATION_REQUIRED")throw Error("هزینه قدیمیِ نیازمند تطبیق پیدا نشد");
+ const candidates=treasury.filter(x=>x.importAncillaryPayment===true&&Number(x.importShipmentId)===Number(payable.shipmentId)&&String(x.importChargeCategory)===String(payable.category)&&x.status!=="REVERSED");
+ if(!candidates.length)throw Error("پرداخت قدیمی فعالی برای این محموله و نوع هزینه پیدا نشد");
+ const seen=new Set(),partyIds=new Set(),snapshots=[],paymentAmounts=[];
+ for(const payment of candidates){
+  const amount=Number(payment.amount),reference=String(payment.reference||"");
+  if(payment.kind!=="PAYMENT"||!Number.isSafeInteger(amount)||amount<=0||!reference)throw Error("اطلاعات یکی از پرداخت‌های قدیمی معتبر نیست؛ تطبیق خودکار متوقف شد");
+  if(seen.has(reference))throw Error("مرجع پرداخت قدیمی تکراری است؛ ابتدا مغایرت را دستی بررسی کنید");
+  seen.add(reference);
+  if(payment.importChargePayableId&&Number(payment.importChargePayableId)!==Number(payable.id))throw Error("این پرداخت قبلاً به هزینه دیگری متصل شده است");
+  if(!["بانک","صندوق"].includes(payment.method))throw Error("روش یکی از پرداخت‌های قدیمی مشخص نیست");
+  const partyId=Number(payment.partyId);if(!Number.isSafeInteger(partyId)||partyId<=0)throw Error("برای یکی از پرداخت‌های قدیمی طلبکار معتبر ثبت نشده است");
+  partyIds.add(partyId);
+  if(allocations.some(x=>Number(x.treasuryId)===Number(payment.id)&&x.status!=="REVERSED"))throw Error("یکی از پرداخت‌های قدیمی تخصیص فعال دارد؛ ابتدا تخصیص را تعیین تکلیف کنید");
+  const matchingVouchers=vouchers.filter(x=>x.reference===reference);
+  if(matchingVouchers.length!==1)throw Error("سند حسابداری یکتای یکی از پرداخت‌های قدیمی پیدا نشد");
+  const lines=voucherLines.filter(x=>Number(x.voucherId)===Number(matchingVouchers[0].id));
+  const cashCode=payment.method==="بانک"?"1102":"1101";
+  const debit2102=lines.filter(x=>String(x.accountCode)==="2102"&&Number(x.debitRial)===amount&&Number(x.creditRial||0)===0);
+  const creditCash=lines.filter(x=>String(x.accountCode)===cashCode&&Number(x.creditRial)===amount&&Number(x.debitRial||0)===0);
+  if(lines.length!==2||debit2102.length!==1||creditCash.length!==1)throw Error("سند یکی از پرداخت‌های قدیمی دقیقاً با بدهکار ۲۱۰۲ و بستانکار صندوق/بانک تطبیق ندارد");
+  const ledgerRows=partyLedger.filter(x=>x.referenceId===reference&&Number(x.partyId)===partyId&&Number(x.debitRial||0)===amount&&Number(x.creditRial||0)===0);
+  if(ledgerRows.length!==1)throw Error("گردش تفصیلی پرداخت قدیمی یکتا نیست؛ برای جلوگیری از دوباره‌کاری تطبیق خودکار متوقف شد");
+  snapshots.push({...payment});
+  paymentAmounts.push(amount);
+ }
+ if(partyIds.size!==1)throw Error("پرداخت‌های قدیمی این هزینه به بیش از یک طلبکار تعلق دارند؛ باید دستی تفکیک شوند");
+ const partyId=[...partyIds][0],party=parties.find(x=>Number(x.id)===partyId);
+ if(!party||party.kind==="CUSTOMER")throw Error("طلبکار پرداخت‌های قدیمی پیدا نشد یا مشتری است");
+ if(payable.partyId&&Number(payable.partyId)!==partyId)throw Error("طلبکار پرداختنی با طلبکار پرداخت‌های قدیمی متفاوت است");
+ const paidRial=safeRialTotal(paymentAmounts,"جمع پرداخت‌های قدیمی");
+ const totalRial=Number(payable.amountRial);
+ if(!Number.isSafeInteger(totalRial)||totalRial<=0||paidRial>totalRial)throw Error("جمع پرداخت‌های قدیمی از مبلغ هزینه بیشتر است یا مبلغ هزینه معتبر نیست");
+ const accrualReference="IMPORT-CHARGE-ACCRUAL:"+payable.id;
+ if(partyLedger.some(x=>x.referenceId===accrualReference))throw Error("سند تفصیلی ایجاد بدهی این هزینه قبلاً وجود دارد؛ بررسی دستی لازم است");
+ const payableSnapshot={...payable},partySnapshot={...party},now=Date.now();
+ applyPartyBalanceDelta(party,-totalRial,"طلبکار هزینه واردات");
+ payable.partyId=party.id;payable.partyName=party.name;payable.paidRial=paidRial;payable.status=paidRial===totalRial?"PAID":"PARTIAL";payable.reconciledAt=now;payable.updatedAt=now;
+ const entries=[["importChargePayables",payable],["parties",party],["partyLedger",{partyId:party.id,date:now,debitRial:0,creditRial:totalRial,description:"ایجاد بدهی هزینه جانبی محموله "+payable.shipmentNumber,referenceId:accrualReference}],...snapshots.map(payment=>{payment.importChargePayableId=payable.id;payment.importChargePayableReference=payable.reference;payment.importAncillaryPaymentReconciledAt=now;return ["treasury",payment]})];
+ const guards=[{store:"importChargePayables",key:Number(payable.id),expected:payableSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"partyLedger",match:{referenceId:accrualReference},expected:null},...snapshots.map(payment=>({store:"treasury",key:Number(payment.id),expected:Object.fromEntries(Object.entries(payment).filter(([key])=>!["importChargePayableId","importChargePayableReference","importAncillaryPaymentReconciledAt"].includes(key)))}))];
+ await putManyGuarded(entries,guards);
+}
 async function reverseTreasuryAllocationPwa(id){
  const [allocations,parties,vouchers,voucherLines,transactions,invoices]=await Promise.all([all("treasuryAllocations"),all("parties"),all("vouchers"),all("voucherLines"),all("treasury"),all("invoices")]);
  const allocation=allocations.find(row=>Number(row.id)===Number(id));

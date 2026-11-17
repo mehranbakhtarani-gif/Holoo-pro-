@@ -62,13 +62,13 @@ function reconcileTreasuryRecords(input){
      try{validateLines(sourceLines,accounts,"سند اصلی برگشت");expected=reverseLines(sourceLines)}catch(error){add(error.message)}
     }
     if(sourceOriginal.foreignPayableId){
-     foreignPayment=foreignPayments.find(x=>x.reference===sourceOriginal.reference)||null;
-     if(!foreignPayment)add("جزئیات پرداخت ارزی اصلی برای برگشت پیدا نشد");else ledgerAmount=Number(foreignPayment.bookedRial);
+     const matches=foreignPayments.filter(x=>x.reference===sourceOriginal.reference);foreignPayment=matches[0]||null;
+     if(matches.length!==1)add("جزئیات پرداخت ارزی اصلی برای برگشت یکتا نیست");else ledgerAmount=Number(foreignPayment.bookedRial);
     }
    }
   }else if(record.foreignPayableId){
    const matches=foreignPayments.filter(x=>x.reference===reference);
-   if(matches.length!==1)add("جزئیات پرداخت ارزی یکتا پیدا نشد");
+   if(matches.length!==1)add(matches.length?"جزئیات پرداخت ارزی تکراری است":"جزئیات پرداخت ارزی پیدا نشد");
    else{
     foreignPayment=matches[0];ledgerAmount=Number(foreignPayment.bookedRial);
     if(Number(foreignPayment.payableId)!==Number(record.foreignPayableId)||Number(foreignPayment.settlementRial)!==amount||Number(foreignPayment.amountMinor)!==Number(record.foreignAmountMinor)||foreignPayment.method!==record.method||Number(foreignPayment.supplierId)!==Number(record.partyId))add("مبلغ یا پیوند پرداخت ارزی با گردش خزانه متفاوت است");

@@ -1447,7 +1447,8 @@ if(page==="invoices"){
    const available=Number(product.stock||0),currentValue=Number(product.value||0);
    if(!Number.isFinite(available)||available+1e-9<totalQty)throw Error("موجودی کل کالای "+product.name+" برای مقدار به‌همراه هدیه کافی نیست");
    if(!Number.isSafeInteger(currentValue)||currentValue<0)throw Error("ارزش کل موجودی "+product.name+" نامعتبر است");
-   product.stock=available-totalQty;product.value=Math.max(0,currentValue-lineCogs);product.avg=product.stock>1e-9?product.value/product.stock:0;cogs+=lineCogs;if(!Number.isSafeInteger(cogs))throw Error("جمع بهای تمام‌شده فروش از محدوده عددی مجاز خارج است");
+   if(lineCogs>currentValue)throw Error("بهای خروج FIFO از ارزش کل موجودی کالا بیشتر است؛ مغایرت موجودی را پیش از ثبت فروش بررسی کنید");
+   product.stock=available-totalQty;product.value=currentValue-lineCogs;product.avg=product.stock>1e-9?product.value/product.stock:0;cogs+=lineCogs;if(!Number.isSafeInteger(cogs))throw Error("جمع بهای تمام‌شده فروش از محدوده عددی مجاز خارج است");
   }else{
    product.value=Number(product.value||0)+lineTotal;product.stock=Number(product.stock||0)+totalQty;product.avg=product.value/product.stock;
    const lot=planLotReceipt({productId:product.id,productName:product.name,warehouseId,sourceType:"PURCHASE_INVOICE",sourceId:number,sourceNumber:number,lineIndex:i,supplierId:p.id,supplierName:p.name,quantity:totalQty,totalCost:lineTotal,receivedAt:Date.now()});

@@ -8,6 +8,7 @@ function safeNumber(value){
 }
 function reconcilePartyBalances(input){
  const data=input||{},parties=Array.isArray(data.parties)?data.parties:[],ledger=Array.isArray(data.partyLedger)?data.partyLedger:[],accounts=Array.isArray(data.accounts)?data.accounts:[],vouchers=Array.isArray(data.vouchers)?data.vouchers:[],voucherLines=Array.isArray(data.voucherLines)?data.voucherLines:[];
+ const knownPartyIds=new Set(parties.map(party=>Number(party?.id)).filter(id=>Number.isSafeInteger(id)&&id>0));
  const ledgerByParty=new Map(),orphanLedgerRows=[],invalidLedgerRows=[];
  let ledgerTotal=0n;
  for(const row of ledger){
@@ -17,7 +18,7 @@ function reconcilePartyBalances(input){
    continue;
   }
   const delta=BigInt(debit)-BigInt(credit);ledgerTotal+=delta;
-  if(!Number.isSafeInteger(partyId)||partyId<=0){orphanLedgerRows.push({partyId:null,referenceId:String(row?.referenceId||"")});continue}
+  if(!Number.isSafeInteger(partyId)||partyId<=0||!knownPartyIds.has(partyId)){orphanLedgerRows.push({partyId:Number.isSafeInteger(partyId)?partyId:null,referenceId:String(row?.referenceId||"")});continue}
   ledgerByParty.set(partyId,(ledgerByParty.get(partyId)||0n)+delta);
  }
  const rows=parties.map(party=>{

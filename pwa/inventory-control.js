@@ -160,13 +160,13 @@ function buildReorderReport(input){
 
 function buildInventoryReconciliation(input){
  const products=Array.isArray(input.products)?input.products:[],stockRows=Array.isArray(input.warehouseStock)?input.warehouseStock:[],lots=Array.isArray(input.inventoryLots)?input.inventoryLots:[],accounts=Array.isArray(input.accounts)?input.accounts:[],vouchers=Array.isArray(input.vouchers)?input.vouchers:[],voucherLines=Array.isArray(input.voucherLines)?input.voucherLines:[];
- const discrepancies=[],productMap=new Map(products.map(row=>[String(row.id),row])),voucherMap=new Map(vouchers.map(row=>[Number(row.id),row]));
+ const discrepancies=[],voucherMap=new Map(vouchers.map(row=>[Number(row.id),row]));
  const add=(scope,metric,expected,actual,productId=null,warehouseId=null)=>{
   const difference=actual-expected;
   const mismatch=metric==="quantity"?Math.abs(difference)>1e-6:difference!==0;
   if(mismatch)discrepancies.push({scope,metric,expected,actual,difference,productId,warehouseId});
  };
- const qty=value=>{const n=Number(value||0);if(!Number.isFinite(n))throw new Error("مقدار موجودی برای تطبیق معتبر نیست");return n};
+ const qty=value=>{const n=Number(value||0);if(!Number.isFinite(n)||n< -1e-6)throw new Error("مقدار موجودی برای تطبیق معتبر نیست");return n};
  const rial=value=>{const n=Number(value||0);if(!Number.isSafeInteger(n)||n<0)throw new Error("ارزش موجودی برای تطبیق معتبر نیست");return n};
  const stockByProduct=new Map(),stockByWarehouse=new Map(),lotByProduct=new Map(),lotByWarehouse=new Map();
  for(const row of stockRows){

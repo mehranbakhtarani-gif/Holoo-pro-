@@ -48,11 +48,11 @@ async function reverseTreasuryPwa(id){
  if(oldLines.length<2||debit!==credit||debit!==Number(original.amount))throw Error("سند خزانه با مبلغ تراکنش مطابقت ندارد");
  const originalSnapshot={...original},partySnapshot={...party},now=Date.now(),reference="TREASURY-REV:"+original.id;
  original.status="REVERSED";original.reversedAt=now;
- applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));
  const reversal={kind:original.kind==="RECEIPT"?"PAYMENT":"RECEIPT",method:original.method,partyId:party.id,partyName:party.name,currency:original.currency||"IRR",amount:original.amount,foreignAmountMinor:original.foreignAmountMinor||null,fxRateRialPerUnit:original.fxRateRialPerUnit||1,date:now,note:"برگشت "+(original.kind==="RECEIPT"?"دریافت":"پرداخت")+" "+(original.note||""),reference,reversalOfId:original.id};
- const movement={partyId:party.id,date:now,debitRial:original.kind==="RECEIPT"?Number(original.amount):0,creditRial:original.kind==="PAYMENT"?Number(original.amount):0,description:"برگشت گردش خزانه",referenceId:reference};
  const reversalLines=oldLines.map(line=>({accountCode:line.accountCode,debitRial:Number(line.creditRial||0),creditRial:Number(line.debitRial||0),description:"برگشت گردش خزانه"}));
- await postVoucherAtomic([["treasury",original],["treasury",reversal],["parties",party],["partyLedger",movement]],{number:"TVR-"+now,date:now,description:"برگشت گردش خزانه "+original.id,reference},reversalLines,[{store:"treasury",key:Number(original.id),expected:originalSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"treasuryAllocations",match:{treasuryId:Number(original.id)},expected:null}]);
+ const reversalEntries=[["treasury",original],["treasury",reversal]],reversalGuards=[{store:"treasury",key:Number(original.id),expected:originalSnapshot},{store:"treasuryAllocations",match:{treasuryId:Number(original.id)},expected:null}];
+ if(!original.importAncillaryPayment){const movement={partyId:party.id,date:now,debitRial:original.kind==="RECEIPT"?Number(original.amount):0,creditRial:original.kind==="PAYMENT"?Number(original.amount):0,description:"برگشت گردش خزانه",referenceId:reference};applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));reversalEntries.push(["parties",party],["partyLedger",movement]);reversalGuards.push({store:"parties",key:Number(party.id),expected:partySnapshot});}
+ await postVoucherAtomic(reversalEntries,{number:"TVR-"+now,date:now,description:"برگشت گردش خزانه "+original.id,reference},reversalLines,reversalGuards);
 }
 async function reverseTreasuryAllocationPwa(id){
  const [allocations,parties,vouchers,voucherLines,transactions,invoices]=await Promise.all([all("treasuryAllocations"),all("parties"),all("vouchers"),all("voucherLines"),all("treasury"),all("invoices")]);
@@ -1452,12 +1452,10 @@ if(page==="importChargePayments"){
  const paid=prior.reduce((n,x)=>n+Number(x.amount||0),0);if(!Number.isSafeInteger(paid)||paid+amount>cost)throw Error("پرداخت از مانده ثبت‌شده این هزینه بیشتر است؛ مانده قابل پرداخت: "+money(Math.max(0,cost-paid))+" ریال");
  const now=Date.now(),dateValue=d.date?new Date(d.date+"T12:00:00").getTime():now;if(!Number.isFinite(dateValue)||!["بانک","صندوق"].includes(d.method))throw Error("تاریخ یا روش پرداخت معتبر نیست");
  const reference="TREASURY:IMPORT-CHARGE:"+shipment.id+":"+category+":"+now;if(allTreasury.some(x=>x.reference===reference))throw Error("شناسه پرداخت تکراری است");
- const partySnapshot={...party},shipmentSnapshot={...shipment},cashAccount=d.method==="بانک"?"1102":"1101";
+ const shipmentSnapshot={...shipment},cashAccount=d.method==="بانک"?"1102":"1101";
  const journal=[{accountCode:"2102",debitRial:amount,creditRial:0,description:"تسویه "+categoryLabels[category]+" محموله "+shipment.number},{accountCode:cashAccount,debitRial:0,creditRial:amount,description:"پرداخت "+categoryLabels[category]+" از "+d.method}];
- applyPartyBalanceDelta(party,amount);
  const record={kind:"PAYMENT",method:d.method,partyId:party.id,partyName:party.name,amount,currency:"IRR",foreignAmountMinor:null,fxRateRialPerUnit:1,date:dateValue,note:d.note||("پرداخت "+categoryLabels[category]+" محموله "+shipment.number),reference,importAncillaryPayment:true,importShipmentId:shipment.id,importShipmentNumber:shipment.number,importChargeCategory:category,importChargeCategoryLabel:categoryLabels[category]};
- const movement={partyId:party.id,date:dateValue,debitRial:amount,creditRial:0,description:"پرداخت "+categoryLabels[category]+" محموله "+shipment.number,referenceId:reference};
- await ensureBaseAccounts();await postVoucherAtomic([["treasury",record],["parties",party],["partyLedger",movement]],{number:"IAC-"+now,date:dateValue,description:"پرداخت هزینه جانبی "+categoryLabels[category]+" — "+shipment.number,reference},journal,[{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"importShipments",key:Number(shipment.id),expected:shipmentSnapshot},{store:"treasury",match:{reference},expected:null}]);return
+ await ensureBaseAccounts();await postVoucherAtomic([["treasury",record]],{number:"IAC-"+now,date:dateValue,description:"پرداخت هزینه جانبی "+categoryLabels[category]+" — "+shipment.number,reference},journal,[{store:"importShipments",key:Number(shipment.id),expected:shipmentSnapshot},{store:"treasury",match:{reference},expected:null}]);return
 }
 if(page==="treasury"){
  const ps=await all("parties"),p=ps.find(x=>x.id===num("partyId")),currency=String(d.currency||"IRR").toUpperCase(),enteredAmount=num("amount");

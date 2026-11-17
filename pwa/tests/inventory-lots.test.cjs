@@ -107,7 +107,7 @@ test("ignores historical sales without lot allocations instead of breaking shipm
 test("PWA integrates FIFO lots with database, shipment receipt, invoice sales, transfers and reversals",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
- assert.match(app,/DB_VERSION=11/);assert.match(app,/"inventoryLots"/);
+ assert.match(app,/DB_VERSION=12/);assert.match(app,/"inventoryLots"/);
  assert.match(html,/inventory-lots\.js\?v=inventory-lots-1/);
  assert.ok(html.indexOf("inventory-lots.js")<html.indexOf("app.js?v="));
  assert.match(sw,/\.\/inventory-lots\.js/);assert.match(sw,/inventory-lots\\.js/);

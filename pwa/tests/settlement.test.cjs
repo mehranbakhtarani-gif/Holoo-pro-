@@ -53,6 +53,7 @@ test("foreign invoice allocation validates cash and booked balances independentl
  const transaction={id:21,partyId:7,kind:"RECEIPT",currency:"USD",amount:650000000,foreignAmountMinor:100000};
  const invoice={number:"FX-2",partyId:7,kind:"SALE",currency:"USD",total:600000000,foreignTotalMinor:100000,status:"POSTED"};
  assert.equal(validateTreasuryAllocation({transaction,invoice,amount:650000000,invoiceAmount:600000000,allocations:[]}),true);
+ assert.throws(()=>validateTreasuryAllocation({transaction,invoice,amount:650000000,allocations:[]}),/محدوده عددی/);
  assert.throws(()=>validateTreasuryAllocation({transaction,invoice,amount:650000000,invoiceAmount:600000001,allocations:[]}),/مانده فاکتور/);
 });
 

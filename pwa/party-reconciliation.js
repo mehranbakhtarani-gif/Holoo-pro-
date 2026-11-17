@@ -8,6 +8,7 @@ function reconcilePartyBalances(input){
  const parties=Array.isArray(input.parties)?input.parties:[],partyLedger=Array.isArray(input.partyLedger)?input.partyLedger:[],treasury=Array.isArray(input.treasury)?input.treasury:[],payables=Array.isArray(input.importChargePayables)?input.importChargePayables:[],foreignPayables=Array.isArray(input.foreignPayables)?input.foreignPayables:[],foreignPayments=Array.isArray(input.foreignPayments)?input.foreignPayments:[];
  const knownPartyIds=new Set(parties.map(x=>Number(x.id)));
  const orphanLedgerRows=partyLedger.filter(x=>!knownPartyIds.has(Number(x.partyId)));
+ const orphanTreasuryRows=treasury.filter(x=>Number.isSafeInteger(Number(x.partyId))&&Number(x.partyId)>0&&!knownPartyIds.has(Number(x.partyId)));
  const orphanImportPayables=payables.filter(x=>x.status!=="RECONCILIATION_REQUIRED"&&x.status!=="CANCELLED"&&(!x.partyId?(x.status!=="OPEN"||Number(x.paidRial||0)>0):!knownPartyIds.has(Number(x.partyId))));
  const orphanForeignPayables=foreignPayables.filter(x=>x.status!=="CANCELLED"&&x.shipmentReceivedAt&&(!x.supplierId||!knownPartyIds.has(Number(x.supplierId))));
  const orphanForeignPayments=foreignPayments.filter(x=>!foreignPayables.some(p=>Number(p.id)===Number(x.payableId)));
@@ -109,10 +110,11 @@ function reconcilePartyBalances(input){
  const orphanPayableCount=orphanImportPayables.length+orphanForeignPayables.length+orphanForeignPayments.length;
  const orphanIssues=[];
  if(orphanLedgerRows.length)orphanIssues.push(orphanLedgerRows.length+" ردیف گردش تفصیلی به شخص موجود متصل نیست");
+ if(orphanTreasuryRows.length)orphanIssues.push(orphanTreasuryRows.length+" گردش خزانه به شخص معتبر متصل نیست");
  if(orphanImportPayables.length)orphanIssues.push(orphanImportPayables.length+" پرداختنی جانبی به شخص معتبر متصل نیست");
  if(orphanForeignPayables.length)orphanIssues.push(orphanForeignPayables.length+" تعهد ارزی به تأمین‌کننده معتبر متصل نیست");
  if(orphanForeignPayments.length)orphanIssues.push(orphanForeignPayments.length+" پرداخت ارزی به تعهد موجود متصل نیست");
- return {total:rows.length,matched:rows.filter(x=>x.ok).length,withIssues:rows.filter(x=>!x.ok).length+(orphanIssues.length?1:0),rows,orphanLedgerRows,orphanPayableCount,orphanIssues};
+ return {total:rows.length,matched:rows.filter(x=>x.ok).length,withIssues:rows.filter(x=>!x.ok).length+(orphanIssues.length?1:0),rows,orphanLedgerRows,orphanTreasuryRows,orphanPayableCount,orphanIssues};
 }
 const PartyReconciliation={reconcilePartyBalances};
 if(typeof module!=="undefined"&&module.exports)module.exports=PartyReconciliation;

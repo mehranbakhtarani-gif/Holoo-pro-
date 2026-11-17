@@ -107,7 +107,7 @@ function buildStocktakeSheet(input){
   seen.add(productId);
   const rows=stockRows.filter(row=>Number(row.productId)===productId),matches=rows.filter(row=>Number(row.warehouseId)===warehouseId);
   if(matches.length>1)throw new Error("رکورد موجودی این کالا در انبار تکراری است");
-  const row=matches[0]||null,legacy=!rows.length&&warehouseId===legacyWarehouseId;
+  const row=matches[0]||null,legacy=!row&&warehouseId===legacyWarehouseId;
   const expectedQty=Number(row?.stock??(legacy?product.stock||0:0)),expectedValue=Number(row?.value??(legacy?product.value||0:0));
   const productStock=Number(product.stock||0),productValue=Number(product.value||0);
   if(!Number.isFinite(expectedQty)||expectedQty<0||!Number.isSafeInteger(expectedValue)||expectedValue<0||!Number.isFinite(productStock)||productStock<0||!Number.isSafeInteger(productValue)||productValue<0)throw new Error("مانده دفتری کالا یا انبار معتبر نیست");
@@ -138,4 +138,4 @@ function buildInventoryCsv(rows,headers){
  return "\uFEFF"+[headers,...rows].map(row=>row.map(quote).join(",")).join("\r\n");
 }
 if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv};
-if(typeof globalThis!=="undefined")globalThis.HolooInventoryControl={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeComparison,buildInventoryCsv};
+if(typeof globalThis!=="undefined")globalThis.HolooInventoryControl={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv};

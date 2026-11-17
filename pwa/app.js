@@ -152,15 +152,14 @@ async function reversePwaInvoice(number){
  if(!invoice||(invoice.status&&invoice.status!=="POSTED"))throw Error("فقط فاکتور ثبت‌شده قابل برگشت است");
  const lines=Array.isArray(invoice.lines)?invoice.lines:[];
  if(!lines.length)throw Error("ردیف‌های فاکتور برای برگشت پیدا نشد");
- const [products,parties,vouchers,voucherLines,warehouseStockRows,inventoryLots,allocations]=await Promise.all([all("products"),all("parties"),all("vouchers"),all("voucherLines"),all("warehouseStock"),all("inventoryLots"),all("treasuryAllocations")]);
+ const [products,parties,vouchers,voucherLines,warehouseStockRows,inventoryLots,allocations,accounts]=await Promise.all([all("products"),all("parties"),all("vouchers"),all("voucherLines"),all("warehouseStock"),all("inventoryLots"),all("treasuryAllocations"),all("accounts")]);
  const invoiceAllocations=allocations.filter(row=>row.invoiceNumber===invoice.number&&row.status!=="REVERSED");if(invoiceAllocations.length){if(invoiceAllocations.some(row=>Number(row.fxGainRial||0)>0||Number(row.fxLossRial||0)>0))throw Error("تخصیص این فاکتور سود یا زیان تحقق‌یافته دارد؛ برگشت امن تخصیص هنوز در دسترس نیست و برگشت فاکتور متوقف شد");throw Error("ابتدا تخصیص‌های دریافت یا پرداخت این فاکتور را حذف کنید؛ سپس برگشت فاکتور را انجام دهید");}
  const party=parties.find(x=>Number(x.id)===Number(invoice.partyId));
  if(!party)throw Error("طرف حساب فاکتور پیدا نشد");
- const original=vouchers.find(v=>v.reference===invoice.number);
- if(!original)throw Error("سند حسابداری اصلی پیدا نشد؛ برگشت امن ممکن نیست");
+ const originalMatches=vouchers.filter(v=>v.reference===invoice.number),original=originalMatches[0];
+ if(originalMatches.length!==1)throw Error("سند حسابداری یکتای اصلی پیدا نشد؛ برگشت امن ممکن نیست");
  if(vouchers.some(v=>v.reference==="REVERSAL:INVOICE:"+invoice.number))throw Error("این فاکتور قبلاً برگشت داده شده است");
- const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(original.id));
- if(oldLines.length<2)throw Error("ردیف‌های سند اصلی ناقص است");
+ const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(original.id)),reverseVoucherLines=validateReversalVoucherLines({voucher:original,lines:oldLines,accounts,label:"فاکتور "+invoice.number});
  const invoiceSnapshot={status:invoice.status,reversedAt:invoice.reversedAt,allocationVersion:invoice.allocationVersion};
  const productSnapshots=new Map(products.map(row=>[Number(row.id),{...row}]));
  const partySnapshots=new Map(parties.map(row=>[Number(row.id),{...row}]));
@@ -215,7 +214,7 @@ async function reversePwaInvoice(number){
   applyPartyBalanceDelta(commissionParty,Number(invoice.commissionAmount),"کارگزار");
   entries.push(["parties",commissionParty],["partyLedger",{partyId:commissionParty.id,date:Date.now(),debitRial:invoice.commissionAmount,creditRial:0,description:"برگشت پورسانت فاکتور "+invoice.number,referenceId:"REVERSAL:"+invoice.number}]);
  }
- const now=Date.now(),reverseVoucherLines=oldLines.map(l=>({accountCode:l.accountCode,debitRial:Number(l.creditRial||0),creditRial:Number(l.debitRial||0),description:"برگشت فاکتور "+invoice.number}));
+ const now=Date.now();
  if(invoice.kind==="PURCHASE"){
   const originalInventoryDebit=oldLines.filter(line=>String(line.accountCode)==="1301").reduce((sum,line)=>sum+Number(line.debitRial||0),0);
   if(!Number.isSafeInteger(originalInventoryDebit)||originalInventoryDebit<0)throw Error("بهای ثبت‌شده موجودی در سند خرید معتبر نیست");
@@ -230,6 +229,7 @@ async function reversePwaInvoice(number){
  const lotIds=[...new Set(lotUpdates.map(row=>String(row.id)))];
  const partyIds=[...new Set(entries.filter(([store])=>store==="parties").map(([,row])=>Number(row.id)))];
  const guards=[{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot}];
+ for(const code of new Set(reverseVoucherLines.map(line=>String(line.accountCode)))){const account=accounts.find(row=>String(row.id)===code);if(!account)throw Error("حساب "+code+" برای سند معکوس فاکتور پیدا نشد");guards.push({store:"accounts",key:account.id,expected:{id:account.id,type:account.type}})}
  for(const id of partyIds){const snapshot=partySnapshots.get(id);if(!snapshot)throw Error("اطلاعات طرف حساب برای کنترل برگشت ناقص است");guards.push({store:"parties",key:id,expected:snapshot})}
  for(const id of productIds){const snapshot=productSnapshots.get(id);if(!snapshot)throw Error("اطلاعات کالا برای کنترل برگشت ناقص است");guards.push({store:"products",key:id,expected:snapshot})}
  for(const key of warehouseKeys){const snapshot=warehouseStockSnapshots.get(key);if(!snapshot)throw Error("اطلاعات موجودی انبار برای کنترل برگشت ناقص است");const [productId,warehouseId]=key.split(":").map(Number);guards.push({store:"warehouseStock",match:{productId,warehouseId},expected:snapshot})}

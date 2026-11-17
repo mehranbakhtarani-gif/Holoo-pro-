@@ -40,4 +40,5 @@ test("stock adjustments validate the current product and warehouse snapshot insi
  assert.match(post,/guards\.map\(x=>x\.store\)/);
  assert.match(post,/const validateGuards=/);
  assert.match(post,/staleState=true/);
+ assert.match(body,/stockAdjustments",match:\{stocktakeId:Number\(options\.stocktakeId\),stocktakeLineKey:String\(options\.stocktakeLineKey\)\},expected:null/);
 });

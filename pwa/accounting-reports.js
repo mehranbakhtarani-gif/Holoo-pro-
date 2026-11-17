@@ -1,8 +1,30 @@
+function validateVoucherLineReferences(input){
+ const accounts=input.accounts||[],vouchers=input.vouchers||[],voucherLines=input.voucherLines||[];
+ const toDate=input.toDate==null?Number.MAX_SAFE_INTEGER:Number(input.toDate),fromDate=input.fromDate==null?0:Number(input.fromDate),onlyPeriod=input.onlyPeriod===true;
+ const accountCodes=new Set(accounts.map(account=>String(account.id)));
+ const voucherById=new Map();
+ for(const voucher of vouchers){
+  const id=Number(voucher.id);
+  if(!Number.isSafeInteger(id)||id<=0)throw new Error("شناسه یکی از اسناد حسابداری معتبر نیست");
+  if(voucherById.has(id))throw new Error("شناسه سند حسابداری تکراری است");
+  voucherById.set(id,voucher);
+ }
+ for(const line of voucherLines){
+  const voucherId=Number(line.voucherId),voucher=voucherById.get(voucherId);
+  if(!Number.isSafeInteger(voucherId)||!voucher)throw new Error("ردیف دفتر کل بدون سند حسابداری مرجع پیدا شد؛ گزارش مالی و بستن دوره متوقف شد");
+  const date=Number(voucher.date||0);
+  if(!Number.isFinite(date))throw new Error("تاریخ سند مرجع یکی از ردیف‌های دفتر کل معتبر نیست");
+  if(date>toDate||(onlyPeriod&&date<fromDate))continue;
+  const code=String(line.accountCode??"").trim();
+  if(!code||!accountCodes.has(code))throw new Error("کد حساب "+(code||"(خالی)")+" در سرفصل حساب‌ها تعریف نشده است؛ ردیف دفتر کل نادیده گرفته نمی‌شود");
+ }
+}
 function buildFinancialStatements(input){
  const accounts=input.accounts||[],vouchers=input.vouchers||[],voucherLines=input.voucherLines||[];
  const fromDate=Number.isFinite(Number(input.fromDate))?Number(input.fromDate):0;
  const toDate=Number.isFinite(Number(input.toDate))?Number(input.toDate):Number.MAX_SAFE_INTEGER;
  if(fromDate>toDate)throw new Error("بازه گزارش مالی نامعتبر است");
+ validateVoucherLineReferences({accounts,vouchers,voucherLines,toDate});
  const voucherById=new Map(vouchers.map(v=>[Number(v.id),v]));
  const allActivity=new Map(),periodActivity=new Map();
  for(const line of voucherLines){
@@ -60,6 +82,7 @@ function buildPeriodClosingJournal(input){
  if(!Number.isFinite(fromDate)||!Number.isFinite(toDate)||fromDate>toDate)throw new Error("بازه بستن دوره معتبر نیست");
  const retained=accounts.find(a=>String(a.id)===retainedEarningsCode);
  if(!retained||retained.type!=="EQUITY")throw new Error("حساب سود و زیان انباشته تعریف نشده است");
+ validateVoucherLineReferences({accounts,vouchers,voucherLines,fromDate,toDate,onlyPeriod:true});
  const byId=new Map(vouchers.map(v=>[Number(v.id),v])),activity=new Map();
  for(const line of voucherLines){
   const voucher=byId.get(Number(line.voucherId));if(!voucher)continue;
@@ -92,6 +115,8 @@ function buildLedgerRunningRows(input){
  const rows=input.rows||[],accounts=input.accounts||[],accountCode=input.accountCode?String(input.accountCode):"";
  const fromDate=input.fromDate==null?0:Number(input.fromDate),toDate=input.toDate==null?Number.MAX_SAFE_INTEGER:Number(input.toDate);
  if(!Number.isFinite(fromDate)||!Number.isFinite(toDate)||fromDate>toDate)throw new Error("بازه تاریخ دفتر معتبر نیست");
+ const accountCodes=new Set(accounts.map(account=>String(account.id)));
+ for(const row of rows){if(row.orphanVoucherLine)throw new Error("ردیف دفتر کل بدون سند حسابداری مرجع پیدا شد");const code=String(row.accountCode??"").trim();if(!code||!accountCodes.has(code))throw new Error("کد حساب "+(code||"(خالی)")+" در سرفصل حساب‌ها تعریف نشده است");}
  const balances=new Map(accounts.map(a=>[String(a.id),Number(a.openingDebitRial||0)-Number(a.openingCreditRial||0)]));
  for(const value of balances.values())if(!Number.isSafeInteger(value))throw new Error("مانده افتتاحیه حساب معتبر نیست");
  const selected=(rows||[]).filter(row=>!accountCode||String(row.accountCode)===accountCode).slice().sort((a,b)=>Number(a.date||0)-Number(b.date||0)||String(a.number||"").localeCompare(String(b.number||"")));
@@ -158,6 +183,6 @@ function hasOverlappingPeriodClose(vouchers,fromDate,toDate){
   return Number.isSafeInteger(oldFrom)&&Number.isSafeInteger(oldTo)&&oldFrom<=oldTo&&fromDate<=oldTo&&toDate>=oldFrom;
  });
 }
-const accountingReportsApi={buildFinancialStatements,buildPeriodClosingJournal,buildLedgerRunningRows,buildLedgerCsv,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
+const accountingReportsApi={validateVoucherLineReferences,buildFinancialStatements,buildPeriodClosingJournal,buildLedgerRunningRows,buildLedgerCsv,buildTrialBalanceColumns,buildPurchaseReversalAdjustment,hasOverlappingPeriodClose};
 if(typeof module!=="undefined"&&module.exports)module.exports=accountingReportsApi;
 if(typeof globalThis!=="undefined")globalThis.HolooAccountingReports=accountingReportsApi;

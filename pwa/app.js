@@ -781,7 +781,7 @@ function bindInventoryTools(products,invoices,adjustments,stockRows,transfers,sh
   const movementLabels={PURCHASE:"خرید",SALE:"فروش",ADJUSTMENT:"اصلاح موجودی",TRANSFER_OUT:"انتقال خروجی",TRANSFER_IN:"انتقال ورودی",IMPORT_RECEIPT:"رسید محموله",PURCHASE_REVERSAL:"برگشت خرید",SALE_REVERSAL:"برگشت فروش"};
   const movementLabel=type=>movementLabels[type]||type;
   const headers=["تاریخ","نوع","شماره سند","شرح","ورود kg","خروج kg","ارزش ورود ریال","ارزش خروج ریال","مانده kg","ارزش مانده ریال"];
-  const body=result.rows.map(x=>'<tr><td>'+date(x.date)+'</td><td>'+h(x.type)+'</td><td>'+h(x.reference)+'</td><td>'+h(x.description)+'</td><td>'+fmt(x.quantityIn)+'</td><td>'+fmt(x.quantityOut)+'</td><td>'+money(x.valueIn)+'</td><td>'+money(x.valueOut)+'</td><td>'+fmt(x.balanceQty)+'</td><td>'+money(x.balanceValue)+'</td></tr>');
+  const body=result.rows.map(x=>'<tr><td>'+date(x.date)+'</td><td>'+h(movementLabel(x.type))+'</td><td>'+h(x.reference)+'</td><td>'+h(x.description)+'</td><td>'+fmt(x.quantityIn)+'</td><td>'+fmt(x.quantityOut)+'</td><td>'+money(x.valueIn)+'</td><td>'+money(x.valueOut)+'</td><td>'+fmt(x.balanceQty)+'</td><td>'+money(x.balanceValue)+'</td></tr>');
   if(output)output.innerHTML='<div class="grid">'+stat("مانده اول دوره",fmt(result.opening.quantity)+" kg",money(result.opening.value)+" ریال")+stat("مانده پایان دوره",fmt(result.closing.quantity)+" kg",money(result.closing.value)+" ریال")+'</div>'+table(headers,body);
   csvHeaders=headers;csvRows=result.rows.map(x=>[date(x.date),movementLabel(x.type),x.reference,x.description,x.quantityIn,x.quantityOut,x.valueIn,x.valueOut,x.balanceQty,x.balanceValue]);if(exportButton)exportButton.disabled=false;
  }catch(e){toast(e.message||"تهیه کاردکس ناموفق بود")}};

@@ -621,7 +621,7 @@ async function receiveImportShipment(id){
  if(shipment.receivedAt)throw Error("این محموله قبلاً رسید انبار شده است");
  if(shipment.status!=="رسیده")throw Error("ابتدا وضعیت محموله را به «رسیده» تغییر دهید");
  const expectedShipmentState={...shipment};
- const [products,parties,warehouses,stockRows,lots,foreignPayables]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock"),all("inventoryLots"),all("foreignPayables"),all("importChargePayables")]);
+ const [products,parties,warehouses,stockRows,lots,foreignPayables,importChargePayables]=await Promise.all([all("products"),all("parties"),all("warehouses"),all("warehouseStock"),all("inventoryLots"),all("foreignPayables"),all("importChargePayables")]);
  const product=products.find(x=>Number(x.id)===Number(shipment.productId)),party=parties.find(x=>Number(x.id)===Number(shipment.supplierId)),warehouse=warehouses.find(x=>Number(x.id)===Number(shipment.warehouseId));
  if(!product||!party||!warehouse)throw Error("کالا، تأمین‌کننده یا انبار مقصد محموله پیدا نشد");
  const costs=calculateImportShipmentCost({currency:shipment.currency,fx:shipment.fx,weight:shipment.weight,goods:shipment.goods,freight:shipment.freight,customs:shipment.customs,insurance:shipment.insurance,port:shipment.port,inland:shipment.inland,broker:shipment.broker,storage:shipment.storage,bank:shipment.bank,other:shipment.other});

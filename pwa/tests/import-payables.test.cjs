@@ -107,3 +107,25 @@ test("ancillary import payment reversal restores payable, party balance, treasur
  assert.deepEqual(posted.lines.map(x=>[x.accountCode,x.debitRial,x.creditRial]),[["2102",0,200],["1102",200,0]]);
  assert.ok(posted.guards.some(x=>x.store==="importChargePayables"&&x.key===5));
 });
+
+test("startup migration creates missing received-shipment payables and isolates legacy payments for reconciliation",async()=>{
+ const app=require("node:fs").readFileSync(require("node:path").join(__dirname,"..","app.js"),"utf8");
+ const start=app.indexOf("async function migrateLegacyImportChargePayablesPwa(){"),end=app.indexOf("async function reverseTreasuryAllocationPwa(id){",start);
+ assert.ok(start>=0&&end>start);
+ const db={
+  importShipments:[{id:7,number:"S-7",receivedAt:100,currency:"USD",fx:100,goods:100,weight:100,freight:1000,customs:500}],
+  importChargePayables:[{id:1,reference:"IMPORT-CHARGE:7:customs",shipmentId:7,category:"customs",amountRial:500,status:"OPEN"}],
+  treasury:[{id:9,kind:"PAYMENT",amount:400,status:"POSTED",importAncillaryPayment:true,importShipmentId:7,importChargeCategory:"freight"}]
+ };
+ const all=async store=>(db[store]||[]).map(row=>({...row}));
+ let writes=0;
+ const putManyGuarded=async(entries,guards)=>{writes++;assert.equal(entries.length,1);assert.equal(guards.length,1);assert.equal(guards[0].expected,null);db.importChargePayables.push({...entries[0][1],id:2})};
+ const migrate=new Function("all","putManyGuarded","calculateImportShipmentCost","console",app.slice(start,end)+";return migrateLegacyImportChargePayablesPwa;")(all,putManyGuarded,require("../import-cost.js").calculateImportShipmentCost,console);
+ assert.equal(await migrate(),1);
+ assert.equal(writes,1);
+ assert.equal(db.importChargePayables[1].category,"freight");
+ assert.equal(db.importChargePayables[1].status,"RECONCILIATION_REQUIRED");
+ assert.equal(db.importChargePayables[1].paidRial,0);
+ assert.equal(await migrate(),0);
+ assert.equal(writes,1);
+});

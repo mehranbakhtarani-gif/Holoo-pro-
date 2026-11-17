@@ -117,3 +117,13 @@ test("ordinary treasury detail amount, direction and party must match its source
  assert.equal(result.withIssues,1);
  assert.ok(result.rows[0].issues.some(x=>x.includes("مطابقت ندارد")));
 });
+
+test("party-linked treasury rows pointing to missing parties are surfaced globally",()=>{
+ const result=reconcilePartyBalances({
+  parties:[],
+  treasury:[{id:7,partyId:77,kind:"PAYMENT",amount:250,reference:"TREASURY:ORPHAN"}]
+ });
+ assert.equal(result.orphanTreasuryRows.length,1);
+ assert.equal(result.withIssues,1);
+ assert.ok(result.orphanIssues.some(x=>x.includes("خزانه")));
+});

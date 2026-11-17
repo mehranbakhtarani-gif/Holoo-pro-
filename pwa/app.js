@@ -14,23 +14,23 @@ async function payPayrollPwa(id){
  await postVoucherAtomic([["payroll",row],["treasury",treasury]],{number:"PAYP-"+now,date:now,description:"پرداخت حقوق "+row.employeeName+" "+row.period,reference},journal,[{store:"payroll",key:Number(row.id),expected:snapshot}]);
 }
 async function reverseClearedCheckPwa(id){
- const [checks,parties,treasury,vouchers,voucherLines,allocations]=await Promise.all([all("checks"),all("parties"),all("treasury"),all("vouchers"),all("voucherLines"),all("treasuryAllocations")]);
+ const [checks,parties,treasury,vouchers,voucherLines,allocations,accounts]=await Promise.all([all("checks"),all("parties"),all("treasury"),all("vouchers"),all("voucherLines"),all("treasuryAllocations"),all("accounts")]);
  const check=checks.find(x=>Number(x.id)===Number(id));
  if(!check||check.status!=="CLEARED")throw Error("فقط چک وصول یا پرداخت‌شده قابل برگشت است");
- const reference="CHECK:CLEAR:"+check.id,original=treasury.find(x=>x.checkId&&Number(x.checkId)===Number(check.id)&&x.reference===reference),voucher=vouchers.find(x=>x.reference===reference);
- if(!original||original.status==="REVERSED"||!voucher)throw Error("گردش یا سند اصلی وصول چک پیدا نشد");
+ const reference="CHECK:CLEAR:"+check.id,originals=treasury.filter(x=>x.checkId&&Number(x.checkId)===Number(check.id)&&x.reference===reference),vouchersForCheck=vouchers.filter(x=>x.reference===reference),original=originals[0],voucher=vouchersForCheck[0];
+ if(originals.length!==1||vouchersForCheck.length!==1||original.status==="REVERSED")throw Error("گردش یا سند یکتای اصلی وصول چک پیدا نشد");
  if(allocations.some(x=>Number(x.treasuryId)===Number(original.id)&&x.status!=="REVERSED"))throw Error("ابتدا تخصیص‌های فعال این گردش چک را حذف یا برگشت دهید");
  const party=parties.find(x=>Number(x.id)===Number(check.partyId));if(!party)throw Error("طرف حساب چک پیدا نشد");
- const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(voucher.id)),amount=Number(check.amount);
- const debit=oldLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=oldLines.reduce((n,x)=>n+Number(x.creditRial||0),0);
- if(oldLines.length<2||debit!==credit||debit!==amount)throw Error("سند وصول چک با مبلغ چک مطابقت ندارد");
+ const oldLines=voucherLines.filter(x=>Number(x.voucherId)===Number(voucher.id)),amount=Number(check.amount),expectedKind=check.kind==="RECEIVED"?"RECEIPT":"PAYMENT";
+ if(!Number.isSafeInteger(amount)||amount<=0||original.kind!==expectedKind||Number(original.partyId)!==Number(party.id)||Number(original.amount)!==amount||original.method!=="بانک")throw Error("گردش خزانه با مبلغ، نوع یا طرف حساب چک مطابقت ندارد");
+ const expectedLines=expectedKind==="RECEIPT"?[{accountCode:"1102",debitRial:amount,creditRial:0},{accountCode:"1103",debitRial:0,creditRial:amount}]:[{accountCode:"2101",debitRial:amount,creditRial:0},{accountCode:"1102",debitRial:0,creditRial:amount}],reversalLines=validateReversalVoucherLines({voucher,lines:oldLines,accounts,expectedLines,expectedTotal:amount,label:"وصول چک"});
  const checkSnapshot={...check},partySnapshot={...party},treasurySnapshot={...original},now=Date.now(),reversalReference="CHECK:REV:"+check.id;
  original.status="REVERSED";original.reversedAt=now;
  applyPartyBalanceDelta(party,original.kind==="RECEIPT"?amount:-amount);
  check.status="BOUNCED";check.bouncedAfterClearing=true;check.bouncedAt=now;check.statusChangedAt=now;check.reversalVoucherNumber="CHREV-"+now;
  const reversal={kind:original.kind==="RECEIPT"?"PAYMENT":"RECEIPT",method:original.method,partyId:party.id,partyName:party.name,currency:"IRR",amount,foreignAmountMinor:null,fxRateRialPerUnit:1,date:now,note:"برگشت وصول/پرداخت چک "+check.number,reference:reversalReference,checkId:check.id,reversalOfId:original.id};
  const ledger={partyId:party.id,date:now,debitRial:original.kind==="RECEIPT"?amount:0,creditRial:original.kind==="PAYMENT"?amount:0,description:"برگشت وصول/پرداخت چک "+check.number,referenceId:reversalReference};
- const reversalLines=oldLines.map(line=>({accountCode:line.accountCode,debitRial:Number(line.creditRial||0),creditRial:Number(line.debitRial||0),description:"برگشت وصول/پرداخت چک "+check.number}));
+ 
  await postVoucherAtomic([["checks",check],["parties",party],["treasury",original],["treasury",reversal],["partyLedger",ledger]],{number:check.reversalVoucherNumber,date:now,description:"برگشت وصول/پرداخت چک "+check.number,reference:reversalReference},reversalLines,[{store:"checks",key:Number(check.id),expected:checkSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"treasury",key:Number(original.id),expected:treasurySnapshot},{store:"treasuryAllocations",match:{treasuryId:Number(original.id)},expected:null}]);
 }
 async function reverseTreasuryPwa(id){

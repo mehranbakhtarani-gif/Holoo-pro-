@@ -41,3 +41,24 @@ test("reversed FX allocations release transaction and invoice foreign minor unit
  assert.equal(calculateTreasuryForeignAllocation({transaction,amount:7500,allocations:rows}),750);
  assert.equal(getActiveInvoiceForeignAllocatedMinor("I-13",rows),250);
 });
+
+test("foreign invoice settlement uses booked Rial, not the cash Rial amount",()=>{
+ const result=getInvoiceSettlement({number:"FX-1",currency:"USD",status:"POSTED",total:600000000},[
+  {invoiceNumber:"FX-1",amount:650000000,bookedRial:600000000,foreignAmountMinor:100000,status:"ACTIVE"}
+ ]);
+ assert.deepEqual(result,{paid:600000000,outstanding:0,status:"PAID"});
+});
+
+test("foreign invoice allocation validates cash and booked balances independently",()=>{
+ const transaction={id:21,partyId:7,kind:"RECEIPT",currency:"USD",amount:650000000,foreignAmountMinor:100000};
+ const invoice={number:"FX-2",partyId:7,kind:"SALE",currency:"USD",total:600000000,foreignTotalMinor:100000,status:"POSTED"};
+ assert.equal(validateTreasuryAllocation({transaction,invoice,amount:650000000,invoiceAmount:600000000,allocations:[]}),true);
+ assert.throws(()=>validateTreasuryAllocation({transaction,invoice,amount:650000000,invoiceAmount:600000001,allocations:[]}),/مانده فاکتور/);
+});
+
+test("reversed foreign allocations release the invoice booked and foreign balance",()=>{
+ const invoice={number:"FX-3",currency:"EUR",status:"POSTED",total:900000,foreignTotalMinor:150};
+ const rows=[{invoiceNumber:"FX-3",amount:900000,bookedRial:900000,foreignAmountMinor:150,status:"REVERSED"}];
+ assert.deepEqual(getInvoiceSettlement(invoice,rows),{paid:0,outstanding:900000,status:"UNPAID"});
+ assert.equal(getActiveInvoiceForeignAllocatedMinor("FX-3",rows),0);
+});

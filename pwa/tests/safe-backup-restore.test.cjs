@@ -17,7 +17,7 @@ test("restore validates app version, file size, store names and complete v2 sche
  assert.match(app,/unknown=Object\.keys\(data\.records\)\.filter\(name=>!stores\.includes\(name\)\)/);
  assert.match(app,/\[DB_VERSION,DB_VERSION-1\]\.includes\(schemaVersion\)/);
  assert.match(app,/data\.counts\[store\]!==rows\.length/);
- assert.match(app,/data\.storeNames\.length!==stores\.length/);
+ assert.match(app,/sourceStores\.length!==Object\.keys\(data\.records\)\.length/);
 });
 test("restore rejects invalid and duplicate record IDs before touching IndexedDB",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");

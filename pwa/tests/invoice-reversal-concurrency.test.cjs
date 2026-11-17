@@ -23,3 +23,15 @@ test("invoice reversal revalidates all affected ledger and inventory snapshots a
   "reverseVoucherLines,guards)"
  ])assert.ok(body.includes(expected),"Missing reversal guard: "+expected);
 });
+
+
+test("sale invoice reversal verifies FIFO allocation quantity and COGS against each invoice line",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ const start=app.indexOf("async function reversePwaInvoice");
+ const end=app.indexOf("\\nasync function printInvoiceDocument",start);
+ const body=app.slice(start,end);
+ assert.match(body,/allocatedQty=line\\.lotAllocations\\.reduce\\(\\(sum,row\\)=>sum\\+Number\\(row\\.quantity\\),0\\)/);
+ assert.match(body,/Math\\.abs\\(allocatedQty-totalQty\\)>1e-6/);
+ assert.match(body,/allocatedCogs!==cost/);
+ assert.match(body,/جمع مقدار یا بهای تخصیص‌های FIFO با ردیف فاکتور فروش یکسان نیست/);
+});

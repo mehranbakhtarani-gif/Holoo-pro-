@@ -73,4 +73,5 @@ test("cumulative FX allocation reversals must follow reverse order across invoic
  assert.throws(()=>validateTreasuryAllocationReversalOrder({allocation:second,allocations:rows}),/جدیدترین تخصیص/);
  assert.equal(validateTreasuryAllocationReversalOrder({allocation:third,allocations:rows}),true);
  assert.equal(validateTreasuryAllocationReversalOrder({allocation:second,allocations:[first,second]}),true);
+ assert.equal(validateTreasuryAllocationReversalOrder({allocation:{id:8,treasuryId:1,invoiceNumber:"IRR",currency:"IRR"},allocations:[{id:9,treasuryId:1,invoiceNumber:"IRR",currency:"IRR"}]}),true);
 });

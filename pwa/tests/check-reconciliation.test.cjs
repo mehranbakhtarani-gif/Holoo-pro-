@@ -55,3 +55,13 @@ test("exact voucher inverse is account-by-account, not only total-balanced",()=>
  assert.equal(validateExactVoucherInverse(original,[{accountCode:"1102",debitRial:0,creditRial:100},{accountCode:"1103",debitRial:100,creditRial:0}]),true);
  assert.equal(validateExactVoucherInverse(original,[{accountCode:"1101",debitRial:0,creditRial:100},{accountCode:"1103",debitRial:100,creditRial:0}]),false);
 });
+
+test("validates a payable cheque against the supplier control account and debit party movement",()=>{
+ const result=validateClearedCheckForReversal({
+  check:{id:6,kind:"PAYABLE",status:"CLEARED",partyId:12,amount:78000},
+  treasury:{id:15,checkId:6,partyId:12,kind:"PAYMENT",amount:78000,reference:"CHECK:CLEAR:6"},
+  voucherLines:[{accountCode:"2101",debitRial:78000,creditRial:0},{accountCode:"1102",debitRial:0,creditRial:78000}],
+  partyLedgerRows:[{partyId:12,debitRial:78000,creditRial:0,referenceId:"CHECK:CLEAR:6"}]
+ });
+ assert.equal(result.ok,true);
+});

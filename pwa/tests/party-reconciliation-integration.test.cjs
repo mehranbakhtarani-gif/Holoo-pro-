@@ -10,7 +10,7 @@ test("party reconciliation module is loaded before app and cached offline",()=>{
  assert.ok(html.indexOf("party-reconciliation.js")>=0);
  assert.ok(html.indexOf("party-reconciliation.js")<html.indexOf("app.js?v="));
  assert.match(sw,/\.\/party-reconciliation\.js/);
- assert.match(sw,/holloo-pwa-v176-party-subledger-reconciliation/);
+ assert.match(sw,/holloo-pwa-v177-cheque-lifecycle-reconciliation/);
 });
 
 test("parties page renders read-only reconciliation for balances, subledger and control accounts",()=>{

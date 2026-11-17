@@ -117,7 +117,11 @@ function reconcileForeignPayablePayments(input){
    if(reversalLedger.length!==1)issues.push(reversalLedger.length?"گردش برگشت طرف حساب تکراری":"گردش برگشت طرف حساب پیدا نشد");
    else if(Number(reversalLedger[0].partyId)!==Number(payment.supplierId)||Number(reversalLedger[0].creditRial)!==Number(payment.bookedRial))issues.push("گردش برگشت طرف حساب مغایر است");
    if(reversalVouchers.length!==1)issues.push(reversalVouchers.length?"سند برگشت تکراری":"سند برگشت حسابداری پیدا نشد");
-   else{const debit=reversalLines.reduce((n,x)=>n+Number(x.debitRial||0),0),credit=reversalLines.reduce((n,x)=>n+Number(x.creditRial||0),0);if(!reversalLines.length||debit!==credit)issues.push("سند برگشت نامتوازن است")}
+   else{
+    const validator=globalThis.HolooReversalValidation;
+    if(!validator||typeof validator.validateReversalVoucherPair!=="function")issues.push("ماژول تطبیق ردیف‌های سند معکوس بارگذاری نشده است");
+    else try{validator.validateReversalVoucherPair({originalLines:lines,reversalLines,label:"برگشت پرداخت تعهد ارزی"})}catch(error){issues.push(error.message||"ردیف‌های سند برگشت با سند اصلی مطابقت ندارند")}
+   }
   }else if(reversalTreasury.length||reversalLedger.length||reversalVouchers.length)issues.push("برای پرداخت فعال، سند برگشت غیرمنتظره وجود دارد");
   return {paymentId:payment.id,reference,sourceNumber:payment.sourceNumber,status:active?"فعال":"برگشت‌شده",ok:issues.length===0,issues};
  });

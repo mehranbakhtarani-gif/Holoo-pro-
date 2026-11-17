@@ -65,3 +65,9 @@ test("manual operation dates are enabled for sales orders and stamp their creati
  const order=stampOperationRecord({store:"salesOrders",record:{date:now,createdAt:now,updatedAt:now,validUntil:now+86400000},mode:"MANUAL",manualValue,now});
  assert.equal(order.date,at);assert.equal(order.createdAt,at);assert.equal(order.updatedAt,at);assert.equal(order.validUntil,now+86400000);
 });
+
+test("manual warehouse transfer reversal stamps reversedAt without changing the original transfer date",()=>{
+ const now=Date.now(),old=now-86400000,manualValue="2026-11-15T12:30",at=parseOperationDate(manualValue);
+ const transfer=stampOperationRecord({store:"warehouseTransfers",record:{date:old,status:"REVERSED",reversedAt:now},mode:"MANUAL",manualValue,now});
+ assert.equal(transfer.date,old);assert.equal(transfer.reversedAt,at);
+});

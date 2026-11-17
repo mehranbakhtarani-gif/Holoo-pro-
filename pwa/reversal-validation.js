@@ -46,7 +46,7 @@ function validateReversalVoucherLines({voucher,lines,accounts,expectedLines=null
  const accountCodes=new Set((accounts||[]).map(account=>String(account.id)));
  const seenLineIds=new Set();
  const actual=lines.map(line=>{
-  if(line?.voucherId!=null&&Number(line.voucherId)!==voucherId)throw new Error("ردیف دفتر کل به سند دیگری متصل است؛ برگشت "+label+" متوقف شد");
+  if(!Number.isSafeInteger(Number(line?.voucherId))||Number(line.voucherId)!==voucherId)throw new Error("ردیف دفتر کل به سند اصلی متصل نیست یا به سند دیگری تعلق دارد؛ برگشت "+label+" متوقف شد");
   if(line?.id!=null){
    const id=String(line.id);
    if(seenLineIds.has(id))throw new Error("شناسه ردیف سند اصلی "+label+" تکراری است");

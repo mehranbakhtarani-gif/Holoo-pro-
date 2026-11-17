@@ -160,7 +160,7 @@ function buildReorderReport(input){
 
 function buildInventoryReconciliation(input){
  const products=Array.isArray(input.products)?input.products:[],stockRows=Array.isArray(input.warehouseStock)?input.warehouseStock:[],lots=Array.isArray(input.inventoryLots)?input.inventoryLots:[],accounts=Array.isArray(input.accounts)?input.accounts:[],vouchers=Array.isArray(input.vouchers)?input.vouchers:[],voucherLines=Array.isArray(input.voucherLines)?input.voucherLines:[];
- const discrepancies=[],voucherMap=new Map(vouchers.map(row=>[Number(row.id),row]));
+ const discrepancies=[],productIds=new Set(products.map(row=>String(row.id))),voucherMap=new Map(vouchers.map(row=>[Number(row.id),row]));
  const add=(scope,metric,expected,actual,productId=null,warehouseId=null)=>{
   const difference=actual-expected;
   const mismatch=metric==="quantity"?Math.abs(difference)>1e-6:difference!==0;
@@ -171,11 +171,13 @@ function buildInventoryReconciliation(input){
  const stockByProduct=new Map(),stockByWarehouse=new Map(),lotByProduct=new Map(),lotByWarehouse=new Map();
  for(const row of stockRows){
   const pid=String(row.productId),wid=String(row.warehouseId),key=pid+":"+wid;
+  if(!productIds.has(pid))discrepancies.push({scope:"ORPHAN_WAREHOUSE_STOCK",metric:"missing_product",expected:"کالای ثبت‌شده",actual:pid,productId:row.productId,warehouseId:row.warehouseId});
   const s=stockByProduct.get(pid)||{quantity:0,value:0};s.quantity+=qty(row.stock);s.value+=rial(row.value);if(!Number.isSafeInteger(s.value))throw new Error("جمع ارزش موجودی انبارها از محدوده مجاز خارج است");stockByProduct.set(pid,s);
   const w=stockByWarehouse.get(key)||{quantity:0,value:0,count:0};w.quantity+=qty(row.stock);w.value+=rial(row.value);w.count++;if(!Number.isSafeInteger(w.value))throw new Error("جمع ارزش موجودی انبار از محدوده مجاز خارج است");stockByWarehouse.set(key,w);
  }
  for(const lot of lots){
   const pid=String(lot.productId),wid=String(lot.warehouseId),key=pid+":"+wid;
+  if(!productIds.has(pid))discrepancies.push({scope:"ORPHAN_FIFO_LOT",metric:"missing_product",expected:"کالای ثبت‌شده",actual:pid,productId:lot.productId,warehouseId:lot.warehouseId});
   const q=qty(lot.remainingQty),v=rial(lot.remainingValue),p=lotByProduct.get(pid)||{quantity:0,value:0},w=lotByWarehouse.get(key)||{quantity:0,value:0};
   p.quantity+=q;p.value+=v;w.quantity+=q;w.value+=v;
   if(!Number.isSafeInteger(p.value)||!Number.isSafeInteger(w.value))throw new Error("جمع ارزش بچ‌های FIFO از محدوده مجاز خارج است");
@@ -189,6 +191,7 @@ function buildInventoryReconciliation(input){
   add("PRODUCT_FIFO","value",rial(product.value),fifo.value,product.id);
  }
  const keys=new Set([...stockByWarehouse.keys(),...lotByWarehouse.keys()]);
+ for(const [key,row] of stockByWarehouse){if(row.count>1){const [pid,wid]=key.split(":");discrepancies.push({scope:"DUPLICATE_WAREHOUSE_STOCK",metric:"row_count",expected:1,actual:row.count,productId:Number(pid),warehouseId:Number(wid)})}}
  for(const key of keys){
   const [pid,wid]=key.split(":"),stock=stockByWarehouse.get(key)||{quantity:0,value:0},fifo=lotByWarehouse.get(key)||{quantity:0,value:0};
   add("WAREHOUSE_FIFO","quantity",stock.quantity,fifo.quantity,Number(pid),Number(wid));

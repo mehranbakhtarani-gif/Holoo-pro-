@@ -1,0 +1,4 @@
+const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
+const root=path.resolve(__dirname,".."),app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
+test("inventory reports and barcode printing are connected",()=>{assert.match(app,/inventoryReports:\["گزارش‌های انبار"/);assert.match(app,/if\(currentPage==="inventoryReports"\)/);assert.match(app,/printBarcodeLabels/);assert.match(app,/buildInventoryKardex/);assert.match(app,/buildStagnantInventoryReport/);});
+test("inventory-control module loads before app and is included in offline cache",()=>{assert.ok(html.indexOf("inventory-control.js")<html.indexOf("app.js?v="));assert.match(sw,/\.\/inventory-control\.js/);});

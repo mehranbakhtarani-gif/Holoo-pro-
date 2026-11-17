@@ -34,3 +34,21 @@ test("voucher reference uniqueness is enforced inside the atomic transaction",()
  assert.match(app,/objectStore\("vouchers"\)\.getAll\(\);\s*check\.onsuccess/);
  assert.match(app,/سندی با این شناسه مرجع قبلاً ثبت شده است/);
 });
+
+test("cleared cheque reversal validates original bank, control-account and party-ledger postings before writing a reversal",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/HolooCheckReconciliation\.validateClearedCheckForReversal/);
+ assert.match(app,/CHECK:REV:/);
+ assert.match(app,/reversalOfId:original\.id/);
+ assert.match(app,/validateExactVoucherInverse\(oldLines,reversalLines\)/);
+});
+
+test("endorsed cheque reversal posts exact opposite party-ledger and control-account entries",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/async function reverseEndorsedCheckPwa/);
+ assert.match(app,/CHECK:ENDORSE:REV:/);
+ assert.match(app,/data-check-endorsement-reverse/);
+ assert.match(app,/applyPartyBalanceDelta\(sourceParty,amount/);
+ assert.match(app,/applyPartyBalanceDelta\(targetParty,-amount/);
+ assert.match(app,/validateEndorsedCheckForReversal/);
+});

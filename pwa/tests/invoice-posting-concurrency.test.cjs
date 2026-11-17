@@ -39,3 +39,11 @@ test("invoice posting validates cumulative COGS and foreign minor-unit totals",(
  assert.match(app,/cogs\+=lineCogs;if\(!Number\.isSafeInteger\(cogs\)\)/);
  assert.match(app,/foreignSubtotalMinor\+=lineForeignMinor;if\(!Number\.isSafeInteger\(foreignSubtotalMinor\)\)/);
 });
+
+
+test("invoice posting rejects FIFO COGS that exceeds aggregate product inventory value",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/if\(lineCogs>currentValue\)throw Error\("بهای خروج FIFO از ارزش کل موجودی کالا بیشتر است/);
+ assert.match(app,/product\.value=currentValue-lineCogs/);
+ assert.doesNotMatch(app,/product\.value=Math\.max\(0,currentValue-lineCogs\)/);
+});

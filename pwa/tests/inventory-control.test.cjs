@@ -109,3 +109,28 @@ test("kardex records a reversed warehouse transfer at the reversal date for both
  assert.equal(destination.closing.quantity,4);assert.equal(destination.closing.value,12000);
  assert.deepEqual(destination.rows.map(x=>x.type),["TRANSFER_IN","TRANSFER_REVERSAL_OUT"]);
 });
+
+test("inventory reconciliation matches product totals, per-warehouse FIFO lots and account 1301",()=>{
+ const result=buildInventoryReconciliation({
+  products:[{id:1,stock:10,value:10000}],
+  warehouseStock:[{productId:1,warehouseId:2,stock:6,value:6000},{productId:1,warehouseId:3,stock:4,value:4000}],
+  inventoryLots:[{id:"a",productId:1,warehouseId:2,remainingQty:6,remainingValue:6000},{id:"b",productId:1,warehouseId:3,remainingQty:4,remainingValue:4000}],
+  accounts:[{id:"1301",openingDebitRial:7000,openingCreditRial:0}],
+  vouchers:[{id:1}],voucherLines:[{voucherId:1,accountCode:"1301",debitRial:3000,creditRial:0}]
+ });
+ assert.equal(result.balanced,true);assert.equal(result.productInventoryValue,10000);assert.equal(result.inventoryLedgerBalance,10000);assert.deepEqual(result.discrepancies,[]);
+});
+test("inventory reconciliation reports warehouse, FIFO and 1301 differences without mutating input",()=>{
+ const products=[{id:1,stock:10,value:10000}],warehouseStock=[{productId:1,warehouseId:2,stock:9,value:9000}],inventoryLots=[{id:"a",productId:1,warehouseId:2,remainingQty:8,remainingValue:8000}];
+ const result=buildInventoryReconciliation({products,warehouseStock,inventoryLots,accounts:[{id:"1301",openingDebitRial:12000,openingCreditRial:0}],vouchers:[],voucherLines:[]});
+ assert.equal(result.balanced,false);
+ assert.ok(result.discrepancies.some(x=>x.scope==="PRODUCT_WAREHOUSE"&&x.metric==="quantity"));
+ assert.ok(result.discrepancies.some(x=>x.scope==="WAREHOUSE_FIFO"&&x.metric==="value"));
+ assert.ok(result.discrepancies.some(x=>x.scope==="ACCOUNT_1301"&&x.difference===2000));
+ assert.equal(products[0].stock,10);assert.equal(warehouseStock[0].stock,9);assert.equal(inventoryLots[0].remainingQty,8);
+});
+test("inventory reconciliation rejects unsafe monetary values and detects a missing 1301 account",()=>{
+ assert.throws(()=>buildInventoryReconciliation({products:[{id:1,stock:1,value:1.5}]}),/ارزش موجودی/);
+ const result=buildInventoryReconciliation({products:[{id:1,stock:0,value:0}],accounts:[]});
+ assert.equal(result.balanced,false);assert.equal(result.discrepancies[0].scope,"ACCOUNT_1301");
+});

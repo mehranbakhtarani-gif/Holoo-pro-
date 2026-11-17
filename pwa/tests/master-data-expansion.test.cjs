@@ -37,5 +37,5 @@ test("party search includes the expanded identifying and contact fields",()=>{
 
 test("PWA cache is invalidated for the expanded master-data UI",()=>{
  assert.match(html,/app\.js\?v=warehouse-transfer-reversal-1/);
- assert.match(sw,/holloo-pwa-v167-inventory-reconciliation-audit/);
+ assert.match(sw,/holloo-pwa-v168-purchase-cost-allocation-guard/);
 });

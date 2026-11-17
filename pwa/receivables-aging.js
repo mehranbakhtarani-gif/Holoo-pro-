@@ -7,7 +7,8 @@ function buildReceivablePayableAging(input){
   if(!invoice||(invoice.status&&invoice.status!=="POSTED")||!["SALE","PURCHASE"].includes(invoice.kind))continue;
   const total=Number(invoice.total||0);
   if(!Number.isSafeInteger(total)||total<0)throw new Error("مبلغ فاکتور برای گزارش سنی معتبر نیست: "+String(invoice.number||""));
-  const paid=allocations.filter(row=>row.invoiceNumber===invoice.number&&row.status!=="REVERSED").reduce((sum,row)=>sum+Number(row.amount||0),0);
+  const foreign=String(invoice.currency||"IRR").toUpperCase()!=="IRR";
+  const paid=allocations.filter(row=>row.invoiceNumber===invoice.number&&row.status!=="REVERSED").reduce((sum,row)=>sum+Number(foreign?(row.bookedRial??row.amount):(row.amount||0)),0);
   if(!Number.isSafeInteger(paid)||paid<0)throw new Error("جمع تخصیص‌های فاکتور معتبر نیست: "+String(invoice.number||""));
   if(paid>total)throw new Error("جمع تخصیص‌های فاکتور از مبلغ کل بیشتر است: "+String(invoice.number||""));
   const outstanding=total-paid;

@@ -120,3 +120,10 @@ test("ledger CSV exports filtered rows, opening-aware balances and escaped Persi
  assert.match(csv,/1050/);
  assert.doesNotMatch(csv,/بعدی/);
 });
+
+test("ledger CSV preserves the device-local operation date and time",()=>{
+ const date=new Date(2026,10,17,0,15,30).getTime();
+ const csv=buildLedgerCsv({accounts:[{id:"1101",openingDebitRial:0,openingCreditRial:0}],rows:[{date,number:"LOCAL",description:"local date",accountCode:"1101",debit:1,credit:0}],fromDate:0,toDate:Date.now()+86400000});
+ assert.match(csv,/2026-11-17 00:15:30/);
+ assert.doesNotMatch(csv,/2026-11-16T/);
+});

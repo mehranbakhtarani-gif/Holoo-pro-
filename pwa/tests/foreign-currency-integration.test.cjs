@@ -21,7 +21,7 @@ test("foreign receipts and payments retain currency and exchange rate", () => {
 
 test("settlement recognizes FX gains and losses with balanced ledger accounts", () => {
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/calculateRealizedForeignExchange\(/);
+ assert.match(app,/calculateCumulativeRealizedForeignExchange\(/);
  assert.match(app,/4301/);
  assert.match(app,/5501/);
  assert.match(app,/fxGainRial/);
@@ -43,4 +43,11 @@ test("foreign exchange realized gain and loss report exports settlement details 
  assert.match(app,/holloo-foreign-exchange\.csv/);
  assert.match(app,/سود تسعیر ریال/);
  assert.match(app,/زیان تسعیر ریال/);
+});
+
+test("FX dashboard and CSV share the active-only realized settlement report builder",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.equal((app.match(/buildRealizedForeignExchangeRows\(\{allocations,foreignPayments\}\)/g)||[]).length,2);
+ assert.match(app,/currentPage==="foreignExchange"/);
+ assert.match(app,/exportForeignExchangeCsv/);
 });

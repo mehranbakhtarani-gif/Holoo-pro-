@@ -52,15 +52,15 @@ test("rejects overflow in currency-specific supplier forecast totals and invalid
 test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX accounting",()=>{
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
- assert.match(app,/DB_VERSION=11/);assert.match(app,/"foreignPayables","foreignPayablePayments"/);
- assert.match(app,/createForeignPayable\(/);assert.match(app,/summarizeForeignPayablesForecast\(/);assert.match(app,/planForeignPayablePayment\(/);assert.match(app,/reverseForeignPayablePaymentPwa\(/);assert.match(app,/data-fx-payment-reverse/);
+ assert.match(app,/DB_VERSION=12/);assert.match(app,/"foreignPayables","foreignPayablePayments"/);
+ assert.match(app,/createForeignPayable\(/);assert.match(app,/summarizeForeignPayablesForecast\(/);assert.match(app,/planForeignPayablePayment\(/);assert.match(app,/reverseForeignPayablePaymentPwa\(/);assert.match(app,/planForeignPayableReversal\(\{payable,payment,payments,date:now\}\)/);assert.match(app,/data-fx-payment-reverse/);
  assert.match(app,/sourceNumber/);assert.match(app,/sourceShipment\?\.receivedAt/);assert.match(app,/shipmentReceivedAt/);assert.match(app,/fxGainRial/);assert.match(app,/fxLossRial/);
  assert.match(app,/foreignRateOverrides/);assert.match(app,/foreignPayablePayments/);
  assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(Number\(installment\.amountMinor\),rate\)/);
  assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(foreignAmountMinor,Number\(s\.fx\)\)/);
- assert.match(html,/foreign-payables\.js\?v=foreign-payables-1/);
+ assert.match(html,/foreign-payables\.js\?v=reverse-voucher-audit-3/);
  assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v="));
- assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);
+ assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);assert.match(sw,/holloo-pwa-v177-cheque-lifecycle-reconciliation/);
 });
 
 test("forecasts open supplier obligations by currency and due-date window without mixing currencies",()=>{
@@ -139,9 +139,16 @@ test("detects duplicate and mismatched foreign payment accounting records",()=>{
 test("reconciles reversed foreign payable payments including reversal voucher and cash receipt",()=>{
  const {reconcileForeignPayablePayments}=require("../foreign-payables.js");
  const payment={id:11,payableId:12,supplierId:2,sourceNumber:"IMP-009",reference:"FXPAY:12:902",status:"REVERSED",amountMinor:25000,bookedRial:150000000,settlementRial:137500000,fxGainRial:12500000,fxLossRial:0};
- const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,status:"REVERSED"},{reference:"FXPAY-REV:11",kind:"RECEIPT",amount:137500000}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:150000000,creditRial:0},{referenceId:"FXPAY-REV:11",partyId:2,debitRial:0,creditRial:150000000}],vouchers:[{id:33,reference:payment.reference},{id:34,reference:"FXPAY-REV:11"}],voucherLines:[{voucherId:33,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:33,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:33,accountCode:"4301",debitRial:0,creditRial:12500000},{voucherId:34,accountCode:"1102",debitRial:137500000,creditRial:0},{voucherId:34,accountCode:"4301",debitRial:12500000,creditRial:0},{voucherId:34,accountCode:"2101",debitRial:0,creditRial:150000000}]};
+ const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,status:"REVERSED"},{reference:"FXPAY-REV:11",kind:"RECEIPT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,reversalOf:payment.reference}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:150000000,creditRial:0},{referenceId:"FXPAY-REV:11",partyId:2,debitRial:0,creditRial:150000000}],vouchers:[{id:33,reference:payment.reference},{id:34,reference:"FXPAY-REV:11"}],voucherLines:[{voucherId:33,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:33,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:33,accountCode:"4301",debitRial:0,creditRial:12500000},{voucherId:34,accountCode:"1102",debitRial:137500000,creditRial:0},{voucherId:34,accountCode:"4301",debitRial:12500000,creditRial:0},{voucherId:34,accountCode:"2101",debitRial:0,creditRial:150000000}]};
  const result=reconcileForeignPayablePayments(data);
  assert.equal(result.matched,1);assert.equal(result.withIssues,0);
+ const mispostedLines=data.voucherLines.map(line=>line.voucherId===34&&line.accountCode==="1102"?{...line,accountCode:"1101"}:line);
+ const misposted=reconcileForeignPayablePayments({...data,voucherLines:mispostedLines});
+ assert.equal(misposted.withIssues,1);assert.match(misposted.rows[0].issues.join(" "),/به‌صورت معکوس/);
+ const wrongTreasury=reconcileForeignPayablePayments({...data,treasury:data.treasury.map(row=>row.reference==="FXPAY-REV:11"?{...row,reversalOf:"WRONG"}:row)});
+ assert.match(wrongTreasury.rows[0].issues.join(" "),/مشخصات گردش برگشت خزانه/);
+ const wrongLedger=reconcileForeignPayablePayments({...data,partyLedger:data.partyLedger.map(row=>row.referenceId==="FXPAY-REV:11"?{...row,debitRial:1}:row)});
+ assert.match(wrongLedger.rows[0].issues.join(" "),/گردش برگشت طرف حساب/);
 });
 
 test("reconciles supplier foreign balances against supplier subledger and linked general-ledger liability",()=>{
@@ -208,4 +215,23 @@ test("foreign payable installment plan add and clear operations use stale-snapsh
  assert.ok(app.includes('const snapshot={...payable},updated=HolooForeignPayables.planForeignPayableInstallment'));
  assert.ok(app.includes('const snapshot={...payable},updated=HolooForeignPayables.clearForeignPayableInstallmentPlan'));
  assert.ok(app.includes('store:"foreignPayables",key:Number(payable.id),expected:snapshot'));
+});
+
+test("blocks out-of-order reversal when a newer foreign payment remains active",()=>{
+ const {planForeignPayableInstallment,getRemainingForeignPayableInstallments}=require("../foreign-payables.js");
+ const scheduled=planForeignPayableInstallment({payable:payable(),amountMinor:20000,dueDate:1000,createdAt:2000});
+ const scheduledTwice=planForeignPayableInstallment({payable:scheduled,amountMinor:30000,dueDate:2000,createdAt:2001});
+ const first=planForeignPayablePayment({payable:scheduledTwice,amountMinor:20000,fxRateRialPerUnit:600000,date:3000});
+ first.payment.id=101;
+ const second=planForeignPayablePayment({payable:first.updated,amountMinor:30000,fxRateRialPerUnit:600000,date:4000});
+ second.payment.id=102;
+ const history=[first.payment,second.payment];
+ assert.deepEqual(second.payment.planAllocations.map(x=>x.amountMinor),[30000]);
+ assert.throws(()=>planForeignPayableReversal({payable:second.updated,payment:first.payment,payments:history,date:5000}),/جدیدترین پرداخت فعال/);
+ const reverseSecond=planForeignPayableReversal({payable:second.updated,payment:second.payment,payments:history,date:5001});
+ assert.equal(getRemainingForeignPayableInstallments(reverseSecond.updated)[0].amountMinor,30000);
+ const historyAfterSecond=[first.payment,reverseSecond.reversedPayment];
+ const reverseFirst=planForeignPayableReversal({payable:reverseSecond.updated,payment:first.payment,payments:historyAfterSecond,date:5002});
+ assert.equal(reverseFirst.updated.paidMinor,0);
+ assert.equal(getRemainingForeignPayableInstallments(reverseFirst.updated).reduce((n,x)=>n+x.amountMinor,0),50000);
 });

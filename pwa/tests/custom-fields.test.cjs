@@ -13,7 +13,7 @@ test("custom fields module loads before the main PWA app",()=>{
  assert.ok(customAt>=0&&appAt>customAt);
 });
 test("custom fields use the existing IndexedDB audit store without schema migration",()=>{
- assert.match(app,/DB_VERSION=11/);
+ assert.match(app,/DB_VERSION=12/);
  assert.match(app,/"auditLog"/);
  assert.match(custom,/CONFIG_ID="__HOLLOO_CUSTOM_FIELDS_V1__"/);
  assert.match(custom,/db\.transaction\(STORE,"readwrite"\)/);
@@ -70,7 +70,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v160-inventory-control/);
+ assert.match(sw,/holloo-pwa-v177-cheque-lifecycle-reconciliation/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });
@@ -278,7 +278,7 @@ test("custom fields are exposed in invoice and order printouts and CSV exports",
  assert.match(app,/line\.customFields\?\.\[d\.key\]/);
 });
 test("service worker caches and network-refreshes the custom fields module and invalidates prior cache",()=>{
- assert.match(sw,/holloo-pwa-v160-inventory-control/);
+ assert.match(sw,/holloo-pwa-v177-cheque-lifecycle-reconciliation/);
  assert.match(sw,/"\.\/custom-fields\.js"/);
  assert.match(sw,/custom-fields\\\.js/);
 });

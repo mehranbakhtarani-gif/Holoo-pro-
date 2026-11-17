@@ -22,11 +22,27 @@ test("PWA applies allocated purchase cost to product, warehouse, lot and reversa
  const fs=require("node:fs"),path=require("node:path"),root=path.resolve(__dirname,"..");
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8"),html=fs.readFileSync(path.join(root,"index.html"),"utf8"),sw=fs.readFileSync(path.join(root,"sw.js"),"utf8");
  assert.match(app,/HolooInvoiceCosting\.allocatePurchaseInventoryCosts\(lines,total\)/);
- assert.match(app,/row\.product\.value=Number\(row\.product\.value\|\|0\)\+delta/);
- assert.match(app,/row\.warehouseRecord\.value=Number\(row\.warehouseRecord\.value\|\|0\)\+delta/);
+ assert.match(app,/row\.product\.value=nextProductValue/);assert.match(app,/Number\.isSafeInteger\(nextProductValue\)/);assert.match(app,/Number\.isSafeInteger\(nextWarehouseValue\)/);
+ assert.match(app,/row\.warehouseRecord\.value=nextWarehouseValue/);
  assert.match(app,/row\.lot\.originalCost=cost/);
  assert.match(app,/line\.inventoryCostRial\?\?line\.lineTotal/);
  assert.ok(html.indexOf("invoice-costing.js")<html.indexOf("app.js?v="));
  assert.match(sw,/\.\/invoice-costing\.js/);
  assert.match(sw,/invoice-costing\\.js/);
+});
+
+test("allocates multi-line net costs with invoice discount and tax using exact largest remainders",()=>{
+ const lines=[{lineTotal:3333},{lineTotal:3333},{lineTotal:3334}];
+ const snapshot=JSON.stringify(lines);
+ const costs=allocatePurchaseInventoryCosts(lines,10001);
+ assert.deepEqual(costs,[3333,3333,3335]);
+ assert.equal(costs.reduce((sum,value)=>sum+value,0),10001);
+ assert.equal(JSON.stringify(lines),snapshot);
+});
+test("supports the largest safe rial amount without floating-point allocation drift",()=>{
+ assert.deepEqual(allocatePurchaseInventoryCosts([{lineTotal:1}],Number.MAX_SAFE_INTEGER),[Number.MAX_SAFE_INTEGER]);
+});
+test("rejects non-finite and fractional rial inputs",()=>{
+ for(const total of [NaN,Infinity,-Infinity,1.5])assert.throws(()=>allocatePurchaseInventoryCosts([{lineTotal:10}],total));
+ for(const lineTotal of [NaN,Infinity,-Infinity,1.5])assert.throws(()=>allocatePurchaseInventoryCosts([{lineTotal}],10));
 });

@@ -62,3 +62,13 @@ test("aging reports include only posted invoices and ignore reversed allocations
 test("aging reports reject overallocated invoices instead of hiding negative balances",()=>{
  assert.throws(()=>buildReceivablePayableAging({asOfDate:Date.UTC(2026,0,31),invoices:[{number:"OVER",kind:"SALE",status:"POSTED",total:100,dueDate:Date.UTC(2026,0,1)}],allocations:[{invoiceNumber:"OVER",amount:150,status:"ACTIVE"}]}),/بیشتر است/);
 });
+
+test("foreign invoice aging uses booked Rial rather than settlement cash Rial",()=>{
+ const report=buildReceivablePayableAging({asOfDate:Date.UTC(2026,3,1),invoices:[
+  {number:"FX-AGING",kind:"SALE",status:"POSTED",currency:"USD",total:600000000,date:Date.UTC(2026,2,1),dueDate:Date.UTC(2026,2,1),partyName:"مشتری ارزی"}
+ ],allocations:[
+  {invoiceNumber:"FX-AGING",amount:650000000,bookedRial:600000000,foreignAmountMinor:100000,status:"ACTIVE"}
+ ]});
+ assert.equal(report.receivables.total,0);
+ assert.equal(report.receivables.rows.length,0);
+});

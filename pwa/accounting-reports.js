@@ -110,9 +110,14 @@ function buildLedgerRunningRows(input){
  for(const row of selected){if(Number(row.date||0)>=fromDate)break;const key=String(row.accountCode);openingBalances[key]=(openingBalances[key]||0)+Number(row.debit||0)-Number(row.credit||0);}
  return {rows:result,openingBalances};
 }
+function formatLocalLedgerTimestamp(value){
+ const date=new Date(Number(value));if(!Number.isFinite(date.getTime()))throw new Error("تاریخ گردش دفتر برای خروجی معتبر نیست");
+ const pad=part=>String(part).padStart(2,"0");
+ return date.getFullYear()+"-"+pad(date.getMonth()+1)+"-"+pad(date.getDate())+" "+pad(date.getHours())+":"+pad(date.getMinutes())+":"+pad(date.getSeconds());
+}
 function buildLedgerCsv(input){
  const report=buildLedgerRunningRows(input);
- const values=[["تاریخ","شماره سند","شرح","کد حساب","عنوان حساب","بدهکار (ریال)","بستانکار (ریال)","مانده","ماهیت مانده"],...report.rows.map(row=>[new Date(Number(row.date||0)).toISOString(),row.number||"",row.description||"",row.accountCode||"",row.accountTitle||"",row.debit||0,row.credit||0,Math.abs(row.runningBalance),row.runningBalance>=0?"بدهکار":"بستانکار"])];
+ const values=[["تاریخ","شماره سند","شرح","کد حساب","عنوان حساب","بدهکار (ریال)","بستانکار (ریال)","مانده","ماهیت مانده"],...report.rows.map(row=>[formatLocalLedgerTimestamp(row.date),row.number||"",row.description||"",row.accountCode||"",row.accountTitle||"",row.debit||0,row.credit||0,Math.abs(row.runningBalance),row.runningBalance>=0?"بدهکار":"بستانکار"])];
  return "\uFEFF"+values.map(row=>row.map(value=>'"'+String(value??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
 }
 function buildTrialBalanceColumns(trialRows,columnCount){

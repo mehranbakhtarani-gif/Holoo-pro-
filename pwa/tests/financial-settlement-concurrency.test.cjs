@@ -70,3 +70,17 @@ test("every active treasury allocation is reversed through the guarded allocatio
  assert.ok(body.includes('data-allocation-reverse'));
  assert.ok(!body.includes('data-del="treasuryAllocations:'));
 });
+
+test("FX allocations reconcile cash Rial and invoice booked Rial independently using cumulative conversion",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ const start=app.indexOf('if(page==="allocations"){');
+ const end=app.indexOf('\nif(page==="warehouseTransfers"){',start);
+ assert.ok(start>=0&&end>start);
+ const body=app.slice(start,end);
+ assert.ok(body.includes("calculateTreasuryForeignAllocation({transaction:tr,amount,allocations:allocs})"));
+ assert.ok(body.includes("calculateCumulativeRealizedForeignExchange({"));
+ assert.ok(body.includes('invoiceAmount:invoiceCurrency==="IRR"?amount:Number(allocation.bookedRial)'));
+ assert.ok(body.includes("previousInvoiceBookedRial"));
+ assert.ok(body.includes("previousTransactionSettlementRial"));
+ assert.ok(app.includes("validateTreasuryAllocationReversalOrder({allocation,allocations})"));
+});

@@ -5,9 +5,10 @@ function safeRial(value,label){
  return n;
 }
 function reconcilePartyBalances(input){
- const parties=Array.isArray(input.parties)?input.parties:[],partyLedger=Array.isArray(input.partyLedger)?input.partyLedger:[],treasury=Array.isArray(input.treasury)?input.treasury:[],payables=Array.isArray(input.importChargePayables)?input.importChargePayables:[],foreignPayables=Array.isArray(input.foreignPayables)?input.foreignPayables:[],foreignPayments=Array.isArray(input.foreignPayments)?input.foreignPayments:[];
+ const parties=Array.isArray(input.parties)?input.parties:[],partyLedger=Array.isArray(input.partyLedger)?input.partyLedger:[],treasury=Array.isArray(input.treasury)?input.treasury:[],invoices=Array.isArray(input.invoices)?input.invoices:[],allocations=Array.isArray(input.treasuryAllocations)?input.treasuryAllocations:[],payables=Array.isArray(input.importChargePayables)?input.importChargePayables:[],foreignPayables=Array.isArray(input.foreignPayables)?input.foreignPayables:[],foreignPayments=Array.isArray(input.foreignPayments)?input.foreignPayments:[];
  const knownPartyIds=new Set(parties.map(x=>Number(x.id)));
  const orphanLedgerRows=partyLedger.filter(x=>!knownPartyIds.has(Number(x.partyId)));
+ const orphanAllocations=allocations.filter(x=>{const invoice=invoices.find(row=>row.number===x.invoiceNumber);return !invoice||!knownPartyIds.has(Number(x.partyId||invoice?.partyId))});
  const orphanTreasuryRows=treasury.filter(x=>Number.isSafeInteger(Number(x.partyId))&&Number(x.partyId)>0&&!knownPartyIds.has(Number(x.partyId)));
  const orphanImportPayables=payables.filter(x=>x.status!=="RECONCILIATION_REQUIRED"&&x.status!=="CANCELLED"&&(!x.partyId?(x.status!=="OPEN"||Number(x.paidRial||0)>0):!knownPartyIds.has(Number(x.partyId))));
  const orphanForeignPayables=foreignPayables.filter(x=>x.status!=="CANCELLED"&&x.shipmentReceivedAt&&(!x.supplierId||!knownPartyIds.has(Number(x.supplierId))));
@@ -89,6 +90,51 @@ function reconcilePartyBalances(input){
    let relatedNet=0;for(const row of relatedRows){relatedNet+=Number(row.debitRial||0)-Number(row.creditRial||0);if(!Number.isSafeInteger(relatedNet))add("جمع گردش تفصیلی تعهد ارزی از محدوده عددی مجاز خارج است")}
    foreignPayableLedgerBalanceRial+=relatedNet;if(!Number.isSafeInteger(foreignPayableLedgerBalanceRial))add("جمع گردش تفصیلی تعهدات ارزی از محدوده عددی مجاز خارج است");
    if(relatedNet!==-outstanding)add("مانده تعهد ارزی با گردش تفصیلی همان محموله برابر نیست");
+  }
+  // Reconcile invoice allocations against their invoice, treasury transaction and counterparty.
+  const partyInvoices=invoices.filter(x=>Number(x.partyId)===partyId&&(!x.status||x.status==="POSTED"||x.status==="REVERSED"));
+  for(const invoice of partyInvoices){
+   const related=allocations.filter(x=>x.invoiceNumber===invoice.number),active=related.filter(x=>x.status!=="REVERSED");
+   const invoiceTotal=Number(invoice.total||0);
+   if(!Number.isSafeInteger(invoiceTotal)||invoiceTotal<0)add("مبلغ فاکتور "+invoice.number+" معتبر نیست");
+   let allocated=0;
+   for(const allocation of related){
+    const amount=Number(allocation.amount),allocationPartyId=Number(allocation.partyId||invoice.partyId);
+    if(!Number.isSafeInteger(amount)||amount<=0){add("مبلغ تخصیص فاکتور "+invoice.number+" باید عدد صحیح و مثبت باشد");continue}
+    if(allocationPartyId!==partyId)add("طرف حساب تخصیص فاکتور "+invoice.number+" با فاکتور یکسان نیست");
+    const matches=invoices.filter(x=>x.number===allocation.invoiceNumber);
+    if(matches.length!==1)add("شماره فاکتور تخصیص "+invoice.number+" یکتا نیست");
+    if(allocation.status==="REVERSED"){
+     if(allocation.treasuryId!==null&&allocation.treasuryId!==undefined)add("تخصیص برگشتی فاکتور "+invoice.number+" هنوز به گردش فعال متصل است");
+     if(!Number.isSafeInteger(Number(allocation.originalTreasuryId))||Number(allocation.originalTreasuryId)<=0)add("مرجع گردش اصلی تخصیص برگشتی فاکتور "+invoice.number+" ثبت نشده است");
+     continue;
+    }
+    allocated+=amount;
+    if(!Number.isSafeInteger(allocated))add("جمع تخصیص‌های فاکتور "+invoice.number+" از محدوده عددی مجاز خارج است");
+    const transactionMatches=treasury.filter(x=>Number(x.id)===Number(allocation.treasuryId));
+    if(transactionMatches.length!==1){add("گردش خزانه تخصیص فاکتور "+invoice.number+" پیدا نشد یا یکتا نیست");continue}
+    const transaction=transactionMatches[0],expectedKind=invoice.kind==="SALE"?"RECEIPT":invoice.kind==="PURCHASE"?"PAYMENT":"";
+    if(!expectedKind||transaction.kind!==expectedKind)add("نوع دریافت/پرداخت تخصیص فاکتور "+invoice.number+" با نوع فاکتور سازگار نیست");
+    if(Number(transaction.partyId)!==partyId)add("طرف حساب گردش خزانه تخصیص فاکتور "+invoice.number+" با فاکتور یکسان نیست");
+    if(transaction.status==="REVERSED")add("تخصیص فعال فاکتور "+invoice.number+" به گردش خزانه برگشتی متصل است");
+    const transactionAmount=Number(transaction.amount);
+    if(!Number.isSafeInteger(transactionAmount)||transactionAmount<=0)add("مبلغ گردش خزانه تخصیص فاکتور "+invoice.number+" معتبر نیست");
+   }
+   if(allocated>invoiceTotal)add("جمع تخصیص‌های فعال از مبلغ فاکتور "+invoice.number+" بیشتر است");
+   const invoiceLedger=partyLedger.filter(x=>String(x.referenceId||"")===String(invoice.number));
+   if(invoice.status!=="REVERSED"&&invoiceLedger.length!==1)add("گردش تفصیلی فاکتور "+invoice.number+" یکتا نیست یا ثبت نشده است");
+   if(invoiceLedger.length===1){
+    const row=invoiceLedger[0],expectedDebit=invoice.kind==="SALE"?invoiceTotal:0,expectedCredit=invoice.kind==="PURCHASE"?invoiceTotal:0;
+    if(Number(row.partyId)!==partyId||Number(row.debitRial||0)!==expectedDebit||Number(row.creditRial||0)!==expectedCredit)add("مبلغ یا جهت گردش تفصیلی فاکتور "+invoice.number+" با فاکتور مطابقت ندارد");
+   }
+  }
+  // Every active allocation must fit inside its source treasury transaction.
+  const partyAllocations=allocations.filter(x=>Number(x.partyId)===partyId||invoices.some(inv=>inv.number===x.invoiceNumber&&Number(inv.partyId)===partyId));
+  for(const allocation of partyAllocations.filter(x=>x.status!=="REVERSED")){
+   const transaction=treasury.find(x=>Number(x.id)===Number(allocation.treasuryId));
+   if(!transaction)continue;
+   const transactionAllocated=allocations.filter(x=>x.status!=="REVERSED"&&Number(x.treasuryId)===Number(transaction.id)).reduce((sum,x)=>sum+Number(x.amount||0),0);
+   if(!Number.isSafeInteger(transactionAllocated)||!Number.isSafeInteger(Number(transaction.amount))||transactionAllocated>Number(transaction.amount))add("جمع تخصیص‌ها از مبلغ گردش خزانه "+(transaction.reference||transaction.id)+" بیشتر است");
   }
   // Cross-check ordinary party-linked treasury movements against the subledger.
   // Ancillary and foreign-payable settlements have richer source-specific checks above.

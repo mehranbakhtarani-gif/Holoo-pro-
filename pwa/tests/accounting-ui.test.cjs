@@ -43,3 +43,9 @@ test("accounting page exposes an apply/clear date range for financial statements
  assert.match(app,/parseDateBoundaryLocal\(accountingFromDate,"از تاریخ"\)/);
  assert.match(app,/parseDateBoundaryLocal\(accountingToDate,"تا تاریخ",true\)/);
 });
+
+ 
+test("finance CSV export uses the same selected period for treasury movements",()=>{
+ assert.match(app,/reportTreasury=treasury\.filter\(row=>Number\(row\.date\|\|0\)>=reportFrom&&Number\(row\.date\|\|0\)<=reportTo\)/);
+ assert.match(app,/\.\.\.reportTreasury\.map\(x=>\[x\.kind==="RECEIPT"/);
+});

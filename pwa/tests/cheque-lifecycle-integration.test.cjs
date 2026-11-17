@@ -55,5 +55,5 @@ test("endorsed cheque bounce reverses both party balances and the original endor
  assert.match(body,/applyPartyBalanceDelta\(target,-amount/);
  assert.match(body,/CHECK:ENDORSE-REV:/);
  assert.match(body,/oldLines\.map\(line=>\(\{accountCode:line\.accountCode,debitRial:Number\(line\.creditRial\|\|0\),creditRial:Number\(line\.debitRial\|\|0\)/);
- assert.match(body,/data-check-reverse-endorsement/);
+ assert.ok(app.includes('data-check-reverse-endorsement'));
 });

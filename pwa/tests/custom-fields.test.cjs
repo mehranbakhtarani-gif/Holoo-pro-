@@ -13,7 +13,7 @@ test("custom fields module loads before the main PWA app",()=>{
  assert.ok(customAt>=0&&appAt>customAt);
 });
 test("custom fields use the existing IndexedDB audit store without schema migration",()=>{
- assert.match(app,/DB_VERSION=11/);
+ assert.match(app,/DB_VERSION=12/);
  assert.match(app,/"auditLog"/);
  assert.match(custom,/CONFIG_ID="__HOLLOO_CUSTOM_FIELDS_V1__"/);
  assert.match(custom,/db\.transaction\(STORE,"readwrite"\)/);

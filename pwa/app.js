@@ -342,7 +342,7 @@ async function createPartyWithOpeningBalance(record,plan){
    const voucher=stamp({store:"vouchers",record:{number:"OPEN-"+partyId+"-"+now,date:now,description:"مانده افتتاحیه "+record.name,reference:"OPENING:PARTY:"+partyId},mode,manualValue});
    const addVoucher=tx.objectStore("vouchers").add(voucher);
    addVoucher.onsuccess=()=>{
-    for(const line of plan.journal)tx.objectStore("voucherLines").add({...line,voucherId:addVoucher.result});
+    for(const line of plan.journal)tx.objectStore("voucherLines").add({...line,partyId,voucherId:addVoucher.result});
     tx.objectStore("auditLog").add({action:"ثبت سند مالی",store:"vouchers",recordId:addVoucher.result,at:Date.now(),summary:voucher.description});
    };
    addVoucher.onerror=()=>{try{tx.abort()}catch(_){}};
@@ -1388,11 +1388,11 @@ if(page==="invoices"){
  const nextPartyBalance=Number(p.balance||0)+(kind==="SALE"?total:-total);if(!Number.isSafeInteger(nextPartyBalance))throw Error("مانده طرف حساب از محدوده عددی مجاز خارج است");const partyCreditLimit=Number(p.creditLimit||0);if(kind==="SALE"&&(!Number.isSafeInteger(partyCreditLimit)||partyCreditLimit<0))throw Error("سقف اعتبار مشتری معتبر نیست");if(kind==="SALE"&&partyCreditLimit>0&&Math.max(0,nextPartyBalance)>partyCreditLimit)throw Error("صدور فاکتور باعث عبور از سقف اعتبار مشتری می‌شود؛ مانده پس از فاکتور: "+money(Math.max(0,nextPartyBalance))+" و سقف اعتبار: "+money(partyCreditLimit)+" "+moneyUnit());p.balance=nextPartyBalance;
  const voucherNumber="JV-"+Date.now(),journal=[];
  if(kind==="SALE"){
-  journal.push({accountCode:"1103",debitRial:total,creditRial:0,description:"مطالبات مشتری"});
+  journal.push({accountCode:"1103",partyId:p.id,debitRial:total,creditRial:0,description:"مطالبات مشتری"});
   if(subtotal-discount>0)journal.push({accountCode:"4101",debitRial:0,creditRial:subtotal-discount,description:"درآمد فروش"});
-  if(tax>0)journal.push({accountCode:"2103",debitRial:0,creditRial:tax,description:"مالیات فروش"});if(commissionAmount>0){journal.push({accountCode:"5203",debitRial:commissionAmount,creditRial:0,description:"هزینه پورسانت فروش"});journal.push({accountCode:"2101",debitRial:0,creditRial:commissionAmount,description:"پورسانت پرداختنی به "+commissionParty.name});}
+  if(tax>0)journal.push({accountCode:"2103",debitRial:0,creditRial:tax,description:"مالیات فروش"});if(commissionAmount>0){journal.push({accountCode:"5203",debitRial:commissionAmount,creditRial:0,description:"هزینه پورسانت فروش"});journal.push({accountCode:"2101",partyId:commissionParty.id,debitRial:0,creditRial:commissionAmount,description:"پورسانت پرداختنی به "+commissionParty.name});}
   if(cogs>0){journal.push({accountCode:"5101",debitRial:cogs,creditRial:0,description:"بهای تمام‌شده فروش"});journal.push({accountCode:"1301",debitRial:0,creditRial:cogs,description:"خروج موجودی"});}
- }else{journal.push({accountCode:"1301",debitRial:total,creditRial:0,description:"ورود موجودی کالا"});journal.push({accountCode:"2101",debitRial:0,creditRial:total,description:"بدهی تأمین‌کننده"});}
+ }else{journal.push({accountCode:"1301",debitRial:total,creditRial:0,description:"ورود موجودی کالا"});journal.push({accountCode:"2101",partyId:p.id,debitRial:0,creditRial:total,description:"بدهی تأمین‌کننده"});}
  const debit=journal.reduce((n,x)=>n+x.debitRial,0),credit=journal.reduce((n,x)=>n+x.creditRial,0);if(debit!==credit||journal.length<2)throw Error("سند حسابداری فاکتور تراز نیست");
  const entries=[...updatedProducts.map(product=>["products",product]),...warehouseUpdates,...lotUpdates.map(lot=>["inventoryLots",lot]),["parties",p],["invoices",invoice],["partyLedger",{partyId:p.id,date:Date.now(),debitRial:kind==="SALE"?total:0,creditRial:kind==="PURCHASE"?total:0,description:(kind==="SALE"?"فاکتور فروش ":"فاکتور خرید ")+number,referenceId:number}]];if(linkedOrder)entries.push(["salesOrders",linkedOrder]);if(commissionAmount>0){entries.push(["parties",commissionParty],["partyLedger",{partyId:commissionParty.id,date:Date.now(),debitRial:0,creditRial:commissionAmount,description:"پورسانت فاکتور "+number,referenceId:number}])}
  const productIds=[...new Set(updatedProducts.map(row=>Number(row.id)))],warehouseKeys=[...new Set(warehouseUpdates.map(([,row])=>Number(row.productId)+":"+Number(row.warehouseId)))],lotIds=[...new Set(lotUpdates.map(row=>String(row.id)))];

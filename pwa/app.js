@@ -34,7 +34,7 @@ async function reverseClearedCheckPwa(id){
  await postVoucherAtomic([["checks",check],["parties",party],["treasury",original],["treasury",reversal],["partyLedger",ledger]],{number:check.reversalVoucherNumber,date:now,description:"برگشت وصول/پرداخت چک "+check.number,reference:reversalReference},reversalLines,[{store:"checks",key:Number(check.id),expected:checkSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"treasury",key:Number(original.id),expected:treasurySnapshot},{store:"treasuryAllocations",match:{treasuryId:Number(original.id)},expected:null}]);
 }
 async function reverseTreasuryPwa(id){
- const [rows,parties,vouchers,voucherLines,allocations]=await Promise.all([all("treasury"),all("parties"),all("vouchers"),all("voucherLines"),all("treasuryAllocations")]);
+ const [rows,parties,vouchers,voucherLines,allocations]=await Promise.all([all("treasury"),all("parties"),all("vouchers"),all("voucherLines"),all("treasuryAllocations"),all("importChargePayables")]);
  const original=rows.find(x=>Number(x.id)===Number(id));
  if(!original||original.status==="REVERSED")throw Error("تراکنش خزانه فعال پیدا نشد");
  if(!String(original.reference||"").startsWith("TREASURY:"))throw Error("این گردش از بخش دیگری ثبت شده است و باید از همان بخش اصلاح شود");
@@ -51,7 +51,13 @@ async function reverseTreasuryPwa(id){
  const reversal={kind:original.kind==="RECEIPT"?"PAYMENT":"RECEIPT",method:original.method,partyId:party.id,partyName:party.name,currency:original.currency||"IRR",amount:original.amount,foreignAmountMinor:original.foreignAmountMinor||null,fxRateRialPerUnit:original.fxRateRialPerUnit||1,date:now,note:"برگشت "+(original.kind==="RECEIPT"?"دریافت":"پرداخت")+" "+(original.note||""),reference,reversalOfId:original.id};
  const reversalLines=oldLines.map(line=>({accountCode:line.accountCode,debitRial:Number(line.creditRial||0),creditRial:Number(line.debitRial||0),description:"برگشت گردش خزانه"}));
  const reversalEntries=[["treasury",original],["treasury",reversal]],reversalGuards=[{store:"treasury",key:Number(original.id),expected:originalSnapshot},{store:"treasuryAllocations",match:{treasuryId:Number(original.id)},expected:null}];
- if(!original.importAncillaryPayment){const movement={partyId:party.id,date:now,debitRial:original.kind==="RECEIPT"?Number(original.amount):0,creditRial:original.kind==="PAYMENT"?Number(original.amount):0,description:"برگشت گردش خزانه",referenceId:reference};applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));reversalEntries.push(["parties",party],["partyLedger",movement]);reversalGuards.push({store:"parties",key:Number(party.id),expected:partySnapshot});}
+ if(original.importAncillaryPayment){
+ const payable=payables.find(x=>Number(x.id)===Number(original.importChargePayableId));if(!payable||Number(payable.partyId)!==Number(party.id)||Number(payable.paidRial)<Number(original.amount))throw Error("حساب پرداختنی هزینه جانبی با پرداخت خزانه تطبیق ندارد");
+ const payableSnapshot={...payable};payable.paidRial=Number(payable.paidRial)-Number(original.amount);payable.status=payable.paidRial===0?"OPEN":"PARTIAL";payable.updatedAt=now;
+ party.balance=Number(party.balance||0)-Number(original.amount);if(!Number.isSafeInteger(party.balance))throw Error("مانده طلبکار پس از برگشت نامعتبر است");
+ const movement={partyId:party.id,date:now,debitRial:0,creditRial:Number(original.amount),description:"برگشت پرداخت "+(original.importChargeCategoryLabel||"هزینه جانبی"),referenceId:reference};
+ reversalEntries.push(["importChargePayables",payable],["parties",party],["partyLedger",movement]);reversalGuards.push({store:"importChargePayables",key:Number(payable.id),expected:payableSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot});
+ }else{const movement={partyId:party.id,date:now,debitRial:original.kind==="RECEIPT"?Number(original.amount):0,creditRial:original.kind==="PAYMENT"?Number(original.amount):0,description:"برگشت گردش خزانه",referenceId:reference};applyPartyBalanceDelta(party,original.kind==="RECEIPT"?Number(original.amount):-Number(original.amount));reversalEntries.push(["parties",party],["partyLedger",movement]);reversalGuards.push({store:"parties",key:Number(party.id),expected:partySnapshot});}
  await postVoucherAtomic(reversalEntries,{number:"TVR-"+now,date:now,description:"برگشت گردش خزانه "+original.id,reference},reversalLines,reversalGuards);
 }
 async function reverseTreasuryAllocationPwa(id){

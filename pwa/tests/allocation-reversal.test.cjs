@@ -42,3 +42,8 @@ test("manual operation date is applied to allocation reversal timestamp",()=>{
  const op=fs.readFileSync(path.resolve(__dirname,"../operation-date.js"),"utf8");
  assert.match(op,/treasuryAllocations:\["reversedAt"\]/);
 });
+
+test("reversed FX allocations do not consume the invoice foreign-currency settlement limit",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/allocs\.filter\(x=>x\.invoiceNumber===invoice\.number&&x\.id!==item\?\.id&&x\.status!==\"REVERSED\"\)/);
+});

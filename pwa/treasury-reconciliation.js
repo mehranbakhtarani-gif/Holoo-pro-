@@ -12,6 +12,8 @@ function validateLines(lines,accounts,label){
  for(const line of lines){
   const code=String(line.accountCode??"").trim(),d=safeAmount(line.debitRial||0,label+" بدهکار"),c=safeAmount(line.creditRial||0,label+" بستانکار");
   if(!code||!codes.has(code))throw new Error("کد حساب "+(code||"(خالی)")+" در "+label+" تعریف نشده است");
+  const account=(accounts||[]).find(x=>String(x.id)===code),expectedType=({1101:"ASSET",1102:"ASSET",1103:"ASSET",1301:"ASSET",1501:"ASSET",1502:"ASSET",2101:"LIABILITY",2102:"LIABILITY",2103:"LIABILITY",2104:"LIABILITY",2105:"LIABILITY",3101:"EQUITY",3102:"EQUITY",3201:"EQUITY",4101:"REVENUE",4201:"REVENUE",4301:"REVENUE",5101:"EXPENSE",5201:"EXPENSE",5202:"EXPENSE",5203:"EXPENSE",5301:"EXPENSE",5401:"EXPENSE",5501:"EXPENSE"})[code];
+  if(expectedType&&String(account?.type||"")!==expectedType)throw new Error("نوع حساب "+code+" در "+label+" باید "+expectedType+" باشد");
   if((d>0)===(c>0))throw new Error("یکی از ردیف‌های "+label+" باید فقط در یک سمت مبلغ داشته باشد");
   debit+=d;credit+=c;
   if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit))throw new Error("جمع ردیف‌های "+label+" از محدوده عددی مجاز خارج است");
@@ -53,8 +55,9 @@ function reconcileTreasuryRecords(input){
    else{
     sourceOriginal=originals[0];
     if(sourceOriginal.status!=="REVERSED")add("وضعیت گردش اصلی به برگشت‌شده تغییر نکرده است");
+    if(sourceOriginal.reversalOfId!==undefined&&sourceOriginal.reversalOfId!==null||sourceOriginal.reversalOf)add("برگشت مجدد یک گردش برگشتی مجاز نیست");
     if(record.kind!==opposite(sourceOriginal.kind))add("نوع دریافت/پرداخت رکورد برگشت با گردش اصلی متضاد نیست");
-    if(Number(record.amount)!==Number(sourceOriginal.amount)||Number(record.partyId||0)!==Number(sourceOriginal.partyId||0)||record.method!==sourceOriginal.method)add("مبلغ، طرف حساب یا روش گردش برگشت با اصل تراکنش متفاوت است");
+    if(Number(record.amount)!==Number(sourceOriginal.amount)||Number(record.partyId||0)!==Number(sourceOriginal.partyId||0)||record.method!==sourceOriginal.method||String(record.currency||"IRR")!==String(sourceOriginal.currency||"IRR")||Number(record.foreignAmountMinor||0)!==Number(sourceOriginal.foreignAmountMinor||0)||Number(record.fxRateRialPerUnit||1)!==Number(sourceOriginal.fxRateRialPerUnit||1))add("مبلغ، ارز، نرخ، طرف حساب یا روش گردش برگشت با اصل تراکنش متفاوت است");
     const sourceVouchers=vouchers.filter(x=>x.reference===sourceOriginal.reference);
     if(sourceVouchers.length!==1)add("سند اصلی گردش برگشتی یکتا نیست");
     else{
@@ -71,15 +74,17 @@ function reconcileTreasuryRecords(input){
    if(matches.length!==1)add(matches.length?"جزئیات پرداخت ارزی تکراری است":"جزئیات پرداخت ارزی پیدا نشد");
    else{
     foreignPayment=matches[0];ledgerAmount=Number(foreignPayment.bookedRial);
-    if(Number(foreignPayment.payableId)!==Number(record.foreignPayableId)||Number(foreignPayment.settlementRial)!==amount||Number(foreignPayment.amountMinor)!==Number(record.foreignAmountMinor)||foreignPayment.method!==record.method||Number(foreignPayment.supplierId)!==Number(record.partyId))add("مبلغ یا پیوند پرداخت ارزی با گردش خزانه متفاوت است");
+    const booked=safeAmount(foreignPayment.bookedRial,"ارزش دفتری پرداخت ارزی"),settlement=safeAmount(foreignPayment.settlementRial,"مبلغ تسویه ارزی"),gain=safeAmount(foreignPayment.fxGainRial||0,"سود تسعیر"),loss=safeAmount(foreignPayment.fxLossRial||0,"زیان تسعیر");
+    if(record.kind!=="PAYMENT"||Number(foreignPayment.payableId)!==Number(record.foreignPayableId)||settlement!==amount||Number(foreignPayment.amountMinor)!==Number(record.foreignAmountMinor)||String(foreignPayment.currency||record.currency)!==String(record.currency)||Number(foreignPayment.fxRateRialPerUnit||0)!==Number(record.fxRateRialPerUnit||0)||foreignPayment.method!==record.method||Number(foreignPayment.supplierId)!==Number(record.partyId)||gain>0&&loss>0||booked+loss!==settlement+gain)add("مبلغ، ارز، نرخ یا پیوند پرداخت ارزی با گردش خزانه متفاوت است");
     const cash=safeCashCode(record.method);
-    expected=[{accountCode:"2101",debitRial:Number(foreignPayment.bookedRial),creditRial:0},{accountCode:cash,debitRial:0,creditRial:Number(foreignPayment.settlementRial)}];
+    expected=[{accountCode:"2101",debitRial:booked,creditRial:0},{accountCode:cash,debitRial:0,creditRial:settlement}];
     if(Number(foreignPayment.fxGainRial||0)>0)expected.push({accountCode:"4301",debitRial:0,creditRial:Number(foreignPayment.fxGainRial)});
     if(Number(foreignPayment.fxLossRial||0)>0)expected.push({accountCode:"5501",debitRial:Number(foreignPayment.fxLossRial),creditRial:0});
    }
   }else if(record.importAncillaryPayment===true){
    if(record.kind!=="PAYMENT")add("پرداخت هزینه جانبی باید از نوع پرداخت باشد");
-   expected=[{accountCode:"2102",debitRial:amount,creditRial:0},{accountCode:cashCode(record.method),debitRial:0,creditRial:amount}];
+   const cash=safeCashCode(record.method);
+   expected=[{accountCode:"2102",debitRial:amount,creditRial:0},{accountCode:cash,debitRial:0,creditRial:amount}];
   }else if(record.checkId){
    const check=checks.find(x=>Number(x.id)===Number(record.checkId));
    if(!check)add("چک مرجع خزانه پیدا نشد");
@@ -96,7 +101,7 @@ function reconcileTreasuryRecords(input){
    party=parties.find(x=>Number(x.id)===Number(record.partyId));
    if(!party)add("طرف حساب گردش خزانه پیدا نشد");
    if(!["RECEIPT","PAYMENT"].includes(record.kind))add("نوع گردش خزانه معتبر نیست");
-   const cash=cashCode(record.method);
+   const cash=safeCashCode(record.method);
    if(record.kind==="RECEIPT"){
     const account=party?.kind==="SUPPLIER"?"2101":"1103";
     expected=[{accountCode:cash,debitRial:amount,creditRial:0},{accountCode:account,debitRial:0,creditRial:amount}];

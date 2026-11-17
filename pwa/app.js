@@ -60,6 +60,8 @@ async function reverseTreasuryAllocationPwa(id){
  if(!allocation||allocation.status==="REVERSED")throw Error("تخصیص فعال پیدا نشد");
  const invoice=invoices.find(row=>row.number===allocation.invoiceNumber),transaction=transactions.find(row=>Number(row.id)===Number(allocation.treasuryId));
  if(!invoice||!transaction)throw Error("فاکتور یا گردش خزانه تخصیص پیدا نشد");
+ if(transaction.status==="REVERSED"||(invoice.status&&invoice.status!=="POSTED"))throw Error("فاکتور یا گردش خزانه برگشت‌شده است؛ برگشت تخصیص مجاز نیست");
+ if(!["SALE","PURCHASE"].includes(invoice.kind)||Number(transaction.partyId)!==Number(invoice.partyId)||Number(allocation.partyId)!==Number(invoice.partyId))throw Error("نوع فاکتور یا هویت طرف حساب تخصیص با اسناد اصلی مطابقت ندارد");
  const invoiceSnapshot={...invoice},transactionSnapshot={...transaction},allocationSnapshot={...allocation};
  const now=Date.now();
  incrementAllocationVersion(transaction,"خزانه");

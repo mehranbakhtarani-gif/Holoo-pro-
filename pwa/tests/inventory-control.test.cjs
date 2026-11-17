@@ -15,7 +15,7 @@ test("kardex reconstructs opening and closing quantity/value and ignores drafts/
  ]};
  const result=buildInventoryKardex(input);
  assert.deepEqual(result.opening,{quantity:5,value:1100});
- assert.equal(result.rows.length,2);assert.equal(result.closing.quantity,12);assert.equal(result.closing.value,1800);
+ assert.equal(result.rows.length,4);assert.equal(result.rows.filter(row=>row.type==="SALE_REVERSAL").length,1);assert.equal(result.closing.quantity,12);assert.equal(result.closing.value,1800);
 });
 test("kardex date window starts from reconstructed opening and does not double-count when from is omitted",()=>{
  const input={productId:1,products:[{id:1,stock:12,value:1800}],invoices:[
@@ -63,4 +63,17 @@ test("stocktake comparison uses saved count-session snapshots rather than change
  const products=[{id:1,name:"FDY",avg:250}],counts=[{productId:1,warehouseId:2,expectedQty:10,expectedValue:2500,countedQty:8.5}];
  const result=buildStocktakeComparison({products,counts,stockRows:[{productId:1,warehouseId:2,stock:100,value:90000}]});
  assert.equal(result[0].expectedQty,10);assert.equal(result[0].expectedValue,2500);assert.equal(result[0].deltaQty,-1.5);assert.equal(result[0].valueDelta,-375);
+});
+
+test("kardex preserves the original invoice and reversal date as separate inventory movements",()=>{
+ const result=buildInventoryKardex({productId:1,products:[{id:1,stock:10,value:1000}],invoices:[
+  {id:1,kind:"PURCHASE",number:"P-REV",date:100,kind:"PURCHASE",status:"REVERSED",reversedAt:300,lines:[{productId:1,qty:5,inventoryCostRial:500}]}
+ ]});
+ assert.equal(result.rows.length,2);
+ assert.equal(result.rows[0].type,"PURCHASE");
+ assert.equal(result.rows[0].date,100);
+ assert.equal(result.rows[1].type,"PURCHASE_REVERSAL");
+ assert.equal(result.rows[1].date,300);
+ assert.equal(result.closing.quantity,10);
+ assert.equal(result.closing.value,1000);
 });

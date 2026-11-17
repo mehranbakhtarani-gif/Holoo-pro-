@@ -177,6 +177,10 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
   await page.locator('#entryForm [name="status"]').selectOption({label:"مسدود"});
   await page.locator('#entryForm [name="blockedReason"]').fill("چک برگشتی");
   await page.locator('#entryForm button[type="submit"]').click();
+  await page.waitForFunction(()=>document.querySelector("#toast")?.textContent.trim().length>0);
+  const blockedSaveToast=(await page.locator("#toast").textContent()).trim();
+  assert.match(blockedSaveToast,/اطلاعات ذخیره شد/, "blocked-party create failed: "+blockedSaveToast);
+  await page.waitForFunction(()=>document.querySelector("#modal").hidden===true);
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("مشتری مسدود آزمایشی"));
   assert.ok((await page.locator("#main").textContent()).includes("مسدود"));
 

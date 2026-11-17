@@ -209,3 +209,22 @@ test("foreign payable installment plan add and clear operations use stale-snapsh
  assert.ok(app.includes('const snapshot={...payable},updated=HolooForeignPayables.clearForeignPayableInstallmentPlan'));
  assert.ok(app.includes('store:"foreignPayables",key:Number(payable.id),expected:snapshot'));
 });
+
+test("blocks out-of-order reversal when a newer foreign payment remains active",()=>{
+ const {planForeignPayableInstallment,getRemainingForeignPayableInstallments}=require("../foreign-payables.js");
+ const scheduled=planForeignPayableInstallment({payable:payable(),amountMinor:20000,dueDate:1000,createdAt:2000});
+ const scheduledTwice=planForeignPayableInstallment({payable:scheduled,amountMinor:30000,dueDate:2000,createdAt:2001});
+ const first=planForeignPayablePayment({payable:scheduledTwice,amountMinor:20000,fxRateRialPerUnit:600000,date:3000});
+ first.payment.id=101;
+ const second=planForeignPayablePayment({payable:first.updated,amountMinor:30000,fxRateRialPerUnit:600000,date:4000});
+ second.payment.id=102;
+ const history=[first.payment,second.payment];
+ assert.deepEqual(second.payment.planAllocations.map(x=>x.amountMinor),[30000]);
+ assert.throws(()=>planForeignPayableReversal({payable:second.updated,payment:first.payment,payments:history,date:5000}),/جدیدترین پرداخت فعال/);
+ const reverseSecond=planForeignPayableReversal({payable:second.updated,payment:second.payment,payments:history,date:5001});
+ assert.equal(getRemainingForeignPayableInstallments(reverseSecond.updated)[0].amountMinor,30000);
+ const historyAfterSecond=[first.payment,reverseSecond.reversedPayment];
+ const reverseFirst=planForeignPayableReversal({payable:reverseSecond.updated,payment:first.payment,payments:historyAfterSecond,date:5002});
+ assert.equal(reverseFirst.updated.paidMinor,0);
+ assert.equal(getRemainingForeignPayableInstallments(reverseFirst.updated).reduce((n,x)=>n+x.amountMinor,0),50000);
+});

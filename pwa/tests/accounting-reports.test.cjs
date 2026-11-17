@@ -120,3 +120,21 @@ test("ledger CSV exports filtered rows, opening-aware balances and escaped Persi
  assert.match(csv,/1050/);
  assert.doesNotMatch(csv,/بعدی/);
 });
+
+ 
+test("period trial balance separates opening balances, period movement and ending balances",()=>{
+ const period=buildFinancialStatements({accounts,vouchers,voucherLines,fromDate:200,toDate:300});
+ const cash=period.trialBalance.find(x=>x.id==="1101");
+ assert.equal(cash.openingDebit,140000);
+ assert.equal(cash.openingCredit,0);
+ assert.equal(cash.debit,0);
+ assert.equal(cash.credit,20000);
+ assert.equal(cash.endingDebit,120000);
+ assert.equal(cash.endingCredit,0);
+ const sales=period.trialBalance.find(x=>x.id==="4101");
+ assert.equal(sales.openingCredit,100000);
+ assert.equal(sales.debit,0);
+ assert.equal(sales.credit,0);
+ assert.equal(sales.endingCredit,100000);
+ assert.equal(period.incomeStatement.revenue,0);
+});

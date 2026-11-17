@@ -125,10 +125,10 @@ test("ledger CSV exports filtered rows, opening-aware balances and escaped Persi
 test("period trial balance separates opening balances, period movement and ending balances",()=>{
  const period=buildFinancialStatements({accounts,vouchers,voucherLines,fromDate:200,toDate:300});
  const cash=period.trialBalance.find(x=>x.id==="1101");
- assert.equal(cash.openingDebit,140000);
+ assert.equal(cash.openingDebit,180000);
  assert.equal(cash.openingCredit,0);
  assert.equal(cash.debit,0);
- assert.equal(cash.credit,20000);
+ assert.equal(cash.credit,60000);
  assert.equal(cash.endingDebit,120000);
  assert.equal(cash.endingCredit,0);
  const sales=period.trialBalance.find(x=>x.id==="4101");
@@ -137,4 +137,15 @@ test("period trial balance separates opening balances, period movement and endin
  assert.equal(sales.credit,0);
  assert.equal(sales.endingCredit,100000);
  assert.equal(period.incomeStatement.revenue,0);
+});
+
+ 
+test("period trial balance includes all pre-period movements in opening balance and only period movements in debit/credit",()=>{
+ const report=buildFinancialStatements({accounts,vouchers,voucherLines,fromDate:200,toDate:300});
+ const cash=report.trialBalance.find(x=>x.id==="1101");
+ assert.equal(cash.openingDebit,180000);
+ assert.equal(cash.credit,60000);
+ assert.equal(cash.endingDebit,120000);
+ assert.equal(report.incomeStatement.revenue,0);
+ assert.equal(report.incomeStatement.expense,40000);
 });

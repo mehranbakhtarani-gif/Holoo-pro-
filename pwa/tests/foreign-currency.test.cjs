@@ -65,5 +65,5 @@ test("PWA invoice and order totals use the exact inverse FX converter",()=>{
  assert.equal((app.match(/convertRialToForeignMinor\(\{currency,rial:total,fxRateRialPerUnit:fxRate\}\)/g)||[]).length,2);
  assert.match(html,/foreign-currency\.js\?v=fx-bigint-2/);
  assert.match(html,/app\.js\?v=reverse-order-2/);
- assert.match(sw,/holloo-pwa-v169-fx-bigint-precision/);
+ assert.match(sw,/holloo-pwa-v170-fx-reversal-order/);
 });

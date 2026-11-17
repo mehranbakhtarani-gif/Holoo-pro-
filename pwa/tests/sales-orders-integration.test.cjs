@@ -56,3 +56,12 @@ test("sales-order approval and cancellation transitions use a stale-state guard"
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/const expected=\{status:order\.status,updatedAt:order\.updatedAt\};order\.status=next;order\.updatedAt=Date\.now\(\);await putManyGuarded\(\[\["salesOrders",order\]\],\[\{store:"salesOrders",key:Number\(order\.id\),expected\}\]\)/);
 });
+
+ 
+test("sales-order approval and conversion evaluate quote expiry against the selected operation date",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ const expected='order.validUntil<globalThis.HolooOperationDate.resolveOperationDate({mode:operationDateMode,manualValue:operationManualDate})';
+ assert.equal(app.split(expected).length-1,2);
+ assert.match(app,/async function convertSalesOrderToInvoice/);
+ assert.match(app,/async function updateSalesOrderStatus/);
+});

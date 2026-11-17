@@ -15,3 +15,11 @@ test("offline cache fallback ignores asset query versions so pre-cached files re
  assert.match(sw,/check-reconciliation\\.js/);
  assert.match(sw,/const cached=await cache\.match\(event\.request,\{ignoreSearch:true\}\)/);
 });
+
+test("cheque reconciliation module is loaded before the app and included in offline assets",()=>{
+ const html=fs.readFileSync(path.resolve(__dirname,"../index.html"),"utf8");
+ const sw=fs.readFileSync(path.resolve(__dirname,"../sw.js"),"utf8");
+ assert.ok(html.indexOf("check-reconciliation.js")>=0);
+ assert.ok(html.indexOf("check-reconciliation.js")<html.indexOf("app.js?v="));
+ assert.match(sw,/\.\/check-reconciliation\.js/);
+});

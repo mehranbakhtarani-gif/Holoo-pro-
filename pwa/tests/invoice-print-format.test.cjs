@@ -24,5 +24,5 @@ test("invoice print format is visible in list, print document, search and CSV ex
 
 test("invoice print-format update refreshes the PWA script and offline cache",()=>{
  assert.match(html,/app\.js\?v=fx-active-realized-report-4/);
- assert.match(sw,/holloo-pwa-v175-fx-reversal-voucher-audit/);
+ assert.match(sw,/holloo-pwa-v176-party-subledger-reconciliation/);
 });

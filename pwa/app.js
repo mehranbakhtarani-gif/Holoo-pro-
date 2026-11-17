@@ -611,7 +611,8 @@ async function adjustStockPwa(id,options={}){
   {accountCode:creditCode,debitRial:0,creditRial:adjustmentValue,description:"اصلاح موجودی"}
  ],[
   {store:"products",key:Number(product.id),expected:expectedProductState},
-  {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:currentWarehouseState}
+  {store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(warehouse.id)},expected:currentWarehouseState},
+  ...(options.stocktakeId!==undefined?[{store:"stockAdjustments",match:{stocktakeId:Number(options.stocktakeId),stocktakeLineKey:String(options.stocktakeLineKey)},expected:null}]:[])
  ]);
  toast("اصلاح موجودی، انبار، بچ FIFO و سند حسابداری ثبت شد");await render();return true;
 }

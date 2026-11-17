@@ -160,3 +160,10 @@ test("party type reclassification and balance preservation are rechecked atomica
  assert.match(app,/if\(current\.kind!==record\.kind\)/);
  assert.match(app,/const merged=\{\.\.\.record,balance:current\.balance\}/);
 });
+
+test("inventory list exposes alias barcodes and flags stock above the configured maximum",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/\[x\.barcode,\.\.\.\(Array\.isArray\(x\.barcodes\)\?x\.barcodes:\[\]\)\]\.filter\(Boolean\)\.join\("، "\)/);
+ assert.match(app,/inventoryStockFilter==="OVER"&&Number\(x\.maxStock\|\|0\)>0&&Number\(x\.stock\|\|0\)>Number\(x\.maxStock\)/);
+ assert.match(app,/بیش از حداکثر موجودی/);
+});

@@ -36,6 +36,6 @@ test("party search includes the expanded identifying and contact fields",()=>{
 });
 
 test("PWA cache is invalidated for the expanded master-data UI",()=>{
- assert.match(html,/app\.js\?v=purchase-cost-allocation-guard-1/);
- assert.match(sw,/holloo-pwa-v168-purchase-cost-allocation-guard/);
+ assert.match(html,/app\.js\?v=fx-bigint-2/);
+ assert.match(sw,/holloo-pwa-v169-fx-bigint-precision/);
 });

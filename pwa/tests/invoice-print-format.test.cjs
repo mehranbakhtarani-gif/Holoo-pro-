@@ -23,6 +23,6 @@ test("invoice print format is visible in list, print document, search and CSV ex
 });
 
 test("invoice print-format update refreshes the PWA script and offline cache",()=>{
- assert.match(html,/app\.js\?v=inventory-adjustment-reversal-1/);
- assert.match(sw,/holloo-pwa-v163-adjustment-reversal/);
+ assert.match(html,/app\.js\?v=warehouse-transfer-reversal-1/);
+ assert.match(sw,/holloo-pwa-v164-warehouse-transfer-reversal/);
 });

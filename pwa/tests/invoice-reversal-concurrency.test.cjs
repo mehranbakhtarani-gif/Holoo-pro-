@@ -22,4 +22,7 @@ test("invoice reversal revalidates all affected ledger and inventory snapshots a
   'guards.push({store:"inventoryLots",key:snapshot.id,expected:snapshot})',
   "reverseVoucherLines,guards)"
  ])assert.ok(body.includes(expected),"Missing reversal guard: "+expected);
+ assert.match(body,/reversalAdjustments\.push\(\{kind:"INVOICE_REVERSAL"/);
+ assert.match(body,/reference:"INVOICE-REVERSAL:"\+invoice\.number/);
+ assert.match(body,/stockAdjustments/);
 });

@@ -134,3 +134,22 @@ test("inventory reconciliation rejects unsafe monetary values and detects a miss
  const result=buildInventoryReconciliation({products:[{id:1,stock:0,value:0}],accounts:[]});
  assert.equal(result.balanced,false);assert.equal(result.discrepancies[0].scope,"ACCOUNT_1301");
 });
+
+test("inventory reconciliation flags orphan inventory records and duplicate warehouse stock rows",()=>{
+ const result=buildInventoryReconciliation({
+  products:[{id:1,stock:2,value:200}],
+  warehouseStock:[
+   {productId:1,warehouseId:2,stock:1,value:100},
+   {productId:1,warehouseId:2,stock:1,value:100},
+   {productId:99,warehouseId:2,stock:1,value:100}
+  ],
+  inventoryLots:[
+   {id:"a",productId:1,warehouseId:2,remainingQty:2,remainingValue:200},
+   {id:"orphan",productId:88,warehouseId:2,remainingQty:1,remainingValue:50}
+  ],
+  accounts:[{id:"1301",openingDebitRial:200,openingCreditRial:0}],vouchers:[],voucherLines:[]
+ });
+ assert.ok(result.discrepancies.some(x=>x.scope==="DUPLICATE_WAREHOUSE_STOCK"));
+ assert.ok(result.discrepancies.some(x=>x.scope==="ORPHAN_WAREHOUSE_STOCK"&&x.productId===99));
+ assert.ok(result.discrepancies.some(x=>x.scope==="ORPHAN_FIFO_LOT"&&x.productId===88));
+});

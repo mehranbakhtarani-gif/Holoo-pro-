@@ -60,7 +60,7 @@ test("PWA wires foreign payable pages, IndexedDB stores, offline cache and FX ac
  assert.match(app,/HolooForeignPayables\.convertMinorAtRate\(foreignAmountMinor,Number\(s\.fx\)\)/);
  assert.match(html,/foreign-payables\.js\?v=reverse-voucher-audit-3/);
  assert.ok(html.indexOf("foreign-payables.js")<html.indexOf("app.js?v="));
- assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);assert.match(sw,/holloo-pwa-v175-fx-reversal-voucher-audit/);
+ assert.match(sw,/\.\/foreign-payables\.js/);assert.match(sw,/foreign-payables\.js/);assert.match(sw,/holloo-pwa-v176-party-subledger-reconciliation/);
 });
 
 test("forecasts open supplier obligations by currency and due-date window without mixing currencies",()=>{

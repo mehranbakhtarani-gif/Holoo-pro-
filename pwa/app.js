@@ -220,7 +220,7 @@ async function printCheckDocument(id){
   popup.document.open();popup.document.write(doc);popup.document.close();popup.focus();setTimeout(()=>popup.print(),700);
  }catch(error){popup.close();throw error}
 }
-const DB_NAME="holloo-pro-pwa",DB_VERSION=11;
+const DB_NAME="holloo-pro-pwa",DB_VERSION=12;
 const stores=["products","parties","invoices","imports","checks","treasury","accounts","vouchers","voucherLines","stockAdjustments","partyLedger","warehouses","warehouseStock","warehouseTransfers","importShipments","approvals","employees","payroll","fixedAssets","treasuryAllocations","auditLog","assetDepreciations","bankStatements","bankStatementLines","salesOrders","inventoryLots","foreignPayables","foreignPayablePayments"];
 let db,showToman=true,currentPage="home",searchText="",inventoryStockFilter="ALL",foreignRateOverrides={},cashFlowHorizon=90,cashFlowCalendarOffset=0,cashFlowCalendarSelectedDate="",operationDateMode="AUTO",operationManualDate="";
 const $=s=>document.querySelector(s),h=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])),fmt=n=>new Intl.NumberFormat("fa-IR").format(Math.round(Number(n)||0)),fmtForeign=n=>new Intl.NumberFormat("fa-IR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0),money=n=>fmt(showToman?Number(n||0)/10:Number(n||0)),moneyUnit=()=>showToman?"تومان":"ریال",date=v=>v?new Intl.DateTimeFormat("fa-IR").format(new Date(v)):"—";

@@ -40,3 +40,10 @@ test("invoice reversal is blocked until settlement allocations are safely remove
  assert.match(app,/ابتدا تخصیص‌های دریافت یا پرداخت این فاکتور را حذف کنید/);
  assert.match(app,/برگشت امن تخصیص هنوز در دسترس نیست/);
 });
+
+ 
+test("invoice posting derives its date and default customer due date from the selected operation date",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const invoiceDate=globalThis\.HolooOperationDate\.resolveOperationDate\(\{mode:operationDateMode,manualValue:operationManualDate\}\)/);
+ assert.match(app,/date:invoiceDate,dueDate:d\.dueDate\?new Date\(d\.dueDate\+"T12:00:00"\)\.getTime\(\):\(kind==="SALE"\?globalThis\.HolooOperationDate\.defaultInvoiceDueDate\(invoiceDate,Number\(p\.creditDays\|\|0\)\):null\)/);
+});

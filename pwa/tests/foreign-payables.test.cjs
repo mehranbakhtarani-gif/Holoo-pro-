@@ -142,6 +142,11 @@ test("reconciles reversed foreign payable payments including reversal voucher an
  const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,status:"REVERSED"},{reference:"FXPAY-REV:11",kind:"RECEIPT",amount:137500000}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:150000000,creditRial:0},{referenceId:"FXPAY-REV:11",partyId:2,debitRial:0,creditRial:150000000}],vouchers:[{id:33,reference:payment.reference},{id:34,reference:"FXPAY-REV:11"}],voucherLines:[{voucherId:33,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:33,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:33,accountCode:"4301",debitRial:0,creditRial:12500000},{voucherId:34,accountCode:"1102",debitRial:137500000,creditRial:0},{voucherId:34,accountCode:"4301",debitRial:12500000,creditRial:0},{voucherId:34,accountCode:"2101",debitRial:0,creditRial:150000000}]};
  const result=reconcileForeignPayablePayments(data);
  assert.equal(result.matched,1);assert.equal(result.withIssues,0);
+ const tampered=JSON.parse(JSON.stringify(data));
+ tampered.voucherLines.find(x=>x.voucherId===34&&x.accountCode==="4301").accountCode="5501";
+ const mismatch=reconcileForeignPayablePayments(tampered);
+ assert.equal(mismatch.withIssues,1);
+ assert.match(mismatch.rows[0].issues.join(" "),/معکوس دقیق سند اصلی نیست/);
 });
 
 test("reconciles supplier foreign balances against supplier subledger and linked general-ledger liability",()=>{

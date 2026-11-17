@@ -33,3 +33,13 @@ test("accounting sales reports exclude draft and reversed invoices but retain le
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.ok(app.includes('const sales=invoices.filter(x=>x.kind==="SALE"&&(!x.status||x.status==="POSTED"));'));
 });
+
+ 
+test("accounting page exposes an apply/clear date range for financial statements and trial balance",()=>{
+ assert.match(app,/id="accountingFromDate"/);
+ assert.match(app,/id="accountingToDate"/);
+ assert.match(app,/id="applyAccountingDateRange"/);
+ assert.match(app,/id="clearAccountingDateRange"/);
+ assert.match(app,/parseDateBoundaryLocal\(accountingFromDate,"از تاریخ"\)/);
+ assert.match(app,/parseDateBoundaryLocal\(accountingToDate,"تا تاریخ",true\)/);
+});

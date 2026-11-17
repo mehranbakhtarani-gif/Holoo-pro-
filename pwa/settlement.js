@@ -26,6 +26,15 @@ function getActiveInvoiceForeignAllocatedMinor(invoiceNumber,allocations){
  if(!Number.isSafeInteger(total)||total<0)throw new Error("جمع تخصیص ارزی فاکتور نامعتبر است");
  return total;
 }
+function validateTreasuryAllocationReversalOrder(input){
+ const allocation=input.allocation,rows=input.allocations||[];
+ if(!allocation||!Number.isSafeInteger(Number(allocation.id))||Number(allocation.id)<=0)throw new Error("شناسه تخصیص برای برگشت معتبر نیست");
+ if(String(allocation.currency||"IRR").toUpperCase()==="IRR"&&!Number.isSafeInteger(Number(allocation.foreignAmountMinor)))return true;
+ const id=Number(allocation.id),treasuryId=Number(allocation.treasuryId),invoiceNumber=allocation.invoiceNumber;
+ const newer=rows.some(row=>row&&row.status!=="REVERSED"&&Number(row.id)>id&&(row.invoiceNumber===invoiceNumber||Number(row.treasuryId)===treasuryId));
+ if(newer)throw new Error("ابتدا جدیدترین تخصیص فعال مرتبط با این فاکتور یا تراکنش را برگشت دهید تا مانده و گردکردن تسعیر دقیق بماند");
+ return true;
+}
 function validateTreasuryAllocation(input){
  const transaction=input.transaction,invoice=input.invoice,amount=Number(input.amount),rows=input.allocations||[],currentId=input.currentAllocationId;
  if(!transaction||transaction.status==="REVERSED"||!invoice||(invoice.status&&invoice.status!=="POSTED")||!Number.isSafeInteger(amount)||amount<=0)throw new Error("تراکنش و فاکتور ثبت‌شده و مبلغ تخصیص معتبر الزامی است");
@@ -41,4 +50,4 @@ function validateTreasuryAllocation(input){
  if(allocatedForInvoice+invoiceAllocationAmount>invoiceTotal)throw new Error("مبلغ تخصیص از مانده فاکتور بیشتر است");
  return true;
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={getInvoiceSettlement,validateTreasuryAllocation,calculateTreasuryForeignAllocation,getActiveInvoiceForeignAllocatedMinor};
+if(typeof module!=="undefined"&&module.exports)module.exports={getInvoiceSettlement,validateTreasuryAllocation,calculateTreasuryForeignAllocation,getActiveInvoiceForeignAllocatedMinor,validateTreasuryAllocationReversalOrder};

@@ -161,7 +161,7 @@ function reconcilePartyBalances(input){
  const orphanPayableCount=orphanImportPayables.length+orphanForeignPayables.length+orphanForeignPayments.length;
  const orphanAllocationCount=orphanAllocations.length;
  const orphanIssues=[];
- if(orphanAllocations.length)orphanIssues.push(orphanAllocations.length+" تخصیص دریافت/پرداخت به فاکتور یا شخص معتبر متصل نیست");
+ if(orphanAllocations.length){const refs=orphanAllocations.map(x=>"شناسه "+String(x.id??"نامشخص")+" / فاکتور "+String(x.invoiceNumber??"نامشخص")+" / شخص "+String(x.partyId??"نامشخص")).join("؛ ");orphanIssues.push(orphanAllocations.length+" تخصیص دریافت/پرداخت به فاکتور یا شخص معتبر متصل نیست: "+refs)}
  if(orphanLedgerRows.length)orphanIssues.push(orphanLedgerRows.length+" ردیف گردش تفصیلی به شخص موجود متصل نیست");
  if(orphanTreasuryRows.length)orphanIssues.push(orphanTreasuryRows.length+" گردش خزانه به شخص معتبر متصل نیست");
  if(orphanImportPayables.length)orphanIssues.push(orphanImportPayables.length+" پرداختنی جانبی به شخص معتبر متصل نیست");

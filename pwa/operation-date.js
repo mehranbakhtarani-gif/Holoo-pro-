@@ -15,6 +15,17 @@ function resolveOperationDate({mode="AUTO",manualValue="",now=Date.now()}={}){
  if(!Number.isSafeInteger(now)||now<0)throw new Error("زمان سیستم معتبر نیست");
  return now;
 }
+function defaultInvoiceDueDate(invoiceDate,creditDays){
+ const at=Number(invoiceDate),days=Number(creditDays);
+ if(!Number.isSafeInteger(at)||at<0||!Number.isSafeInteger(days)||days<0)throw new Error("تاریخ فاکتور یا مهلت تسویه معتبر نیست");
+ if(days===0)return null;
+ const due=new Date(at);
+ due.setHours(12,0,0,0);
+ due.setDate(due.getDate()+days);
+ const timestamp=due.getTime();
+ if(!Number.isSafeInteger(timestamp))throw new Error("تاریخ سررسید از محدوده مجاز خارج است");
+ return timestamp;
+}
 function stampOperationRecord({store,record,mode="AUTO",manualValue="",now=Date.now()}={}){
  if(!record||typeof record!=="object"||!OPERATION_DATE_STORES.has(store))return record;
  const copy={...record},at=resolveOperationDate({mode,manualValue,now}),hasDate=Object.prototype.hasOwnProperty.call(copy,"date"),freshDate=hasDate&&Number.isFinite(Number(copy.date))&&Math.abs(now-Number(copy.date))<=60000;
@@ -35,5 +46,5 @@ function stampOperationRecord({store,record,mode="AUTO",manualValue="",now=Date.
  }
  return copy;
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={parseOperationDate,resolveOperationDate,stampOperationRecord,OPERATION_DATE_STORES};
-if(typeof globalThis!=="undefined")globalThis.HolooOperationDate={parseOperationDate,resolveOperationDate,stampOperationRecord};
+if(typeof module!=="undefined"&&module.exports)module.exports={parseOperationDate,resolveOperationDate,defaultInvoiceDueDate,stampOperationRecord,OPERATION_DATE_STORES};
+if(typeof globalThis!=="undefined")globalThis.HolooOperationDate={parseOperationDate,resolveOperationDate,defaultInvoiceDueDate,stampOperationRecord};

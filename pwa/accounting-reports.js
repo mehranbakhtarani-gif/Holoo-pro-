@@ -4,7 +4,7 @@ function buildFinancialStatements(input){
  const toDate=Number.isFinite(Number(input.toDate))?Number(input.toDate):Number.MAX_SAFE_INTEGER;
  if(fromDate>toDate)throw new Error("بازه گزارش مالی نامعتبر است");
  const voucherById=new Map(vouchers.map(v=>[Number(v.id),v]));
- const allActivity=new Map(),periodActivity=new Map();
+ const allActivity=new Map(),openingActivity=new Map(),periodActivity=new Map();
  for(const line of voucherLines){
   const voucher=voucherById.get(Number(line.voucherId));if(!voucher)continue;
   const date=Number(voucher.date||0);if(date>toDate)continue;
@@ -14,6 +14,11 @@ function buildFinancialStatements(input){
   current.debit+=debit;current.credit+=credit;
   if(!Number.isSafeInteger(current.debit)||!Number.isSafeInteger(current.credit))throw new Error("جمع گردش حساب از محدوده مجاز خارج است");
   allActivity.set(code,current);
+  if(date<fromDate){
+   const opening=openingActivity.get(code)||{debit:0,credit:0};opening.debit+=debit;opening.credit+=credit;
+   if(!Number.isSafeInteger(opening.debit)||!Number.isSafeInteger(opening.credit))throw new Error("مانده افتتاحیه دوره از محدوده عددی مجاز خارج است");
+   openingActivity.set(code,opening);
+  }
   if(date>=fromDate&&!String(voucher.reference||"").startsWith("YEAR_END_CLOSE:")){
    const period=periodActivity.get(code)||{debit:0,credit:0};
    period.debit+=debit;period.credit+=credit;
@@ -22,12 +27,12 @@ function buildFinancialStatements(input){
   }
  }
  const trialBalance=accounts.map(account=>{
-  const code=String(account.id),activity=allActivity.get(code)||{debit:0,credit:0};
-  const openingDebit=Number(account.openingDebitRial||0),openingCredit=Number(account.openingCreditRial||0);
-  if(!Number.isSafeInteger(openingDebit)||openingDebit<0||!Number.isSafeInteger(openingCredit)||openingCredit<0)throw new Error("مانده افتتاحیه حساب نامعتبر است");
-  const net=openingDebit-openingCredit+activity.debit-activity.credit;
-  if(!Number.isSafeInteger(net))throw new Error("مانده حساب از محدوده عددی مجاز خارج است");
-  return {...account,debit:activity.debit,credit:activity.credit,openingDebit,openingCredit,endingDebit:Math.max(0,net),endingCredit:Math.max(0,-net),net};
+  const code=String(account.id),activity=allActivity.get(code)||{debit:0,credit:0},opening=openingActivity.get(code)||{debit:0,credit:0},period=periodActivity.get(code)||{debit:0,credit:0};
+  const baseDebit=Number(account.openingDebitRial||0),baseCredit=Number(account.openingCreditRial||0);
+  if(!Number.isSafeInteger(baseDebit)||baseDebit<0||!Number.isSafeInteger(baseCredit)||baseCredit<0)throw new Error("مانده افتتاحیه حساب نامعتبر است");
+  const openingNet=baseDebit-baseCredit+opening.debit-opening.credit,net=baseDebit-baseCredit+activity.debit-activity.credit;
+  if(!Number.isSafeInteger(openingNet)||!Number.isSafeInteger(net))throw new Error("مانده حساب از محدوده عددی مجاز خارج است");
+  return {...account,debit:period.debit,credit:period.credit,openingDebit:Math.max(0,openingNet),openingCredit:Math.max(0,-openingNet),endingDebit:Math.max(0,net),endingCredit:Math.max(0,-net),net};
  });
  const byType=type=>trialBalance.filter(x=>x.type===type);
  const safeTotal=(rows,selector,label)=>{const total=rows.reduce((n,x)=>n+selector(x),0);if(!Number.isSafeInteger(total))throw new Error(label+" از محدوده عددی مجاز خارج است");return total};

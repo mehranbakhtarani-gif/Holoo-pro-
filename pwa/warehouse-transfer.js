@@ -11,7 +11,7 @@ function calculateWarehouseTransfer(input){
  if(destinationMatches.length>1)throw new Error("موجودی مقصد تکراری است");
  const src=sourceMatches[0],dst=destinationMatches[0];
  const hasProductStockRows=[...sourceRows,...destinationRows].some(row=>Number(row.productId)===productId);
- const srcStock=Number(src?.stock??(hasProductStockRows?0:product.stock)||0),srcValue=Number(src?.value??(hasProductStockRows?0:product.value)||0),dstStock=Number(dst?.stock||0),dstValue=Number(dst?.value||0);
+ const srcStock=Number(src?(src.stock||0):(hasProductStockRows?0:(product.stock||0))),srcValue=Number(src?(src.value||0):(hasProductStockRows?0:(product.value||0))),dstStock=Number(dst?.stock||0),dstValue=Number(dst?.value||0);
  if(!Number.isFinite(srcStock)||srcStock<0||!Number.isFinite(dstStock)||dstStock<0||!Number.isSafeInteger(srcValue)||srcValue<0||!Number.isSafeInteger(dstValue)||dstValue<0)throw new Error("ارزش یا مقدار موجودی انبار نامعتبر است");
  if(srcStock+1e-9<qty)throw new Error("موجودی انبار مبدأ کافی نیست");
  const movedValue=qty>=srcStock-1e-9?srcValue:Math.round(qty*(srcValue/srcStock));

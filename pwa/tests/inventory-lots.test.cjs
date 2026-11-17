@@ -163,11 +163,15 @@ test("transfer reversal rejects destination lots whose original source provenanc
 test("reverses a multi-warehouse FIFO transfer chain in reverse order and restores the original lot",()=>{
  const root=receipt("CN-CHAIN",10,10000,100);
  const first=planLotTransfer({lots:[root],productId:1,productName:"FDY",sourceWarehouseId:1,destinationWarehouseId:2,quantity:6,sourceWarehouseStock:{stock:10,value:10000},transferId:"WT-CHAIN-1",date:200});
- const second=planLotTransfer({lots:[...first.sourceLotUpdates,...first.destinationLots],productId:1,productName:"FDY",sourceWarehouseId:2,destinationWarehouseId:3,quantity:4,sourceWarehouseStock:{stock:6,value:6000},transferId:"WT-CHAIN-2",date:300});
- let lots=[...first.sourceLotUpdates,...first.destinationLots,...second.sourceLotUpdates,...second.destinationLots];
+ const firstState=new Map([...first.sourceLotUpdates,...first.destinationLots].map(lot=>[String(lot.id),lot]));
+ const second=planLotTransfer({lots:[...firstState.values()],productId:1,productName:"FDY",sourceWarehouseId:2,destinationWarehouseId:3,quantity:4,sourceWarehouseStock:{stock:6,value:6000},transferId:"WT-CHAIN-2",date:300});
+ const currentState=new Map(firstState);
+ for(const lot of [...second.sourceLotUpdates,...second.destinationLots])currentState.set(String(lot.id),lot);
+ let lots=[...currentState.values()];
  const secondRecord={number:"WT-CHAIN-2",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:4,value:4000,lotAllocations:second.allocations};
  const reverseSecond=planLotTransferReversal({transfer:secondRecord,lots,date:400});
- lots=lots.map(lot=>reverseSecond.sourceLotUpdates.find(x=>String(x.id)===String(lot.id))||reverseSecond.destinationLotUpdates.find(x=>String(x.id)===String(lot.id))||lot);
+ for(const lot of [...reverseSecond.sourceLotUpdates,...reverseSecond.destinationLotUpdates])currentState.set(String(lot.id),lot);
+ lots=[...currentState.values()];
  const firstRecord={number:"WT-CHAIN-1",productId:1,sourceWarehouseId:1,destinationWarehouseId:2,quantity:6,value:6000,lotAllocations:first.allocations};
  const reverseFirst=planLotTransferReversal({transfer:firstRecord,lots,date:500});
  assert.equal(reverseFirst.quantity,6);assert.equal(reverseFirst.value,6000);

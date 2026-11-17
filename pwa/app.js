@@ -34,7 +34,7 @@ async function reverseClearedCheckPwa(id){
  await postVoucherAtomic([["checks",check],["parties",party],["treasury",original],["treasury",reversal],["partyLedger",ledger]],{number:check.reversalVoucherNumber,date:now,description:"برگشت وصول/پرداخت چک "+check.number,reference:reversalReference},reversalLines,[{store:"checks",key:Number(check.id),expected:checkSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"treasury",key:Number(original.id),expected:treasurySnapshot},{store:"treasuryAllocations",match:{treasuryId:Number(original.id)},expected:null}]);
 }
 async function reverseTreasuryPwa(id){
- const [rows,parties,vouchers,voucherLines,allocations]=await Promise.all([all("treasury"),all("parties"),all("vouchers"),all("voucherLines"),all("treasuryAllocations"),all("importChargePayables")]);
+ const [rows,parties,vouchers,voucherLines,allocations,payables]=await Promise.all([all("treasury"),all("parties"),all("vouchers"),all("voucherLines"),all("treasuryAllocations"),all("importChargePayables")]);
  const original=rows.find(x=>Number(x.id)===Number(id));
  if(!original||original.status==="REVERSED")throw Error("تراکنش خزانه فعال پیدا نشد");
  if(!String(original.reference||"").startsWith("TREASURY:"))throw Error("این گردش از بخش دیگری ثبت شده است و باید از همان بخش اصلاح شود");

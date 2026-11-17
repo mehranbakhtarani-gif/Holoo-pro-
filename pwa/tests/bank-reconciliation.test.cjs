@@ -68,3 +68,33 @@ test("automatic and manual bank matching reject reversed treasury movements",()=
  assert.deepEqual(findBankMatchCandidates(line,[reversed]),[]);
  assert.throws(()=>validateBankManualMatch(line,reversed,[]),/حساب بانکی فعال/);
 });
+
+
+test("bank statement candidates are restricted to the selected bank account",()=>{
+ const line={id:1,date:1000,signedAmount:1000,bank:"بانک ملت",status:"UNMATCHED"};
+ const treasury=[
+  {id:1,method:"بانک",accountCode:"1102101",accountName:"بانک ملت • جاری",kind:"RECEIPT",amount:1000,date:1000},
+  {id:2,method:"بانک",accountCode:"1102102",accountName:"بانک ملی • جاری",kind:"RECEIPT",amount:1000,date:1000}
+ ];
+ assert.deepEqual(findBankMatchCandidates(line,treasury).map(row=>row.id),[1]);
+});
+
+test("bank identity normalization handles Persian and Arabic letter variants",()=>{
+ assert.equal(normalizeBankIdentity("بانك ملت"),normalizeBankIdentity("بانک ملت"));
+ assert.equal(normalizeBankIdentity("بانک ي"),normalizeBankIdentity("بانک ی"));
+});
+
+test("manual matching rejects a movement from another bank or a non-bank account code",()=>{
+ const line={status:"UNMATCHED",signedAmount:1000,bank:"بانک ملت"};
+ const otherBank={id:2,method:"بانک",accountCode:"1102102",accountName:"بانک ملی",kind:"RECEIPT",amount:1000,date:1000};
+ const cashCode={id:3,method:"بانک",accountCode:"1101101",accountName:"بانک ملت",kind:"RECEIPT",amount:1000,date:1000};
+ assert.throws(()=>validateBankManualMatch(line,otherBank,[]),/بانک یا حساب/);
+ assert.throws(()=>validateBankManualMatch(line,cashCode,[]),/بانک یا حساب/);
+});
+
+test("bank statement with an identified bank cannot match a legacy treasury row without account identity",()=>{
+ const line={status:"UNMATCHED",signedAmount:1000,bank:"بانک ملت"};
+ const legacy={id:4,method:"بانک",kind:"RECEIPT",amount:1000,date:1000};
+ assert.deepEqual(findBankMatchCandidates(line,[legacy]),[]);
+ assert.throws(()=>validateBankManualMatch(line,legacy,[]),/بانک یا حساب/);
+});

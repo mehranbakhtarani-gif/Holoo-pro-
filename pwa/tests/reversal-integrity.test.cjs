@@ -5,6 +5,8 @@ const fs=require("node:fs");
 const path=require("node:path");
 const app=fs.readFileSync(path.join(__dirname,"..","app.js"),"utf8");
 const foreignPayables=require("../foreign-payables.js");
+const reversalValidation=require("../reversal-validation.js");
+globalThis.HolooReversalValidation=reversalValidation;
 
 function extract(startText,endText){
  const start=app.indexOf(startText),end=app.indexOf(endText,start);

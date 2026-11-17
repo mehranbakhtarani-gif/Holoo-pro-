@@ -75,3 +75,45 @@ test("orphan party-ledger rows and unassigned active payables are surfaced globa
  assert.equal(result.withIssues,1);
  assert.ok(result.orphanIssues.some(x=>x.includes("گردش تفصیلی")));
 });
+
+test("ordinary party receipts and payments must each have one matching detail movement",()=>{
+ const result=reconcilePartyBalances({
+  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:100}],
+  treasury:[
+   {id:1,partyId:1,kind:"RECEIPT",amount:500,reference:"TREASURY:R1"},
+   {id:2,partyId:1,kind:"PAYMENT",amount:400,reference:"TREASURY:P1"}
+  ],
+  partyLedger:[
+   {partyId:1,referenceId:"TREASURY:R1",debitRial:0,creditRial:500},
+   {partyId:1,referenceId:"TREASURY:P1",debitRial:400,creditRial:0}
+  ]
+ });
+ assert.equal(result.matched,1);
+});
+test("ordinary treasury movement with missing or duplicated detail rows is reported",()=>{
+ const missing=reconcilePartyBalances({
+  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:0}],
+  treasury:[{id:1,partyId:1,kind:"RECEIPT",amount:500,reference:"TREASURY:R1"}]
+ });
+ assert.equal(missing.withIssues,1);
+ assert.ok(missing.rows[0].issues.some(x=>x.includes("ثبت نشده")));
+ const duplicate=reconcilePartyBalances({
+  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:1000}],
+  treasury:[{id:1,partyId:1,kind:"RECEIPT",amount:500,reference:"TREASURY:R1"}],
+  partyLedger:[
+   {partyId:1,referenceId:"TREASURY:R1",debitRial:0,creditRial:500},
+   {partyId:1,referenceId:"TREASURY:R1",debitRial:0,creditRial:500}
+  ]
+ });
+ assert.equal(duplicate.withIssues,1);
+ assert.ok(duplicate.rows[0].issues.some(x=>x.includes("تکراری")));
+});
+test("ordinary treasury detail amount, direction and party must match its source transaction",()=>{
+ const result=reconcilePartyBalances({
+  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:200}],
+  treasury:[{id:1,partyId:1,kind:"RECEIPT",amount:500,reference:"TREASURY:R1"}],
+  partyLedger:[{partyId:1,referenceId:"TREASURY:R1",debitRial:300,creditRial:0}]
+ });
+ assert.equal(result.withIssues,1);
+ assert.ok(result.rows[0].issues.some(x=>x.includes("مطابقت ندارد")));
+});

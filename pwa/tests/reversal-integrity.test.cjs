@@ -74,9 +74,9 @@ function foreignHarness(fxAccount="5501"){
 test("reversal validator returns the exact inverse and rejects balanced wrong-account lines",()=>{
  const validate=new Function(validatorSource+";return validateReversalVoucherLines;")();
  const accounts=[{id:"2101"},{id:"1102"},{id:"1101"}];
- const inverse=validate({voucher:{id:1},lines:[{accountCode:"2101",debitRial:100,creditRial:0},{accountCode:"1102",debitRial:0,creditRial:100}],accounts,expectedLines:[{accountCode:"2101",debitRial:100,creditRial:0},{accountCode:"1102",debitRial:0,creditRial:100}],expectedTotal:100});
+ const inverse=validate({voucher:{id:1},lines:[{voucherId:1,accountCode:"2101",debitRial:100,creditRial:0},{voucherId:1,accountCode:"1102",debitRial:0,creditRial:100}],accounts,expectedLines:[{accountCode:"2101",debitRial:100,creditRial:0},{accountCode:"1102",debitRial:0,creditRial:100}],expectedTotal:100});
  assert.deepEqual(inverse.map(x=>[x.accountCode,x.debitRial,x.creditRial]),[["2101",0,100],["1102",100,0]]);
- assert.throws(()=>validate({voucher:{id:1},lines:[{accountCode:"1101",debitRial:100,creditRial:0},{accountCode:"1102",debitRial:0,creditRial:100}],accounts,expectedLines:[{accountCode:"2101",debitRial:100,creditRial:0},{accountCode:"1102",debitRial:0,creditRial:100}]}),/حساب یا مبلغ/);
+ assert.throws(()=>validate({voucher:{id:1},lines:[{voucherId:1,accountCode:"1101",debitRial:100,creditRial:0},{voucherId:1,accountCode:"1102",debitRial:0,creditRial:100}],accounts,expectedLines:[{accountCode:"2101",debitRial:100,creditRial:0},{accountCode:"1102",debitRial:0,creditRial:100}]}),/حساب یا مبلغ/);
 });
 
 test("treasury reversal refuses a balanced voucher posted to the wrong party account",async()=>{

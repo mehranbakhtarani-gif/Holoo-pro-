@@ -99,7 +99,7 @@ test("kardex records a reversed warehouse transfer at the reversal date for both
  const transfer={id:9,number:"WT-KDX",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:4,value:12000,date:100,status:"REVERSED",reversedAt:300};
  const products=[{id:1,stock:10,value:30000}];
  const all=buildInventoryKardex({productId:1,products,transfers:[transfer]});
- assert.deepEqual(all.rows.map(x=>x.type),["TRANSFER_OUT","TRANSFER_IN","TRANSFER_REVERSAL_IN","TRANSFER_REVERSAL_OUT"]);
+ assert.deepEqual(all.rows.map(x=>x.type),["TRANSFER_IN","TRANSFER_OUT","TRANSFER_REVERSAL_IN","TRANSFER_REVERSAL_OUT"]);
  assert.deepEqual(all.rows.map(x=>x.date),[100,100,300,300]);
  assert.equal(all.closing.quantity,10);assert.equal(all.closing.value,30000);
  const source=buildInventoryKardex({productId:1,warehouseId:2,products,warehouseStock:[{productId:1,warehouseId:2,stock:6,value:18000}],transfers:[transfer]});

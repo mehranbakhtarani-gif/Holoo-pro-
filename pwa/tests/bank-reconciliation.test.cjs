@@ -106,3 +106,10 @@ test("manual bank matching rejects dates outside the permitted window",()=>{
  assert.throws(()=>validateBankManualMatch(line,sameBank,[]),/تاریخ گردش بانکی/);
  assert.equal(validateBankManualMatch(line,{...sameBank,date:1000+30*86400000},[]),true);
 });
+
+
+test("rejects impossible calendar dates in bank CSV",()=>{
+ assert.throws(()=>parseBankCsv("date,amount\n2026-02-31,100"),/تاریخ نامعتبر/);
+ assert.throws(()=>parseBankCsv("date,amount\n2026/04/31,100"),/تاریخ نامعتبر/);
+ assert.equal(parseBankCsv("date,amount\n2026-02-28,100")[0].signedAmount,100);
+});

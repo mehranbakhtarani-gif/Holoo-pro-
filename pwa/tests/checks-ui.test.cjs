@@ -43,3 +43,8 @@ test("open-check bounce and cancellation transitions use the same stale-state gu
  const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
  assert.match(app,/c\.status=next;c\.statusChangedAt=Date\.now\(\);if\(next==="BOUNCED"\)c\.bouncedAt=c\.statusChangedAt;if\(next==="CANCELLED"\)c\.cancelledAt=c\.statusChangedAt;await putManyGuarded\(\[\["checks",c\]\],\[\{store:"checks",key:Number\(c\.id\),expected:checkSnapshot\}\]\)/);
 });
+
+test("endorsed cheque register exposes a reversal action and distinguishes reversed endorsements",()=>{
+ assert.match(app,/data-check-endorsement-reverse/);
+ assert.match(app,/ظهرنویسی برگشت‌شده/);
+});

@@ -706,33 +706,37 @@ async function adjustStockPwa(id){
  toast("اصلاح موجودی، انبار، بچ FIFO و سند حسابداری ثبت شد");await render();
 }
 async function createStocktakePwa(warehouseId){
- const [warehouses,products,stockRows,adjustments]=await Promise.all([all("warehouses"),all("products"),all("warehouseStock"),all("stockAdjustments")]);
+ const [warehouses,products,stockRows]=await Promise.all([all("warehouses"),all("products"),all("warehouseStock")]);
  const warehouse=warehouses.find(x=>Number(x.id)===Number(warehouseId));if(!warehouse)throw Error("انبار انتخاب‌شده پیدا نشد");
- if(adjustments.some(x=>x.kind==="STOCKTAKE"&&Number(x.warehouseId)===Number(warehouse.id)&&x.status==="OPEN"))throw Error("برای این انبار یک انبارگردانی باز وجود دارد؛ ابتدا آن را تکمیل یا بررسی کنید");
+ if(!products.length)throw Error("ابتدا کالا تعریف کنید");
  const now=Date.now(),number="STK-"+now,header={kind:"STOCKTAKE",number,warehouseId:Number(warehouse.id),warehouseName:warehouse.name,status:"OPEN",createdAt:now,lineCount:products.length};
  return new Promise((resolve,reject)=>{
-  const tx=db.transaction(["stockAdjustments","auditLog"],"readwrite"),store=tx.objectStore("stockAdjustments");let stocktakeId=null;
-  const add=store.add(header);
-  add.onsuccess=()=>{
-   stocktakeId=add.result;
-   for(const product of products){
-    const row=stockRows.find(x=>Number(x.productId)===Number(product.id)&&Number(x.warehouseId)===Number(warehouse.id));
-    store.add({kind:"STOCKTAKE_LINE",stocktakeId,stocktakeNumber:number,warehouseId:Number(warehouse.id),productId:Number(product.id),productName:product.name||"",sku:product.sku||"",expectedQty:Number(row?.stock||0),expectedValue:Number(row?.value||0),countedQty:null,status:"PENDING"});
-   }
-   tx.objectStore("auditLog").add({action:"ایجاد انبارگردانی",store:"stockAdjustments",recordId:stocktakeId,at:now,summary:"شروع "+number+" در "+warehouse.name});
+  const tx=db.transaction(["stockAdjustments","auditLog"],"readwrite"),store=tx.objectStore("stockAdjustments"),read=store.getAll();let stocktakeId=null,duplicate=false;
+  read.onsuccess=()=>{
+   if((read.result||[]).some(x=>x.kind==="STOCKTAKE"&&Number(x.warehouseId)===Number(warehouse.id)&&x.status==="OPEN")){duplicate=true;try{tx.abort()}catch(_){};return}
+   const add=store.add(header);
+   add.onsuccess=()=>{
+    stocktakeId=add.result;
+    for(const product of products){
+     const row=stockRows.find(x=>Number(x.productId)===Number(product.id)&&Number(x.warehouseId)===Number(warehouse.id));
+     store.add({kind:"STOCKTAKE_LINE",stocktakeId,stocktakeNumber:number,warehouseId:Number(warehouse.id),productId:Number(product.id),productName:product.name||"",sku:product.sku||"",expectedQty:Number(row?.stock||0),expectedValue:Number(row?.value||0),countedQty:null,status:"PENDING"});
+    }
+    tx.objectStore("auditLog").add({action:"ایجاد انبارگردانی",store:"stockAdjustments",recordId:stocktakeId,at:now,summary:"شروع "+number+" در "+warehouse.name});
+   };
+   add.onerror=()=>{try{tx.abort()}catch(_){}};
   };
-  add.onerror=()=>{try{tx.abort()}catch(_){}};
+  read.onerror=()=>{try{tx.abort()}catch(_){}};
   tx.oncomplete=()=>resolve(stocktakeId);
   tx.onerror=()=>reject(tx.error||new Error("ایجاد انبارگردانی ناموفق بود"));
-  tx.onabort=()=>reject(tx.error||new Error("ایجاد انبارگردانی لغو شد"));
+  tx.onabort=()=>reject(duplicate?new Error("برای این انبار یک انبارگردانی باز وجود دارد"):tx.error||new Error("ایجاد انبارگردانی لغو شد"));
  });
 }
 async function recordStocktakeCountPwa(lineId,countedQty){
  const rows=await all("stockAdjustments"),line=rows.find(x=>Number(x.id)===Number(lineId)&&x.kind==="STOCKTAKE_LINE");
  if(!line)throw Error("ردیف شمارش پیدا نشد");
  const header=rows.find(x=>Number(x.id)===Number(line.stocktakeId)&&x.kind==="STOCKTAKE");
- if(!header||header.status!=="OPEN"||line.status!=="PENDING")throw Error("این ردیف در انبارگردانی باز قابل شمارش نیست");
- const count=Number(countedQty);if(!Number.isFinite(count)||count<0)throw Error("مقدار شمارش باید عددی معتبر و غیرمنفی باشد");
+ if(!header||header.status!=="OPEN"||!["PENDING","COUNTED"].includes(line.status))throw Error("این ردیف در انبارگردانی باز قابل شمارش نیست");
+ const count=Number(countedQty);if((typeof countedQty==="string"&&!countedQty.trim())||!Number.isFinite(count)||count<0)throw Error("مقدار شمارش باید عددی معتبر و غیرمنفی باشد");
  const snapshot={...line};line.countedQty=count;line.status="COUNTED";line.countedAt=Date.now();
  await putManyGuarded([["stockAdjustments",line]],[{store:"stockAdjustments",key:Number(line.id),expected:snapshot}]);
  return line;
@@ -780,7 +784,7 @@ async function closeStocktakePwa(stocktakeId){
    stockRecord.average=stockRecord.stock>0?stockRecord.value/stockRecord.stock:0;stockRecord.updatedAt=now;
    entries.push(["products",product],["warehouseStock",stockRecord],["stockAdjustments",{kind:"STOCKTAKE_ADJUSTMENT",stocktakeId:header.id,stocktakeNumber:header.number,productId:product.id,productName:product.name,warehouseId:header.warehouseId,warehouseName:header.warehouseName,deltaKg:delta,valueRial:Math.abs(valueDelta),date:now,number:header.number+"-"+product.id}]);
    entries.push(...lotEntries);
-   if(currentRow){const key=Number(currentRow.productId)+":"+Number(currentRow.warehouseId);if(!warehouseSnapshots.has(key))warehouseSnapshots.set(key,{...currentRow})}
+   if(currentRow){const key=Number(currentRow.productId)+":"+Number(currentRow.warehouseId);if(!warehouseSnapshots.has(key))warehouseSnapshots.set(key,{...currentRow})}else guards.push({store:"warehouseStock",match:{productId:Number(product.id),warehouseId:Number(header.warehouseId)},expected:null});
    line.deltaQty=delta;line.valueDelta=valueDelta;line.status="CLOSED";line.closedAt=now;
   }else{line.deltaQty=0;line.valueDelta=0;line.status="CLOSED";line.closedAt=now}
   entries.push(["stockAdjustments",line]);guards.push({store:"stockAdjustments",key:Number(line.id),expected:lineSnapshot});

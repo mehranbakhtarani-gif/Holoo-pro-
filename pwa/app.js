@@ -82,6 +82,10 @@ async function reverseTreasuryAllocationPwa(id){
  const oldLines=voucherLines.filter(line=>Number(line.voucherId)===Number(original.id));
  const debit=oldLines.reduce((n,line)=>n+Number(line.debitRial||0),0),credit=oldLines.reduce((n,line)=>n+Number(line.creditRial||0),0);
  if(oldLines.length<2||debit!==credit||debit!==gain+loss)throw Error("سند تسعیر اصلی با مبلغ تخصیص مطابقت ندارد");
+ const debitAccount=invoice.kind==="SALE"?(gain>0?"1103":"5501"):(gain>0?"2101":"5501"),creditAccount=invoice.kind==="SALE"?(gain>0?"4301":"1103"):(gain>0?"4301":"2101"),expectedAmount=gain>0?gain:loss;
+ const accountTotals=new Map();for(const line of oldLines){const code=String(line.accountCode||""),total=accountTotals.get(code)||{debit:0,credit:0};total.debit+=Number(line.debitRial||0);total.credit+=Number(line.creditRial||0);accountTotals.set(code,total)}
+ const debitTotal=accountTotals.get(debitAccount)||{debit:0,credit:0},creditTotal=accountTotals.get(creditAccount)||{debit:0,credit:0};
+ if(accountTotals.size!==2||debitTotal.debit!==expectedAmount||debitTotal.credit!==0||creditTotal.debit!==0||creditTotal.credit!==expectedAmount)throw Error("حساب‌های سند تسعیر اصلی با نوع فاکتور و سود/زیان تخصیص مطابقت ندارد");
  const party=parties.find(row=>Number(row.id)===Number(allocation.partyId));
  if(!party)throw Error("طرف حساب تخصیص پیدا نشد");
  const partySnapshot={...party},reference="FX-SETTLEMENT-REV:"+allocation.id;

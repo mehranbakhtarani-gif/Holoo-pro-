@@ -161,3 +161,22 @@ test("reversed allocations are excluded from settlement totals but retain origin
  });
  assert.equal(result.matched,1);
 });
+
+test("reversed invoice requires one matching opposite party-ledger movement",()=>{
+ const valid=reconcilePartyBalances({
+  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:0}],
+  invoices:[{id:10,number:"S-11",partyId:1,kind:"SALE",status:"REVERSED",total:500}],
+  partyLedger:[
+   {partyId:1,referenceId:"S-11",debitRial:500,creditRial:0},
+   {partyId:1,referenceId:"REVERSAL:S-11",debitRial:0,creditRial:500}
+  ]
+ });
+ assert.equal(valid.matched,1);
+ const invalid=reconcilePartyBalances({
+  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:500}],
+  invoices:[{id:10,number:"S-11",partyId:1,kind:"SALE",status:"REVERSED",total:500}],
+  partyLedger:[{partyId:1,referenceId:"S-11",debitRial:500,creditRial:0}]
+ });
+ assert.equal(invalid.withIssues,1);
+ assert.ok(invalid.rows[0].issues.some(x=>x.includes("برگشت فاکتور")));
+});

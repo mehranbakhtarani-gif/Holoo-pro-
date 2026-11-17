@@ -19,6 +19,12 @@ function calculateTreasuryForeignAllocation(input){
  if(!Number.isSafeInteger(foreignAmountMinor)||foreignAmountMinor<=0||foreignAmountMinor>remainingForeign)throw new Error("مبلغ ارزی تخصیص معتبر نیست یا از دقت کوچک‌ترین واحد ارز کمتر است");
  return foreignAmountMinor;
 }
+function getActiveInvoiceForeignAllocatedMinor(invoiceNumber,allocations){
+ const rows=(allocations||[]).filter(row=>row&&row.invoiceNumber===invoiceNumber&&row.status!=="REVERSED");
+ const total=rows.reduce((sum,row)=>sum+Number(row.foreignAmountMinor),0);
+ if(!Number.isSafeInteger(total)||total<0)throw new Error("جمع تخصیص ارزی فاکتور نامعتبر است");
+ return total;
+}
 function validateTreasuryAllocation(input){
  const transaction=input.transaction,invoice=input.invoice,amount=Number(input.amount),rows=input.allocations||[],currentId=input.currentAllocationId;
  if(!transaction||transaction.status==="REVERSED"||!invoice||(invoice.status&&invoice.status!=="POSTED")||!Number.isSafeInteger(amount)||amount<=0)throw new Error("تراکنش و فاکتور ثبت‌شده و مبلغ تخصیص معتبر الزامی است");
@@ -32,4 +38,4 @@ function validateTreasuryAllocation(input){
  if(allocatedForInvoice+amount>invoiceTotal)throw new Error("مبلغ تخصیص از مانده فاکتور بیشتر است");
  return true;
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={getInvoiceSettlement,validateTreasuryAllocation,calculateTreasuryForeignAllocation};
+if(typeof module!=="undefined"&&module.exports)module.exports={getInvoiceSettlement,validateTreasuryAllocation,calculateTreasuryForeignAllocation,getActiveInvoiceForeignAllocatedMinor};

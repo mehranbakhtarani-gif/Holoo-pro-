@@ -79,7 +79,7 @@ test("FX allocations reconcile cash Rial and invoice booked Rial independently u
  const body=app.slice(start,end);
  assert.ok(body.includes("calculateTreasuryForeignAllocation({transaction:tr,amount,allocations:allocs})"));
  assert.ok(body.includes("calculateCumulativeRealizedForeignExchange({"));
- assert.ok(body.includes("invoiceAmount:invoiceCurrency==="IRR"?amount:Number(allocation.bookedRial)"));
+ assert.ok(body.includes('invoiceAmount:invoiceCurrency==="IRR"?amount:Number(allocation.bookedRial)'));
  assert.ok(body.includes("previousInvoiceBookedRial"));
  assert.ok(body.includes("previousTransactionSettlementRial"));
  assert.ok(app.includes("validateTreasuryAllocationReversalOrder({allocation,allocations})"));

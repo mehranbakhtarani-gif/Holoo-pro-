@@ -28,7 +28,7 @@ test("party search includes identifier, contact details, type and balance",()=>{
 
 test("party statements show the recorded opening balance once and exclude its ledger row from later movements",()=>{
  assert.match(app,/function partyStatementData\(party,ledger\)/);
- assert.match(app,/String\\(r\\.referenceId\\|\\|""\\)==="OPENING:PARTY:"\\+party\\.id/);
+ assert.match(app,/String\(r\.referenceId\|\|""\)==="OPENING:PARTY:"\+party\.id/);
  assert.match(app,/const opening=openingRows\.length\?openingRows\.reduce/);
  assert.match(app,/const statement=partyStatementData\(party,partyLedger\)/);
  assert.match(app,/for\(const row of statement\.rows\)/);

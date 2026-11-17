@@ -29,7 +29,7 @@ function getActiveInvoiceForeignAllocatedMinor(invoiceNumber,allocations){
 function validateTreasuryAllocationReversalOrder(input){
  const allocation=input.allocation,rows=input.allocations||[];
  if(!allocation||!Number.isSafeInteger(Number(allocation.id))||Number(allocation.id)<=0)throw new Error("شناسه تخصیص برای برگشت معتبر نیست");
- if(String(allocation.currency||"IRR").toUpperCase()==="IRR"&&!Number.isSafeInteger(Number(allocation.foreignAmountMinor)))return true;
+ if(String(allocation.currency||"IRR").toUpperCase()==="IRR"&&(allocation.foreignAmountMinor==null||!Number.isSafeInteger(Number(allocation.foreignAmountMinor))))return true;
  const id=Number(allocation.id),treasuryId=Number(allocation.treasuryId),invoiceNumber=allocation.invoiceNumber;
  const newer=rows.some(row=>row&&row.status!=="REVERSED"&&Number(row.id)>id&&(row.invoiceNumber===invoiceNumber||Number(row.treasuryId)===treasuryId));
  if(newer)throw new Error("ابتدا جدیدترین تخصیص فعال مرتبط با این فاکتور یا تراکنش را برگشت دهید تا مانده و گردکردن تسعیر دقیق بماند");

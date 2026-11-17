@@ -94,3 +94,18 @@ test("reorder report rejects inconsistent stock thresholds and unsafe estimated 
  assert.throws(()=>buildReorderReport({products:[{id:1,name:"bad",stock:2,minStock:8,maxStock:5,avg:10}]}),/حداکثر/);
  assert.throws(()=>buildReorderReport({products:[{id:1,name:"bad",stock:0,minStock:2,maxStock:0,avg:Number.MAX_SAFE_INTEGER}]}),/محدوده/);
 });
+
+test("kardex records a reversed warehouse transfer at the reversal date for both warehouses",()=>{
+ const transfer={id:9,number:"WT-KDX",productId:1,sourceWarehouseId:2,destinationWarehouseId:3,quantity:4,value:12000,date:100,status:"REVERSED",reversedAt:300};
+ const products=[{id:1,stock:10,value:30000}];
+ const all=buildInventoryKardex({productId:1,products,transfers:[transfer]});
+ assert.deepEqual(all.rows.map(x=>x.type),["TRANSFER_OUT","TRANSFER_IN","TRANSFER_REVERSAL_IN","TRANSFER_REVERSAL_OUT"]);
+ assert.deepEqual(all.rows.map(x=>x.date),[100,100,300,300]);
+ assert.equal(all.closing.quantity,10);assert.equal(all.closing.value,30000);
+ const source=buildInventoryKardex({productId:1,warehouseId:2,products,warehouseStock:[{productId:1,warehouseId:2,stock:6,value:18000}],transfers:[transfer]});
+ assert.equal(source.closing.quantity,6);assert.equal(source.closing.value,18000);
+ assert.deepEqual(source.rows.map(x=>x.type),["TRANSFER_OUT","TRANSFER_REVERSAL_IN"]);
+ const destination=buildInventoryKardex({productId:1,warehouseId:3,products,warehouseStock:[{productId:1,warehouseId:3,stock:4,value:12000}],transfers:[transfer]});
+ assert.equal(destination.closing.quantity,4);assert.equal(destination.closing.value,12000);
+ assert.deepEqual(destination.rows.map(x=>x.type),["TRANSFER_IN","TRANSFER_REVERSAL_OUT"]);
+});

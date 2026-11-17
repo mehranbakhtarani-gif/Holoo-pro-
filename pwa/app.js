@@ -606,7 +606,7 @@ async function adjustStockPwa(id,options={}){
  await ensureBaseAccounts();
  const accounts=await all("accounts"),byId=new Map(accounts.map(x=>[String(x.id),x]));
  if(!byId.has(debitCode)||!byId.has(creditCode))throw Error("حساب اصلاح موجودی تعریف نشده است");
- const adjustment={productId:product.id,productName:product.name,warehouseId:warehouse.id,warehouseName:warehouse.name,deltaKg:delta,valueRial:adjustmentValue,date:now,number,fifoAllocations,createdLotIds,...(options.stocktakeId!==undefined?{stocktakeId:Number(options.stocktakeId),stocktakeLineKey:String(options.stocktakeLineKey)}:{})};
+ const adjustment={productId:product.id,productName:product.name,warehouseId:warehouse.id,warehouseName:warehouse.name,deltaKg:delta,valueRial:adjustmentValue,date:now,number,voucherReference:"STOCK_ADJUSTMENT:"+product.id+":"+now,fifoAllocations,createdLotIds,...(options.stocktakeId!==undefined?{stocktakeId:Number(options.stocktakeId),stocktakeLineKey:String(options.stocktakeLineKey)}:{})};
  await postVoucherAtomic([["products",product],["warehouseStock",movement.record],["stockAdjustments",adjustment],...lotEntries],{number,date:now,description:"اصلاح موجودی "+product.name+" در انبار "+warehouse.name,reference:"STOCK_ADJUSTMENT:"+product.id+":"+now},[
   {accountCode:debitCode,debitRial:adjustmentValue,creditRial:0,description:"اصلاح موجودی"},
   {accountCode:creditCode,debitRial:0,creditRial:adjustmentValue,description:"اصلاح موجودی"}
@@ -621,7 +621,8 @@ async function reverseStockAdjustmentPwa(number){
  const adjustments=await all("stockAdjustments"),adjustment=adjustments.find(row=>String(row.number)===String(number));
  if(!adjustment||adjustment.status==="REVERSED")throw Error("تعدیل فعال برای برگشت پیدا نشد");
  if(!Array.isArray(adjustment.createdLotIds)||!Array.isArray(adjustment.fifoAllocations))throw Error("این تعدیل قدیمی اطلاعات کافی FIFO برای برگشت امن ندارد؛ برگشت خودکار متوقف شد");
- const reference="STOCK_ADJUSTMENT:"+Number(adjustment.productId)+":"+Number(adjustment.date);
+ const reference=String(adjustment.voucherReference||"");
+ if(!reference)throw Error("مرجع سند اصلی این تعدیل ذخیره نشده است؛ برگشت خودکار امن نیست");
  const reversalReference="STOCK_ADJUSTMENT_REVERSAL:"+adjustment.number;
  const [products,stockRows,lots,vouchers,voucherLines]=await Promise.all([all("products"),all("warehouseStock"),all("inventoryLots"),all("vouchers"),all("voucherLines")]);
  if(vouchers.some(row=>row.reference===reversalReference))throw Error("این تعدیل قبلاً برگشت داده شده است");

@@ -1614,10 +1614,17 @@ async function restoreBackup(file){
  if(!file||!file.size||file.size>50*1024*1024)throw Error("فایل پشتیبان خالی است یا از سقف ۵۰ مگابایت بزرگ‌تر است");
  let data;try{data=JSON.parse(await file.text())}catch(_){throw Error("محتوای فایل JSON معتبر نیست")}
  if(data.app!=="HOLLOO PRO+ PWA"||![1,2].includes(Number(data.version))||!data.records||typeof data.records!=="object"||Array.isArray(data.records))throw Error("فایل پشتیبان معتبر یا سازگار نیست");
- if(!Number.isSafeInteger(Number(data.schemaVersion))||Number(data.schemaVersion)!==DB_VERSION)throw Error("نسخه ساختار فایل پشتیبان با دفتر فعلی یکسان نیست؛ برای بازیابی، نسخه سازگار برنامه را باز کنید");
+ const schemaVersion=Number(data.schemaVersion);
+ if(!Number.isSafeInteger(schemaVersion)||![DB_VERSION,DB_VERSION-1].includes(schemaVersion))throw Error("نسخه ساختار فایل پشتیبان با دفتر فعلی سازگار نیست؛ برای بازیابی، نسخه سازگار برنامه را باز کنید");
+ const sourceStores=data.storeNames;
+ if(!Array.isArray(sourceStores)||new Set(sourceStores).size!==sourceStores.length)throw Error("فهرست بخش‌های فایل پشتیبان تکراری یا نامعتبر است");
  const unknown=Object.keys(data.records).filter(name=>!stores.includes(name));if(unknown.length)throw Error("فایل شامل بخش ناشناخته است: "+unknown.join("، "));
- if(!Array.isArray(data.storeNames)||data.storeNames.length!==stores.length||stores.some(name=>!data.storeNames.includes(name))||data.storeNames.some(name=>!stores.includes(name)))throw Error("فهرست بخش‌های فایل پشتیبان ناقص یا ناسازگار است");
- if(!data.counts||typeof data.counts!=="object"||Array.isArray(data.counts))throw Error("شمارنده رکوردهای فایل پشتیبان معتبر نیست");
+ if(sourceStores.length!==Object.keys(data.records).length||sourceStores.some(name=>!Object.prototype.hasOwnProperty.call(data.records,name))||Object.keys(data.records).some(name=>!sourceStores.includes(name)))throw Error("فهرست بخش‌ها با محتوای فایل پشتیبان هم‌خوانی ندارد");
+ const missingStores=stores.filter(name=>!sourceStores.includes(name));
+ if(schemaVersion===DB_VERSION&&(missingStores.length!==0||sourceStores.length!==stores.length))throw Error("فهرست بخش‌های فایل پشتیبان ناقص یا ناسازگار است");
+ if(schemaVersion===DB_VERSION-1&&(missingStores.length!==1||missingStores[0]!=="stocktakes"||sourceStores.length!==stores.length-1))throw Error("فایل پشتیبان قدیمی شامل بخش‌های موردنیاز برای ارتقای امن نیست");
+ if(!data.counts||typeof data.counts!=="object"||Array.isArray(data.counts)||Object.keys(data.counts).length!==sourceStores.length||sourceStores.some(name=>!Object.prototype.hasOwnProperty.call(data.counts,name)))throw Error("شمارنده رکوردهای فایل پشتیبان معتبر نیست");
+ if(schemaVersion===DB_VERSION-1){data.records.stocktakes=[];data.counts.stocktakes=0;sourceStores.push("stocktakes");}
  const counts={};let total=0;
  for(const store of stores){
   if(!Object.prototype.hasOwnProperty.call(data.records,store))throw Error("بخش «"+store+"» در فایل پشتیبان وجود ندارد");

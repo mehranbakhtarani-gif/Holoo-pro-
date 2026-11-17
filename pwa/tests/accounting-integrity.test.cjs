@@ -32,3 +32,10 @@ test("all party-balance mutations pass through one safe-integer guard",()=>{
  assert.equal((app.match(/[A-Za-z_$][\w$]*\.balance=Number\(/g)||[]).length,0);
  assert.ok((app.match(/applyPartyBalanceDelta\(/g)||[]).length>=10);
 });
+
+const accountingReports=require("../accounting-reports.js");
+test("financial statements reject voucher lines without a parent voucher",()=>{assert.throws(()=>accountingReports.buildFinancialStatements({accounts:[{id:"1001",type:"ASSET"}],vouchers:[],voucherLines:[{voucherId:99,accountCode:"1001",debitRial:10,creditRial:0}]}),/بدون سند حسابداری مرجع/)});
+test("financial statements reject account codes missing from the chart",()=>{assert.throws(()=>accountingReports.buildFinancialStatements({accounts:[{id:"1001",type:"ASSET"}],vouchers:[{id:1,date:1}],voucherLines:[{voucherId:1,accountCode:"9999",debitRial:10,creditRial:0}]}),/در سرفصل حساب‌ها تعریف نشده/)});
+test("period closing rejects orphan and unknown-account voucher lines",()=>{const accounts=[{id:"3201",type:"EQUITY",title:"سود انباشته"}];assert.throws(()=>accountingReports.buildPeriodClosingJournal({accounts,vouchers:[],voucherLines:[{voucherId:99,accountCode:"3201",debitRial:1,creditRial:0}],fromDate:0,toDate:10}),/بدون سند حسابداری مرجع/);assert.throws(()=>accountingReports.buildPeriodClosingJournal({accounts,vouchers:[{id:1,date:5}],voucherLines:[{voucherId:1,accountCode:"9999",debitRial:1,creditRial:0}],fromDate:0,toDate:10}),/در سرفصل حساب‌ها تعریف نشده/)});
+test("general ledger refuses orphan voucher lines and unknown account codes",()=>{const accounts=[{id:"1001",openingDebitRial:0,openingCreditRial:0}];assert.throws(()=>accountingReports.buildLedgerRunningRows({accounts,rows:[{accountCode:"1001",orphanVoucherLine:true,debit:1,credit:0}]}),/بدون سند حسابداری مرجع/);assert.throws(()=>accountingReports.buildLedgerRunningRows({accounts,rows:[{accountCode:"9999",debit:1,credit:0}]}),/در سرفصل حساب‌ها تعریف نشده/)});
+test("app general ledger preserves orphan rows for explicit failure instead of filtering them out",()=>{assert.match(app,/orphanVoucherLine:true/);assert.doesNotMatch(app,/\}\)\.filter\(Boolean\)\.sort\(\(a,b\)=>b\.date-a\.date\)/)});

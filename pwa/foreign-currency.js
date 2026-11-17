@@ -21,6 +21,24 @@ function convertRialToForeignMinor(input){
  if(!Number.isSafeInteger(fxRate)||fxRate<=0)throw new Error("نرخ تبدیل ارز به ریال معتبر نیست");
  return roundPositiveRatio(BigInt(rial)*BigInt(scale),BigInt(fxRate));
 }
+function calculateCumulativeRealizedForeignExchange(input){
+ const kind=input.kind,currency=String(input.currency||"").toUpperCase();
+ if(!["SALE","PURCHASE"].includes(kind))throw new Error("نوع معامله برای محاسبه اختلاف ارز معتبر نیست");
+ const invoiceAmountMinor=Number(input.invoiceAmountMinor),settledAmountMinor=Number(input.settledAmountMinor),previousInvoiceMinor=Number(input.previousInvoiceSettledMinor||0),previousInvoiceBookedRial=Number(input.previousInvoiceBookedRial||0);
+ const treasuryAmountMinor=Number(input.treasuryAmountMinor),previousTreasuryMinor=Number(input.previousTreasurySettledMinor||0),previousTreasurySettlementRial=Number(input.previousTreasurySettlementRial||0);
+ const invoiceTotalRial=Number(input.invoiceTotalRial),treasuryTotalRial=Number(input.treasuryTotalRial);
+ if(!Number.isSafeInteger(invoiceAmountMinor)||invoiceAmountMinor<=0||!Number.isSafeInteger(settledAmountMinor)||settledAmountMinor<=0||!Number.isSafeInteger(previousInvoiceMinor)||previousInvoiceMinor<0||!Number.isSafeInteger(previousInvoiceBookedRial)||previousInvoiceBookedRial<0||!Number.isSafeInteger(treasuryAmountMinor)||treasuryAmountMinor<=0||!Number.isSafeInteger(previousTreasuryMinor)||previousTreasuryMinor<0||!Number.isSafeInteger(previousTreasurySettlementRial)||previousTreasurySettlementRial<0||!Number.isSafeInteger(invoiceTotalRial)||invoiceTotalRial<=0||!Number.isSafeInteger(treasuryTotalRial)||treasuryTotalRial<=0)throw new Error("مقادیر تجمعی تسویه ارزی معتبر نیست");
+ const invoiceCumulativeMinor=previousInvoiceMinor+settledAmountMinor,treasuryCumulativeMinor=previousTreasuryMinor+settledAmountMinor;
+ if(!Number.isSafeInteger(invoiceCumulativeMinor)||invoiceCumulativeMinor>invoiceAmountMinor||!Number.isSafeInteger(treasuryCumulativeMinor)||treasuryCumulativeMinor>treasuryAmountMinor)throw new Error("مبلغ تجمعی تسویه از مانده ارزی فاکتور یا تراکنش بیشتر است");
+ const invoiceCumulativeRial=invoiceCumulativeMinor===invoiceAmountMinor?invoiceTotalRial:convertForeignAmountToRial({currency,amountMinor:invoiceCumulativeMinor,fxRateRialPerUnit:input.invoiceFxRateRialPerUnit}).rial;
+ const treasuryCumulativeRial=treasuryCumulativeMinor===treasuryAmountMinor?treasuryTotalRial:convertForeignAmountToRial({currency,amountMinor:treasuryCumulativeMinor,fxRateRialPerUnit:input.settlementFxRateRialPerUnit}).rial;
+ const bookedRial=invoiceCumulativeRial-previousInvoiceBookedRial,settlementRial=treasuryCumulativeRial-previousTreasurySettlementRial;
+ if(!Number.isSafeInteger(bookedRial)||bookedRial<0||!Number.isSafeInteger(settlementRial)||settlementRial<0)throw new Error("ارزش تجمعی تسویه ارزی با سوابق قبلی سازگار نیست");
+ const differenceRial=settlementRial-bookedRial;
+ if(!Number.isSafeInteger(differenceRial))throw new Error("اختلاف تسعیر از محدوده عددی مجاز خارج است");
+ const gainRial=kind==="SALE"?Math.max(0,differenceRial):Math.max(0,-differenceRial),lossRial=kind==="SALE"?Math.max(0,-differenceRial):Math.max(0,differenceRial);
+ return {currency,settledAmountMinor,bookedRial,settlementRial,differenceRial,gainRial,lossRial,invoiceCumulativeMinor,treasuryCumulativeMinor};
+}
 function calculateRealizedForeignExchange(input){
  const kind=input.kind,currency=String(input.currency||"").toUpperCase();
  if(!["SALE","PURCHASE"].includes(kind))throw new Error("نوع معامله برای محاسبه اختلاف ارز معتبر نیست");
@@ -34,4 +52,4 @@ function calculateRealizedForeignExchange(input){
  const lossRial=kind==="SALE"?Math.max(0,-rawDifference):Math.max(0,rawDifference);
  return {currency,settledAmountMinor,bookedRial:booked.rial,settlementRial:actual.rial,differenceRial:rawDifference,gainRial,lossRial};
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={FOREIGN_CURRENCY_MINOR_UNITS,convertForeignAmountToRial,convertRialToForeignMinor,calculateRealizedForeignExchange};
+if(typeof module!=="undefined"&&module.exports)module.exports={FOREIGN_CURRENCY_MINOR_UNITS,convertForeignAmountToRial,convertRialToForeignMinor,calculateRealizedForeignExchange,calculateCumulativeRealizedForeignExchange};

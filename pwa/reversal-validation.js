@@ -22,9 +22,12 @@ function validateReversalVoucherPair({originalLines,reversalLines,additionalLine
  if(reversalLines.length!==originalLines.length+additionalLines.length)throw new Error("تعداد ردیف‌های سند معکوس "+label+" با سند اصلی و تعدیلات مجاز برابر نیست");
  const original=originalLines.map(line=>normalizeReversalLine(line,"اصلی "+label));
  const reversal=reversalLines.map(line=>normalizeReversalLine(line,"معکوس "+label));
+ const unmatched=reversal.slice();
  for(let index=0;index<original.length;index++){
   const expected={accountCode:original[index].accountCode,debitRial:original[index].creditRial,creditRial:original[index].debitRial};
-  if(!sameLine(reversal[index],expected))throw new Error("ردیف شماره "+(index+1)+" سند معکوس "+label+" دقیقاً معکوس ردیف متناظر سند اصلی نیست");
+  const matchIndex=unmatched.findIndex(line=>sameLine(line,expected));
+  if(matchIndex<0)throw new Error("ردیف معکوس متناظر با ردیف شماره "+(index+1)+" سند اصلی "+label+" پیدا نشد یا حساب/مبلغ آن مغایر است");
+  unmatched.splice(matchIndex,1);
  }
  for(let index=0;index<additionalLines.length;index++){
   const expected=normalizeReversalLine(additionalLines[index],"تعدیل مجاز "+label);

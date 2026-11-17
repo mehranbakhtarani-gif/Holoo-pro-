@@ -157,9 +157,62 @@ function buildReorderReport(input){
  }
  return rows.sort((a,b)=>b.recommendedQty-a.recommendedQty||b.estimatedValue-a.estimatedValue||a.name.localeCompare(b.name,"fa"));
 }
+
+function buildInventoryReconciliation(input){
+ const products=Array.isArray(input.products)?input.products:[],stockRows=Array.isArray(input.warehouseStock)?input.warehouseStock:[],lots=Array.isArray(input.inventoryLots)?input.inventoryLots:[],accounts=Array.isArray(input.accounts)?input.accounts:[],vouchers=Array.isArray(input.vouchers)?input.vouchers:[],voucherLines=Array.isArray(input.voucherLines)?input.voucherLines:[];
+ const discrepancies=[],productMap=new Map(products.map(row=>[String(row.id),row])),voucherMap=new Map(vouchers.map(row=>[Number(row.id),row]));
+ const add=(scope,metric,expected,actual,productId=null,warehouseId=null)=>{
+  const difference=actual-expected;
+  const mismatch=metric==="quantity"?Math.abs(difference)>1e-6:difference!==0;
+  if(mismatch)discrepancies.push({scope,metric,expected,actual,difference,productId,warehouseId});
+ };
+ const qty=value=>{const n=Number(value||0);if(!Number.isFinite(n))throw new Error("مقدار موجودی برای تطبیق معتبر نیست");return n};
+ const rial=value=>{const n=Number(value||0);if(!Number.isSafeInteger(n)||n<0)throw new Error("ارزش موجودی برای تطبیق معتبر نیست");return n};
+ const stockByProduct=new Map(),stockByWarehouse=new Map(),lotByProduct=new Map(),lotByWarehouse=new Map();
+ for(const row of stockRows){
+  const pid=String(row.productId),wid=String(row.warehouseId),key=pid+":"+wid;
+  const s=stockByProduct.get(pid)||{quantity:0,value:0};s.quantity+=qty(row.stock);s.value+=rial(row.value);if(!Number.isSafeInteger(s.value))throw new Error("جمع ارزش موجودی انبارها از محدوده مجاز خارج است");stockByProduct.set(pid,s);
+  const w=stockByWarehouse.get(key)||{quantity:0,value:0,count:0};w.quantity+=qty(row.stock);w.value+=rial(row.value);w.count++;if(!Number.isSafeInteger(w.value))throw new Error("جمع ارزش موجودی انبار از محدوده مجاز خارج است");stockByWarehouse.set(key,w);
+ }
+ for(const lot of lots){
+  const pid=String(lot.productId),wid=String(lot.warehouseId),key=pid+":"+wid;
+  const q=qty(lot.remainingQty),v=rial(lot.remainingValue),p=lotByProduct.get(pid)||{quantity:0,value:0},w=lotByWarehouse.get(key)||{quantity:0,value:0};
+  p.quantity+=q;p.value+=v;w.quantity+=q;w.value+=v;
+  if(!Number.isSafeInteger(p.value)||!Number.isSafeInteger(w.value))throw new Error("جمع ارزش بچ‌های FIFO از محدوده مجاز خارج است");
+  lotByProduct.set(pid,p);lotByWarehouse.set(key,w);
+ }
+ for(const product of products){
+  const pid=String(product.id),warehouse=stockByProduct.get(pid)||{quantity:0,value:0},fifo=lotByProduct.get(pid)||{quantity:0,value:0};
+  add("PRODUCT_WAREHOUSE","quantity",qty(product.stock),warehouse.quantity,product.id);
+  add("PRODUCT_WAREHOUSE","value",rial(product.value),warehouse.value,product.id);
+  add("PRODUCT_FIFO","quantity",qty(product.stock),fifo.quantity,product.id);
+  add("PRODUCT_FIFO","value",rial(product.value),fifo.value,product.id);
+ }
+ const keys=new Set([...stockByWarehouse.keys(),...lotByWarehouse.keys()]);
+ for(const key of keys){
+  const [pid,wid]=key.split(":"),stock=stockByWarehouse.get(key)||{quantity:0,value:0},fifo=lotByWarehouse.get(key)||{quantity:0,value:0};
+  add("WAREHOUSE_FIFO","quantity",stock.quantity,fifo.quantity,Number(pid),Number(wid));
+  add("WAREHOUSE_FIFO","value",stock.value,fifo.value,Number(pid),Number(wid));
+ }
+ const inventoryAccount=accounts.find(row=>String(row.id)==="1301");
+ let inventoryLedgerBalance=null,productInventoryValue=products.reduce((sum,row)=>sum+rial(row.value),0);
+ if(!Number.isSafeInteger(productInventoryValue))throw new Error("جمع ارزش کالاها از محدوده مجاز خارج است");
+ if(!inventoryAccount)discrepancies.push({scope:"ACCOUNT_1301",metric:"missing",expected:productInventoryValue,actual:null,difference:null,productId:null,warehouseId:null});
+ else{
+  let debit=rial(inventoryAccount.openingDebitRial),credit=rial(inventoryAccount.openingCreditRial);
+  for(const line of voucherLines){
+   if(String(line.accountCode)!=="1301"||!voucherMap.has(Number(line.voucherId)))continue;
+   const d=rial(line.debitRial),cr=rial(line.creditRial);debit+=d;credit+=cr;
+   if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit))throw new Error("گردش حساب ۱۳۰۱ از محدوده مجاز خارج است");
+  }
+  inventoryLedgerBalance=debit-credit;
+  add("ACCOUNT_1301","value",productInventoryValue,inventoryLedgerBalance);
+ }
+ return {balanced:discrepancies.length===0,productCount:products.length,warehouseStockRows:stockRows.length,lotCount:lots.length,productInventoryValue,inventoryLedgerBalance,discrepancies};
+}
 function buildInventoryCsv(rows,headers){
  const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
  return "\uFEFF"+[headers,...rows].map(row=>row.map(quote).join(",")).join("\r\n");
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildReorderReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv};
-if(typeof globalThis!=="undefined")globalThis.HolooInventoryControl={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildReorderReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv};
+if(typeof module!=="undefined"&&module.exports)module.exports={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildReorderReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv,buildInventoryReconciliation};
+if(typeof globalThis!=="undefined")globalThis.HolooInventoryControl={code39Svg,buildInventoryMovements,buildInventoryKardex,buildStagnantInventoryReport,buildReorderReport,buildStocktakeSheet,buildStocktakeComparison,buildInventoryCsv,buildInventoryReconciliation};

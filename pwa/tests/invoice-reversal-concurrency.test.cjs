@@ -15,7 +15,7 @@ test("invoice reversal revalidates all affected ledger and inventory snapshots a
   "new Map(parties.map(row=>[Number(row.id),{...row}]))",
   "new Map(warehouseStockRows.map(row=>[Number(row.productId)+\":\"+Number(row.warehouseId),{...row}]))",
   "new Map(inventoryLots.map(row=>[String(row.id),{...row}]))",
-  'const guards=[{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot}]',
+  'const guards=[{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot},...reversalAdjustments.map',
   'guards.push({store:"parties",key:id,expected:snapshot})',
   'guards.push({store:"products",key:id,expected:snapshot})',
   'guards.push({store:"warehouseStock",match:{productId,warehouseId},expected:snapshot})',

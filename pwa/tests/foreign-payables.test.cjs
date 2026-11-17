@@ -1,5 +1,6 @@
 const test=require("node:test");const assert=require("node:assert/strict");
 const {createForeignPayable,planForeignPayablePayment,planForeignPayableReversal,summarizeForeignPayable,convertMinorAtRate}=require("../foreign-payables.js");
+globalThis.HolooReversalValidation=require("../reversal-validation.js");
 const fs=require("node:fs");const path=require("node:path");
 const payable=()=>({...createForeignPayable({sourceType:"IMPORT_SHIPMENT",sourceId:7,sourceNumber:"IMP-007",container:"MSCU123",supplierId:2,supplierName:"تأمین‌کننده چین",currency:"USD",amountMinor:100000,bookedFxRateRialPerUnit:600000,dueDate:500}),id:12});
 test("creates a supplier obligation at the original booking FX rate",()=>{const p=payable();assert.equal(p.bookedRial,600000000);assert.equal(p.paidMinor,0);assert.equal(p.status,"OPEN")});
@@ -142,6 +143,21 @@ test("reconciles reversed foreign payable payments including reversal voucher an
  const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,status:"REVERSED"},{reference:"FXPAY-REV:11",kind:"RECEIPT",amount:137500000}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:150000000,creditRial:0},{referenceId:"FXPAY-REV:11",partyId:2,debitRial:0,creditRial:150000000}],vouchers:[{id:33,reference:payment.reference},{id:34,reference:"FXPAY-REV:11"}],voucherLines:[{voucherId:33,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:33,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:33,accountCode:"4301",debitRial:0,creditRial:12500000},{voucherId:34,accountCode:"1102",debitRial:137500000,creditRial:0},{voucherId:34,accountCode:"4301",debitRial:12500000,creditRial:0},{voucherId:34,accountCode:"2101",debitRial:0,creditRial:150000000}]};
  const result=reconcileForeignPayablePayments(data);
  assert.equal(result.matched,1);assert.equal(result.withIssues,0);
+});
+
+test("reconciliation rejects a balanced but incorrect foreign payable reversal journal",()=>{
+ const {reconcileForeignPayablePayments}=require("../foreign-payables.js");
+ const payment={id:11,payableId:12,supplierId:2,sourceNumber:"IMP-009",reference:"FXPAY:12:902",status:"REVERSED",amountMinor:25000,bookedRial:150000000,settlementRial:137500000,fxGainRial:12500000,fxLossRial:0};
+ const data={payments:[payment],treasury:[{reference:payment.reference,kind:"PAYMENT",amount:137500000,foreignAmountMinor:25000,foreignPayableId:12,status:"REVERSED"},{reference:"FXPAY-REV:11",kind:"RECEIPT",amount:137500000}],partyLedger:[{referenceId:payment.reference,partyId:2,debitRial:150000000,creditRial:0},{referenceId:"FXPAY-REV:11",partyId:2,debitRial:0,creditRial:150000000}],vouchers:[{id:33,reference:payment.reference},{id:34,reference:"FXPAY-REV:11"}],voucherLines:[{voucherId:33,accountCode:"2101",debitRial:150000000,creditRial:0},{voucherId:33,accountCode:"1102",debitRial:0,creditRial:137500000},{voucherId:33,accountCode:"4301",debitRial:0,creditRial:12500000},{voucherId:34,accountCode:"1102",debitRial:137500000,creditRial:0},{voucherId:34,accountCode:"4301",debitRial:12500000,creditRial:0},{voucherId:34,accountCode:"2101",debitRial:0,creditRial:150000000}]};
+ assert.equal(reconcileForeignPayablePayments(data).matched,1);
+ const wrongAccount={...data,voucherLines:data.voucherLines.map(line=>line.voucherId===34&&line.accountCode==="1102"?{...line,accountCode:"1101"}:line)};
+ const accountResult=reconcileForeignPayablePayments(wrongAccount);
+ assert.equal(accountResult.withIssues,1);
+ assert.match(accountResult.rows[0].issues.join(" "),/متناظر|مغایر/);
+ const wrongAmount={...data,voucherLines:data.voucherLines.map(line=>line.voucherId===34&&line.accountCode==="1102"?{...line,debitRial:137499999}:line.voucherId===34&&line.accountCode==="4301"?{...line,debitRial:12500001}:line)};
+ const amountResult=reconcileForeignPayablePayments(wrongAmount);
+ assert.equal(amountResult.withIssues,1);
+ assert.match(amountResult.rows[0].issues.join(" "),/متناظر|مغایر/);
 });
 
 test("reconciles supplier foreign balances against supplier subledger and linked general-ledger liability",()=>{

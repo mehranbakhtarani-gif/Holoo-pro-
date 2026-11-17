@@ -68,3 +68,10 @@ test("import order container uniqueness is checked in the same transaction as cr
  assert.ok(app.includes('String(row.container||"").trim().toLowerCase()===String(record.container||"").trim().toLowerCase()'));
  assert.match(app,/await putImportOrderUnique\(\{id:item\?\.id,supplierId:p\.id/);
 });
+
+ 
+test("legacy import-order writes apply the shared automatic or manual operation date",()=>{
+ assert.match(app,/function putImportOrderUnique\(record\)\{\s*const stamp=globalThis\.HolooOperationDate\?\.stampOperationRecord/);
+ assert.match(app,/stamp\(\{store:"imports",record,mode:operationDateMode,manualValue:operationManualDate\}\)/);
+ assert.match(app,/const value=stamp\(\{store:"imports",record,mode:operationDateMode,manualValue:operationManualDate\}\)/);
+});

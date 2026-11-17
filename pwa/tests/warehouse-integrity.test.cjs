@@ -58,3 +58,12 @@ test("warehouse names are normalized and checked atomically on create and edit",
  assert.ok(app.includes('toLocaleLowerCase("fa")===normalized'));
  assert.match(app,/await putWarehouseUnique\(\{id:item\?\.id,name,address/);
 });
+
+test("stocktake adjustments retain a source link and use guarded atomic voucher posting",()=>{
+ const start=app.indexOf("async function adjustStockPwa"),end=app.indexOf("\\nasync function receiveImportShipment",start),body=app.slice(start,end);
+ assert.match(body,/stocktakeId:Number\(options\.stocktakeId\)/);
+ assert.match(body,/expectedProductState/);
+ assert.match(body,/currentWarehouseState/);
+ assert.match(body,/postVoucherAtomic\(/);
+ assert.match(body,/STOCK_ADJUSTMENT:/);
+});

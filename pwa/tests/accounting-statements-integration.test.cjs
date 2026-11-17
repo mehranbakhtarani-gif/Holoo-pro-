@@ -44,7 +44,7 @@ test("ledger calculates running balances independently for each account through 
 
 test("accounting page uses the same date-scoped trial balance for all report totals and details",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/const statements=buildFinancialStatements\(\{accounts,vouchers,voucherLines,fromDate:0,toDate:Date\.now\(\)\}\);const trial=statements\.trialBalance/);
+ assert.match(app,/const statements=buildFinancialStatements\(\{accounts,vouchers,voucherLines,fromDate:reportFrom,toDate:reportTo\}\);const trial=statements\.trialBalance/);
  assert.doesNotMatch(app,/const trial=accounts\.map\(a=>\{const rows=voucherLines\.filter/);
 });
 
@@ -95,4 +95,13 @@ test("aging receivables and payables report offers a print-ready A4 export",()=>
  assert.match(app,/@page\{size:A4 landscape/);
  assert.match(app,/section\("مطالبات مشتریان",aging\.receivables\)/);
  assert.match(app,/section\("بدهی تأمین‌کنندگان",aging\.payables\)/);
+});
+
+ 
+test("accounting income statement detail and gross-profit summaries use the selected report period",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/statements\.incomeStatement\.revenueRows/);
+ assert.match(app,/statements\.incomeStatement\.expenseRows/);
+ assert.match(app,/reportSalesTotal=sales\.reduce/);
+ assert.match(app,/reportCogs=sales\.reduce/);
 });

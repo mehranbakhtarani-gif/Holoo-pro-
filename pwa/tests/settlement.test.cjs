@@ -17,3 +17,10 @@ test("settlement totals reject unsafe, negative or overallocated balances",()=>{
  assert.throws(()=>getInvoiceSettlement({number:"I-2",status:"POSTED",total:100},[{invoiceNumber:"I-2",amount:150}]),/مانده تسویه/);
  assert.throws(()=>getInvoiceSettlement({number:"I-2",status:"POSTED",total:Number.MAX_SAFE_INTEGER+1},[]),/مانده تسویه/);
 });
+
+test("negative or fractional historical allocations cannot reduce settlement totals",()=>{
+ const invoice={number:"I-3",status:"POSTED",kind:"SALE",partyId:2,total:500};
+ assert.throws(()=>getInvoiceSettlement(invoice,[{invoiceNumber:"I-3",amount:300},{invoiceNumber:"I-3",amount:-200}]),/مانده تسویه/);
+ assert.throws(()=>validateTreasuryAllocation({transaction:{id:7,partyId:2,kind:"RECEIPT",amount:500},invoice,amount:100,allocations:[{id:1,treasuryId:7,invoiceNumber:"I-3",amount:-200}]}),/مبلغ تخصیص‌های قبلی/);
+ assert.throws(()=>validateTreasuryAllocation({transaction:{id:7,partyId:2,kind:"RECEIPT",amount:500},invoice,amount:100,allocations:[{id:1,treasuryId:7,invoiceNumber:"I-3",amount:10.5}]}),/مبلغ تخصیص‌های قبلی/);
+});

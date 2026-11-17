@@ -29,7 +29,7 @@ function parseBankCsv(text,defaultBank=""){
  const hasSigned=columns.amount!==undefined,hasDebit=columns.debit!==undefined,hasCredit=columns.credit!==undefined;
  if(!hasSigned&&!(hasDebit&&hasCredit))throw new Error("ستون مبلغ یا هر دو ستون برداشت و واریز در CSV الزامی هستند");
  const digits=s=>String(s).replace(/[۰-۹٠-٩]/g,ch=>{const p="۰۱۲۳۴۵۶۷۸۹",a="٠١٢٣٤٥٦٧٨٩",n=p.indexOf(ch);return n>=0?String(n):String(a.indexOf(ch))});
- const parseDate=value=>{const raw=digits(value).trim();if(/^\d{4}[-/]\d{2}[-/]\d{2}$/.test(raw)){const t=new Date(raw.replace(/\//g,"-")+"T12:00:00").getTime();if(Number.isFinite(t))return t}const t=new Date(raw).getTime();if(Number.isFinite(t))return t;throw new Error("تاریخ نامعتبر در صورت‌حساب بانکی: "+value)};
+ const parseDate=value=>{const raw=digits(value).trim(),match=raw.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);if(match){const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]),date=new Date(year,month-1,day,12);if(date.getFullYear()===year&&date.getMonth()===month-1&&date.getDate()===day)return date.getTime();throw new Error("تاریخ نامعتبر در صورت‌حساب بانکی: "+value)}const t=new Date(raw).getTime();if(Number.isFinite(t))return t;throw new Error("تاریخ نامعتبر در صورت‌حساب بانکی: "+value)};
  const parseAmount=value=>{const raw=digits(value).replace(/[٬،,\s]/g,"").replace(/[()]/g,"");const n=Number(raw);if(!Number.isSafeInteger(n)||n===0)throw new Error("مبلغ نامعتبر در صورت‌حساب بانکی: "+value);return String(value).includes("(")?-Math.abs(n):n};
  const parseColumnMagnitude=value=>{const raw=digits(value||"0").replace(/[٬،,\s]/g,"").replace(/[()]/g,"");const n=raw===""?0:Number(raw);if(!Number.isSafeInteger(n)||n<0)throw new Error("مبلغ ستون برداشت/واریز نامعتبر است: "+value);return n};
  return rows.slice(1).map((cells,index)=>{
@@ -41,9 +41,19 @@ function parseBankCsv(text,defaultBank=""){
  });
 }
 function getTreasurySignedAmount(row){return row.kind==="RECEIPT"?Number(row.amount):-Number(row.amount)}
+function normalizeBankIdentity(value){
+ return String(value||"").normalize("NFKC").replace(/[يى]/g,"ی").replace(/ك/g,"ک").toLocaleLowerCase("fa").replace(/[\s\u200c\-_/\.،,()]+/g,"").trim();
+}
+function bankIdentityMatches(line,row){
+ const statementBank=normalizeBankIdentity(line&&line.bank),accountName=normalizeBankIdentity(row&&row.accountName),accountCode=String(row&&row.accountCode||"");
+ if(accountCode&&!/^1102\d*$/.test(accountCode))return false;
+ if(!statementBank)return true;
+ if(!accountName)return false;
+ return accountName===statementBank||accountName.includes(statementBank)||statementBank.includes(accountName);
+}
 function findBankMatchCandidates(line,treasury,matchedTreasuryIds=[],toleranceDays=3){
  const used=new Set(matchedTreasuryIds.map(Number)),tolerance=toleranceDays*86400000;
- return (treasury||[]).filter(row=>row.method==="بانک"&&row.status!=="REVERSED"&&!used.has(Number(row.id))&&getTreasurySignedAmount(row)===Number(line.signedAmount)&&Math.abs(Number(row.date)-Number(line.date))<=tolerance)
+ return (treasury||[]).filter(row=>row.method==="بانک"&&row.status!=="REVERSED"&&!used.has(Number(row.id))&&bankIdentityMatches(line,row)&&getTreasurySignedAmount(row)===Number(line.signedAmount)&&Math.abs(Number(row.date)-Number(line.date))<=tolerance)
   .sort((a,b)=>Math.abs(Number(a.date)-Number(line.date))-Math.abs(Number(b.date)-Number(line.date)));
 }
 function autoMatchBankLines(lines,treasury,toleranceDays=3){
@@ -56,11 +66,14 @@ function autoMatchBankLines(lines,treasury,toleranceDays=3){
   return {...line,status:"UNMATCHED",matchedTreasuryId:null,candidateTreasuryIds:[]};
  });
 }
-function validateBankManualMatch(line,treasury,matchedTreasuryIds=[]){
+function validateBankManualMatch(line,treasury,matchedTreasuryIds=[],toleranceDays=30){
  if(!line||line.status==="MATCHED")throw new Error("این ردیف قبلاً تطبیق داده شده است");
  if(!treasury||treasury.method!=="بانک"||treasury.status==="REVERSED")throw new Error("گردش انتخابی از حساب بانکی فعال نیست");
+ if(!bankIdentityMatches(line,treasury))throw new Error("بانک یا حساب انتخاب‌شده با صورت‌حساب یکسان نیست");
+ const tolerance=Number(toleranceDays)*86400000;
+ if(!Number.isFinite(Number(line.date))||!Number.isFinite(Number(treasury.date))||!Number.isFinite(tolerance)||tolerance<0||Math.abs(Number(treasury.date)-Number(line.date))>tolerance)throw new Error("تاریخ گردش بانکی خارج از بازه مجاز است");
  if(getTreasurySignedAmount(treasury)!==Number(line.signedAmount))throw new Error("مبلغ یا جهت گردش بانکی یکسان نیست");
  if(matchedTreasuryIds.map(Number).includes(Number(treasury.id)))throw new Error("این گردش قبلاً با ردیف دیگری تطبیق داده شده است");
  return true;
 }
-if(typeof module!=="undefined"&&module.exports)module.exports={parseBankCsv,getTreasurySignedAmount,findBankMatchCandidates,autoMatchBankLines,validateBankManualMatch};
+if(typeof module!=="undefined"&&module.exports)module.exports={parseBankCsv,getTreasurySignedAmount,normalizeBankIdentity,bankIdentityMatches,findBankMatchCandidates,autoMatchBankLines,validateBankManualMatch};

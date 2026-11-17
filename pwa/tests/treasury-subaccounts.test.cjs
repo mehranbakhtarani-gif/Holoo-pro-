@@ -26,3 +26,11 @@ test("treasury list and CSV export expose the selected account and account code"
  assert.match(app,/item\.accountName\|\|item\.method\|\|""/);
  assert.match(app,/item\.accountCode\|\|""/);
 });
+
+
+test("cheque settlement selects a bank subaccount and stores the account identity on treasury movements",()=>{
+ assert.match(app,/clearingAccountCode/);
+ assert.match(app,/checkAccounts\.filter\(a=>a\.type==="ASSET"&&\/\^1102\\d\*\$\//);
+ assert.match(app,/accountCode:bankAccountCode/);
+ assert.match(app,/accountName:bankAccount\.title\|\|bankAccountCode/);
+});

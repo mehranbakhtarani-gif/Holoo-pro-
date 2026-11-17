@@ -99,6 +99,7 @@ function buildLedgerRunningRows(input){
  for(const row of selected){
   const date=Number(row.date||0),debit=Number(row.debit||0),credit=Number(row.credit||0),key=String(row.accountCode);
   if(!Number.isFinite(date)||!Number.isSafeInteger(debit)||debit<0||!Number.isSafeInteger(credit)||credit<0)throw new Error("ردیف دفتر کل معتبر نیست");
+  if(date>toDate)continue;
   const next=(balances.get(key)||0)+debit-credit;
   if(!Number.isSafeInteger(next))throw new Error("مانده تجمعی حساب از محدوده عددی مجاز خارج است");
   balances.set(key,next);

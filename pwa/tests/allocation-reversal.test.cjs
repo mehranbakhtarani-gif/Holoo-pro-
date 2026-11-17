@@ -24,7 +24,26 @@ test("FX allocation reversal posts a reversing voucher and restores party balanc
  assert.match(app,/data-allocation-reverse/);
 });
 
+test("FX allocation reversal validates original gain/loss accounts before reversing the voucher",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/const debitAccount=invoice\.kind==="SALE"/);
+ assert.match(app,/accountTotals\.size!==2/);
+ assert.match(app,/حساب‌های سند تسعیر اصلی با نوع فاکتور و سود\/زیان تخصیص مطابقت ندارد/);
+});
+
+test("FX allocation reversal rejects reversed source documents and mismatched party identity",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/transaction\.status===\"REVERSED\"\|\|\(invoice\.status&&invoice\.status!==\"POSTED\"\)/);
+ assert.match(app,/Number\(transaction\.partyId\)!==Number\(invoice\.partyId\)/);
+ assert.match(app,/Number\(allocation\.partyId\)!==Number\(invoice\.partyId\)/);
+});
+
 test("manual operation date is applied to allocation reversal timestamp",()=>{
  const op=fs.readFileSync(path.resolve(__dirname,"../operation-date.js"),"utf8");
  assert.match(op,/treasuryAllocations:\["reversedAt"\]/);
+});
+
+test("reversed FX allocations do not consume the invoice foreign-currency settlement limit",()=>{
+ const app=fs.readFileSync(path.resolve(__dirname,"../app.js"),"utf8");
+ assert.match(app,/allocs\.filter\(x=>x\.invoiceNumber===invoice\.number&&x\.id!==item\?\.id&&x\.status!==\"REVERSED\"\)/);
 });

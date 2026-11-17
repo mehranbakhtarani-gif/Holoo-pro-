@@ -49,3 +49,15 @@ test("reports missing vouchers, duplicate references and missing party movements
  assert.ok(result.rows[0].issues.some(x=>x.includes("سند حسابداری مرجع پیدا نشد")));
  assert.ok(result.rows[0].issues.some(x=>x.includes("گردش تفصیلی خزانه پیدا نشد")));
 });
+
+test("matches foreign payment reversals against the exact inverse voucher and booked subledger amount",()=>{
+ const reference="FXPAY:S7:1",payment={payableId:5,supplierId:3,reference,method:"بانک",amountMinor:500,bookedRial:500,settlementRial:600,fxGainRial:0,fxLossRial:100};
+ const data=input({
+  treasury:[{id:8,kind:"PAYMENT",method:"بانک",partyId:3,amount:600,foreignAmountMinor:500,foreignPayableId:5,reference,status:"REVERSED"},{id:9,kind:"RECEIPT",method:"بانک",partyId:3,amount:600,foreignAmountMinor:500,foreignPayableId:5,reference:"FXPAY-REV:8",reversalOf:reference}],
+  vouchers:[{id:18,reference},{id:19,reference:"FXPAY-REV:8"}],
+  voucherLines:[{voucherId:18,accountCode:"2101",debitRial:500,creditRial:0},{voucherId:18,accountCode:"1102",debitRial:0,creditRial:600},{voucherId:18,accountCode:"5501",debitRial:100,creditRial:0},{voucherId:19,accountCode:"2101",debitRial:0,creditRial:500},{voucherId:19,accountCode:"1102",debitRial:600,creditRial:0},{voucherId:19,accountCode:"5501",debitRial:0,creditRial:100}],
+  partyLedger:[{partyId:3,referenceId:reference,debitRial:500,creditRial:0},{partyId:3,referenceId:"FXPAY-REV:8",debitRial:0,creditRial:500}],
+  foreignPayments:[payment]
+ });
+ assert.equal(TreasuryIntegrity.reconcileTreasuryRecords(data).matched,2);
+});

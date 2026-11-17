@@ -78,7 +78,7 @@ test("orphan party-ledger rows and unassigned active payables are surfaced globa
 
 test("ordinary party receipts and payments must each have one matching detail movement",()=>{
  const result=reconcilePartyBalances({
-  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:100}],
+  parties:[{id:1,name:"Customer",kind:"CUSTOMER",balance:-100}],
   treasury:[
    {id:1,partyId:1,kind:"RECEIPT",amount:500,reference:"TREASURY:R1"},
    {id:2,partyId:1,kind:"PAYMENT",amount:400,reference:"TREASURY:P1"}

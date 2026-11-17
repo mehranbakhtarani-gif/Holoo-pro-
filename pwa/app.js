@@ -124,7 +124,7 @@ async function reversePwaInvoice(number){
   let valueChange=0;
   if(invoice.kind==="SALE"){
    const cost=Number(line.cogs||0);if(!Number.isSafeInteger(cost)||cost<0)throw Error("بهای تمام‌شده ردیف فروش برای برگشت نامعتبر است");
-   if(Array.isArray(line.lotAllocations)&&line.lotAllocations.length){lotAllocationsToRestore.push(...line.lotAllocations);}
+   if(Array.isArray(line.lotAllocations)&&line.lotAllocations.length){const allocatedQty=line.lotAllocations.reduce((sum,row)=>sum+Number(row.quantity),0),allocatedCogs=line.lotAllocations.reduce((sum,row)=>sum+Number(row.cogs),0);if(!Number.isFinite(allocatedQty)||Math.abs(allocatedQty-totalQty)>1e-6||!Number.isSafeInteger(allocatedCogs)||allocatedCogs!==cost)throw Error("جمع مقدار یا بهای تخصیص‌های FIFO با ردیف فاکتور فروش یکسان نیست؛ برگشت متوقف شد");lotAllocationsToRestore.push(...line.lotAllocations);}
    stockRow.stock=warehouseStock+totalQty;stockRow.value=warehouseValue+cost;product.stock=productStock+totalQty;product.value=productValue+cost;valueChange=cost;
   }else{
    if(warehouseStock+1e-9<totalQty||productStock+1e-9<totalQty)throw Error("موجودی برای برگشت خرید در انبار یا کل کالا کافی نیست");

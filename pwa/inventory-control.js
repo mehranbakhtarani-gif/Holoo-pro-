@@ -34,7 +34,7 @@ function buildInventoryMovements(input){
  const rows=[];
  const add=(row)=>{if(Number.isFinite(row.date)&&Number.isFinite(row.quantityIn)&&Number.isFinite(row.quantityOut)&&Number.isSafeInteger(row.valueIn)&&Number.isSafeInteger(row.valueOut))rows.push(row)};
  for(const invoice of input.invoices||[]){
-  if(invoice.status==="REVERSED"||invoice.status==="DRAFT"||!["PURCHASE","SALE"].includes(invoice.kind))continue;
+  if(invoice.status==="DRAFT"||!["PURCHASE","SALE"].includes(invoice.kind))continue;
   for(const [index,line] of (Array.isArray(invoice.lines)?invoice.lines:[]).entries()){
    if(Number(line.productId)!==productId)continue;
    const wid=Number(line.warehouseId||invoice.warehouseId||0);if(warehouseId!==null&&wid!==warehouseId)continue;
@@ -50,7 +50,7 @@ function buildInventoryMovements(input){
   if(Number(adjustment.productId)!==productId)continue;
   const wid=Number(adjustment.warehouseId||0);if(warehouseId!==null&&wid!==warehouseId)continue;
   const delta=Number(adjustment.deltaKg),value=Number(adjustment.valueRial||0);if(!Number.isFinite(delta)||delta===0||!Number.isSafeInteger(value)||value<0)continue;
-  add({date:Number(adjustment.date||0),type:"ADJUSTMENT",reference:String(adjustment.number||adjustment.id||""),description:"اصلاح موجودی "+(adjustment.number||""),warehouseId:wid,quantityIn:delta>0?delta:0,quantityOut:delta<0?-delta:0,valueIn:delta>0?value:0,valueOut:delta<0?value:0,sourceId:adjustment.id??null});
+  const reversal=adjustment.kind==="INVOICE_REVERSAL";add({date:Number(adjustment.date||0),type:reversal?"INVOICE_REVERSAL":"ADJUSTMENT",reference:String(adjustment.reference||adjustment.number||adjustment.id||""),description:reversal?"برگشت فاکتور "+(adjustment.invoiceNumber||adjustment.number||""):"اصلاح موجودی "+(adjustment.number||""),warehouseId:wid,quantityIn:delta>0?delta:0,quantityOut:delta<0?-delta:0,valueIn:delta>0?value:0,valueOut:delta<0?value:0,sourceId:adjustment.id??null});
  }
  for(const transfer of input.transfers||[]){
   if(Number(transfer.productId)!==productId)continue;

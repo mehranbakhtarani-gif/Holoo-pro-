@@ -131,7 +131,7 @@ async function migrateLegacyImportChargePayablesPwa(){
  return entries.length;
 }
 async function reverseTreasuryAllocationPwa(id){
- const [allocations,parties,vouchers,voucherLines,transactions,invoices]=await Promise.all([all("treasuryAllocations"),all("parties"),all("vouchers"),all("voucherLines"),all("treasury"),all("invoices")]);
+ const [allocations,parties,vouchers,voucherLines,transactions,invoices,accounts]=await Promise.all([all("treasuryAllocations"),all("parties"),all("vouchers"),all("voucherLines"),all("treasury"),all("invoices"),all("accounts")]);
  const allocation=allocations.find(row=>Number(row.id)===Number(id));
  if(!allocation||allocation.status==="REVERSED")throw Error("تخصیص فعال پیدا نشد");
  const invoice=invoices.find(row=>row.number===allocation.invoiceNumber),transaction=transactions.find(row=>Number(row.id)===Number(allocation.treasuryId));
@@ -146,9 +146,10 @@ async function reverseTreasuryAllocationPwa(id){
   await putManyGuarded([["treasury",transaction],["invoices",invoice],["treasuryAllocations",allocation]],[{store:"treasury",key:Number(transaction.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot},{store:"treasuryAllocations",key:Number(allocation.id),expected:allocationSnapshot}]);
   return
  }
- if(gain>0&&loss>0)throw Error("سود و زیان تسعیر هم‌زمان برای این تخصیص معتبر نیست");
+ if(!Number.isSafeInteger(gain)||gain<0||!Number.isSafeInteger(loss)||loss<0||!Number.isSafeInteger(gain+loss)||(gain>0&&loss>0))throw Error("مبلغ سود/زیان تسعیر تخصیص معتبر نیست");
  const prefix="FX-SETTLEMENT:"+allocation.invoiceNumber+":";
- let original=allocation.fxVoucherReference?vouchers.find(v=>v.reference===allocation.fxVoucherReference):null;
+ let original=null;
+ if(allocation.fxVoucherReference){const matches=vouchers.filter(v=>v.reference===allocation.fxVoucherReference);if(matches.length!==1)throw Error("سند تسعیر یکتای تخصیص پیدا نشد");original=matches[0]}
  if(!original){
   const candidates=vouchers.filter(v=>String(v.reference||"").startsWith(prefix)).map(v=>({voucher:v,lines:voucherLines.filter(line=>Number(line.voucherId)===Number(v.id))})).filter(x=>x.lines.length>=2&&x.lines.reduce((n,line)=>n+Number(line.debitRial||0),0)===gain+loss&&x.lines.reduce((n,line)=>n+Number(line.creditRial||0),0)===gain+loss).sort((a,b)=>Math.abs(Number(a.voucher.date||0)-Number(allocation.date||0))-Math.abs(Number(b.voucher.date||0)-Number(allocation.date||0)));
   if(!candidates.length)throw Error("سند تسعیر اصلی این تخصیص پیدا نشد؛ برگشت امن ممکن نیست");
@@ -156,16 +157,15 @@ async function reverseTreasuryAllocationPwa(id){
   original=candidates[0].voucher;
  }
  const oldLines=voucherLines.filter(line=>Number(line.voucherId)===Number(original.id));
- const debit=oldLines.reduce((n,line)=>n+Number(line.debitRial||0),0),credit=oldLines.reduce((n,line)=>n+Number(line.creditRial||0),0);
- if(oldLines.length<2||debit!==credit||debit!==gain+loss)throw Error("سند تسعیر اصلی با مبلغ تخصیص مطابقت ندارد");
+ const reversalLines=validateReversalVoucherLines({voucher:original,lines:oldLines,accounts,expectedTotal:gain+loss,label:"تسعیر تخصیص"});
  const party=parties.find(row=>Number(row.id)===Number(allocation.partyId));
  if(!party)throw Error("طرف حساب تخصیص پیدا نشد");
  const partySnapshot={...party},reference="FX-SETTLEMENT-REV:"+allocation.id;
  applyPartyBalanceDelta(party,-gain+loss);
  allocation.originalTreasuryId=allocation.treasuryId;allocation.treasuryId=null;allocation.status="REVERSED";allocation.reversedAt=now;
  const ledger={partyId:party.id,date:now,debitRial:loss,creditRial:gain,description:"برگشت تسعیر تخصیص "+allocation.invoiceNumber,referenceId:reference};
- const reversalLines=oldLines.map(line=>({accountCode:line.accountCode,debitRial:Number(line.creditRial||0),creditRial:Number(line.debitRial||0),description:"برگشت تسعیر تخصیص "+allocation.invoiceNumber}));
- await postVoucherAtomic([["treasury",transaction],["invoices",invoice],["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FXR-"+now,date:now,description:"برگشت تسعیر تخصیص "+allocation.invoiceNumber,reference},reversalLines,[{store:"treasury",key:Number(transaction.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot},{store:"treasuryAllocations",key:Number(allocation.id),expected:allocationSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot}]);
+ const guards=[{store:"treasury",key:Number(transaction.id),expected:transactionSnapshot},{store:"invoices",key:Number(invoice.id),expected:invoiceSnapshot},{store:"treasuryAllocations",key:Number(allocation.id),expected:allocationSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},...[...new Set(reversalLines.map(line=>String(line.accountCode)))].map(code=>{const account=accounts.find(row=>String(row.id)===code);if(!account)throw Error("حساب "+code+" برای برگشت تسعیر تخصیص پیدا نشد");return {store:"accounts",key:account.id,expected:{id:account.id,type:account.type}}})];
+ await postVoucherAtomic([["treasury",transaction],["invoices",invoice],["treasuryAllocations",allocation],["parties",party],["partyLedger",ledger]],{number:"FXR-"+now,date:now,description:"برگشت تسعیر تخصیص "+allocation.invoiceNumber,reference},reversalLines,guards);
 }
 async function reversePwaInvoice(number){
  const invoices=await all("invoices"),invoice=invoices.find(x=>x.number===number);

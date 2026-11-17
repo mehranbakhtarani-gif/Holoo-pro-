@@ -110,6 +110,24 @@ async function reconcileLegacyImportChargePwa(id){
  const guards=[{store:"importChargePayables",key:Number(payable.id),expected:payableSnapshot},{store:"parties",key:Number(party.id),expected:partySnapshot},{store:"partyLedger",match:{referenceId:accrualReference},expected:null},...snapshots.map(payment=>({store:"treasury",key:Number(payment.id),expected:Object.fromEntries(Object.entries(payment).filter(([key])=>!["importChargePayableId","importChargePayableReference","importAncillaryPaymentReconciledAt"].includes(key)))}))];
  await putManyGuarded(entries,guards);
 }
+async function migrateLegacyImportChargePayablesPwa(){
+ const [shipments,payables,treasury]=await Promise.all([all("importShipments"),all("importChargePayables"),all("treasury")]);
+ const labels={freight:"حمل بین‌المللی",customs:"گمرک",insurance:"بیمه",port:"هزینه بندری",inland:"حمل داخلی",broker:"ترخیص",storage:"انبارداری",bank:"کارمزد بانکی",other:"سایر هزینه‌ها"};
+ const entries=[],guards=[];
+ for(const shipment of shipments.filter(x=>x.receivedAt)){
+  let costs;try{costs=calculateImportShipmentCost({currency:shipment.currency,fx:shipment.fx,weight:shipment.weight,goods:shipment.goods,freight:shipment.freight,customs:shipment.customs,insurance:shipment.insurance,port:shipment.port,inland:shipment.inland,broker:shipment.broker,storage:shipment.storage,bank:shipment.bank,other:shipment.other})}catch(error){console.warn("IMPORT_CHARGE_MIGRATION_SKIPPED",shipment.number,error);continue}
+  for(const [category,amountRial] of Object.entries(costs.breakdown)){
+   if(Number(amountRial)<=0)continue;
+   const reference="IMPORT-CHARGE:"+shipment.id+":"+category;
+   if(payables.some(p=>p.reference===reference))continue;
+   const legacyPayments=treasury.filter(x=>x.importAncillaryPayment===true&&Number(x.importShipmentId)===Number(shipment.id)&&String(x.importChargeCategory)===String(category)&&x.status!=="REVERSED");
+   const row={shipmentId:Number(shipment.id),shipmentNumber:shipment.number,category,categoryLabel:labels[category]||category,amountRial:Number(amountRial),paidRial:0,partyId:null,partyName:"",status:legacyPayments.length?"RECONCILIATION_REQUIRED":"OPEN",createdAt:Number(shipment.receivedAt||Date.now()),reference};
+   entries.push(["importChargePayables",row]);guards.push({store:"importChargePayables",match:{reference},expected:null});
+  }
+ }
+ if(entries.length)await putManyGuarded(entries,guards);
+ return entries.length;
+}
 async function reverseTreasuryAllocationPwa(id){
  const [allocations,parties,vouchers,voucherLines,transactions,invoices]=await Promise.all([all("treasuryAllocations"),all("parties"),all("vouchers"),all("voucherLines"),all("treasury"),all("invoices")]);
  const allocation=allocations.find(row=>Number(row.id)===Number(id));
@@ -1329,4 +1347,4 @@ async function restoreBackup(file){
  await globalThis.HolooCustomFields?.reloadConfig?.();toast("بازیابی "+total+" رکورد انجام شد؛ پشتیبان قبلی نیز دانلود شد");await render()
 }
 $("#exportBtn").onclick=()=>exportBackup().catch(e=>toast(e.message||"تهیه پشتیبان ناموفق بود"));$("#importBtn").onclick=()=>$("#restoreFile").click();$("#restoreFile").onchange=e=>{const file=e.target.files[0];if(file)restoreBackup(file).catch(x=>toast(x.message||"بازیابی پشتیبان ناموفق بود")).finally(()=>{e.target.value=""})};$("#unitBtn").onclick=()=>{showToman=!showToman;$("#unitBtn").textContent=moneyUnit();render()};$("#closeModal").onclick=$("#cancelModal").onclick=()=>$("#modal").hidden=true;$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").hidden=true};
-(async()=>{const stage=s=>{window.__HOLLOO_STAGE__=s;const el=$("#main");if(el&&el.querySelector(".loading"))el.querySelector(".loading").textContent=s};stage("۱ از ۴: باز کردن پایگاه داده");db=await openDB();stage("۲ از ۴: آماده‌سازی حساب‌ها");await ensureBaseAccounts();stage("۳ از ۴: ساخت منو");nav();stage("۴ از ۴: خواندن اطلاعات و نمایش داشبورد");await render();window.__HOLLOO_READY__=true;window.__HOLLOO_STAGE__="آماده";if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=nav-refresh-2").catch(()=>{})})().catch(e=>{window.__HOLLOO_STAGE__="خطا: "+(e&&e.message?e.message:String(e));const main=$("#main");if(main)main.innerHTML='<div class="card"><h2>خطا در راه‌اندازی دفتر</h2><p>'+h(e&&e.message?e.message:String(e))+'</p><p>مرحله: '+h(window.__HOLLOO_STAGE__)+'</p></div>';console.error("HOLLOO_STARTUP",e)});
+(async()=>{const stage=s=>{window.__HOLLOO_STAGE__=s;const el=$("#main");if(el&&el.querySelector(".loading"))el.querySelector(".loading").textContent=s};stage("۱ از ۴: باز کردن پایگاه داده");db=await openDB();stage("۲ از ۴: آماده‌سازی حساب‌ها");await ensureBaseAccounts();await migrateLegacyImportChargePayablesPwa();stage("۳ از ۴: ساخت منو");nav();stage("۴ از ۴: خواندن اطلاعات و نمایش داشبورد");await render();window.__HOLLOO_READY__=true;window.__HOLLOO_STAGE__="آماده";if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js?v=nav-refresh-2").catch(()=>{})})().catch(e=>{window.__HOLLOO_STAGE__="خطا: "+(e&&e.message?e.message:String(e));const main=$("#main");if(main)main.innerHTML='<div class="card"><h2>خطا در راه‌اندازی دفتر</h2><p>'+h(e&&e.message?e.message:String(e))+'</p><p>مرحله: '+h(window.__HOLLOO_STAGE__)+'</p></div>';console.error("HOLLOO_STARTUP",e)});

@@ -96,7 +96,7 @@ function reconcileTreasuryRecords(input){
   }else if(reference.startsWith("PAYROLL-PAYMENT:")){
    const payrollId=Number(reference.split(":")[1]),row=payroll.find(x=>Number(x.id)===payrollId);
    if(!row||row.status!=="پرداخت‌شده"||Number(row.net)!==amount)add("گردش خزانه با حقوق پرداخت‌شده مطابقت ندارد");
-   expected=[{accountCode:"2104",debitRial:amount,creditRial:0},{accountCode:cashCode(record.method),debitRial:0,creditRial:amount}];
+   expected=[{accountCode:"2104",debitRial:amount,creditRial:0},{accountCode:safeCashCode(record.method),debitRial:0,creditRial:amount}];
   }else if(reference.startsWith("TREASURY:")){
    party=parties.find(x=>Number(x.id)===Number(record.partyId));
    if(!party)add("طرف حساب گردش خزانه پیدا نشد");

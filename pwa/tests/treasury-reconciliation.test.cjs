@@ -40,7 +40,7 @@ test("matches a reversal only when it exactly mirrors its original voucher",()=>
  const result=TreasuryIntegrity.reconcileTreasuryRecords(data);
  assert.equal(result.matched,2);
  const wrong={...data,voucherLines:data.voucherLines.map(x=>x.voucherId===11&&x.accountCode==="2101"?{...x,accountCode:"1103"}:x)};
- assert.equal(TreasuryIntegrity.reconcileTreasuryRecords(wrong).withIssues,2);
+ const wrongResult=TreasuryIntegrity.reconcileTreasuryRecords(wrong);assert.equal(wrongResult.withIssues,1);assert.equal(wrongResult.rows.find(row=>row.id===1).ok,true);assert.equal(wrongResult.rows.find(row=>row.id===2).ok,false);
 });
 test("reports missing vouchers, duplicate references and missing party movements",()=>{
  const missing=input({vouchers:[],partyLedger:[]});

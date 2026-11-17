@@ -1670,7 +1670,7 @@ async function reverseForeignPayablePaymentPwa(id){
  const originalTreasury=treasury.find(x=>x.reference===payment.reference);
  if(!payable||!party||!sourceShipment||!originalTreasury)throw Error("تعهد، محموله، تأمین‌کننده یا گردش خزانه پرداخت پیدا نشد");
  const paymentSnapshot={...payment},payableSnapshot={...payable},partySnapshot={...party},sourceShipmentSnapshot={...sourceShipment},originalTreasurySnapshot={...originalTreasury};
- const now=Date.now(),plan=HolooForeignPayables.planForeignPayableReversal({payable,payment,date:now}),reference="FXPAY-REV:"+payment.id;
+ const now=Date.now(),plan=HolooForeignPayables.planForeignPayableReversal({payable,payment,payments,date:now}),reference="FXPAY-REV:"+payment.id;
  if(treasury.some(x=>x.reference===reference))throw Error("سند برگشت این پرداخت قبلاً ثبت شده است");
  const cashAccount=payment.method==="بانک"?"1102":"1101",journal=[{accountCode:cashAccount,debitRial:plan.settlementRial,creditRial:0,description:"برگشت وجه پرداخت ارزی "+payment.sourceNumber},{accountCode:"2101",debitRial:0,creditRial:plan.bookedRial,description:"برگشت بدهی ارزی "+payment.sourceNumber}];
  if(plan.fxGainRial>0)journal.push({accountCode:"4301",debitRial:plan.fxGainRial,creditRial:0,description:"برگشت سود تسعیر پرداخت "+payment.sourceNumber});

@@ -175,6 +175,7 @@ test("PWA phase 1 browser audit: dashboard, inventory, parties, actions and resp
 
   await page.locator("#search").fill("__NO_MATCH_FOR_AUDIT__");
   await page.waitForFunction(()=>document.querySelector("#main .empty")?.textContent.includes("هنوز اطلاعاتی ثبت نشده"));
+  assert.equal(await page.locator("#search").inputValue(),"__NO_MATCH_FOR_AUDIT__","search query should survive the table rerender");
   await page.locator("#search").fill("");
   await page.waitForFunction(()=>document.querySelector("#main")?.textContent.includes("مشتری آزمایشی ممیزی"));
   await page.locator("#addBtn").click();

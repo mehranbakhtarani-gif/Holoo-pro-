@@ -25,8 +25,8 @@ test("endorsing a received cheque settles customer receivable and supplier payab
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/CHECK:ENDORSE:/);
  assert.match(app,/endorsedToPartyName/);
- assert.match(app,/accountCode:"2101",debitRial:amount/);
- assert.match(app,/accountCode:"1103",debitRial:0,creditRial:amount/);
+ assert.match(app,/accountCode:"2101",partyId:target\.id,debitRial:amount/);
+ assert.match(app,/accountCode:"1103",partyId:party\.id,debitRial:0,creditRial:amount/);
 });
 
 test("voucher reference uniqueness is enforced inside the atomic transaction",()=>{

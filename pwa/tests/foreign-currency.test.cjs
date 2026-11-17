@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { convertForeignAmountToRial, convertRialToForeignMinor, calculateRealizedForeignExchange } = require("../foreign-currency.js");
+const { convertForeignAmountToRial, convertRialToForeignMinor, calculateRealizedForeignExchange, calculateCumulativeRealizedForeignExchange } = require("../foreign-currency.js");
 
 test("converts foreign minor units to Rial using a whole-unit FX rate", () => {
  assert.deepEqual(convertForeignAmountToRial({currency:"USD",amountMinor:125050,fxRateRialPerUnit:600000}),{
@@ -66,4 +66,22 @@ test("PWA invoice and order totals use the exact inverse FX converter",()=>{
  assert.match(html,/foreign-currency\.js\?v=fx-bigint-2/);
  assert.match(html,/app\.js\?v=fx-allocation-residual-2/);
  assert.match(sw,/holloo-pwa-v171-fx-allocation-residual/);
+});
+
+test("cumulative FX settlement assigns rounding residuals so invoice and treasury totals reconcile exactly",()=>{
+ const invoiceTotal=convertForeignAmountToRial({currency:"USD",amountMinor:1000,fxRateRialPerUnit:600001}).rial;
+ const treasuryTotal=convertForeignAmountToRial({currency:"USD",amountMinor:1000,fxRateRialPerUnit:650000}).rial;
+ let invoiceMinor=0,invoiceBooked=0,treasuryMinor=0,treasurySettled=0,gain=0;
+ for(const amount of [333,333,334]){
+  const row=calculateCumulativeRealizedForeignExchange({kind:"SALE",currency:"USD",invoiceAmountMinor:1000,settledAmountMinor:amount,previousInvoiceSettledMinor:invoiceMinor,previousInvoiceBookedRial:invoiceBooked,invoiceTotalRial:invoiceTotal,invoiceFxRateRialPerUnit:600001,treasuryAmountMinor:1000,previousTreasurySettledMinor:treasuryMinor,previousTreasurySettlementRial:treasurySettled,treasuryTotalRial:treasuryTotal,settlementFxRateRialPerUnit:650000});
+  invoiceMinor+=amount;invoiceBooked+=row.bookedRial;treasuryMinor+=amount;treasurySettled+=row.settlementRial;gain+=row.gainRial;
+ }
+ assert.equal(invoiceMinor,1000);assert.equal(treasuryMinor,1000);
+ assert.equal(invoiceBooked,invoiceTotal);assert.equal(treasurySettled,treasuryTotal);
+ assert.equal(gain,treasuryTotal-invoiceTotal);
+});
+
+test("cumulative FX settlement rejects over-settlement and inconsistent prior book values",()=>{
+ assert.throws(()=>calculateCumulativeRealizedForeignExchange({kind:"SALE",currency:"USD",invoiceAmountMinor:100,settledAmountMinor:101,invoiceTotalRial:600000,invoiceFxRateRialPerUnit:600000,treasuryAmountMinor:100,treasuryTotalRial:650000,settlementFxRateRialPerUnit:650000}));
+ assert.throws(()=>calculateCumulativeRealizedForeignExchange({kind:"SALE",currency:"USD",invoiceAmountMinor:100,settledAmountMinor:50,previousInvoiceSettledMinor:50,previousInvoiceBookedRial:700000,invoiceTotalRial:600000,invoiceFxRateRialPerUnit:600000,treasuryAmountMinor:100,treasuryTotalRial:650000,settlementFxRateRialPerUnit:650000}));
 });

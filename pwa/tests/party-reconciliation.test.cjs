@@ -7,18 +7,19 @@ test("reconciles customer and supplier balances against subledger and control ac
   parties:[{id:1,name:"Customer",balance:700},{id:2,name:"Supplier",balance:-300}],
   partyLedger:[{partyId:1,debitRial:1000,creditRial:300,referenceId:"SALE-1"},{partyId:2,debitRial:0,creditRial:500,referenceId:"PUR-1"},{partyId:2,debitRial:200,creditRial:0,referenceId:"PAY-1"}],
   accounts:[{id:"1103",openingDebitRial:0,openingCreditRial:0},{id:"2101",openingDebitRial:0,openingCreditRial:0}],
-  vouchers:[{id:11,reference:"SALE-1"},{id:12,reference:"PUR-1"},{id:13,reference:"PAY-1"}],
+  vouchers:[{id:11,reference:"SALE-1"},{id:12,reference:"RECEIPT-1"},{id:13,reference:"PUR-1"},{id:14,reference:"PAY-1"}],
   voucherLines:[
    {voucherId:11,accountCode:"1103",debitRial:1000,creditRial:0},
-   {voucherId:12,accountCode:"2101",debitRial:0,creditRial:500},
-   {voucherId:13,accountCode:"2101",debitRial:200,creditRial:0}
+   {voucherId:12,accountCode:"1103",debitRial:0,creditRial:300},
+   {voucherId:13,accountCode:"2101",debitRial:0,creditRial:500},
+   {voucherId:14,accountCode:"2101",debitRial:200,creditRial:0}
   ]
  });
  assert.equal(result.ok,true);
  assert.equal(result.totals.partyBalanceRial,400);
  assert.equal(result.totals.partyLedgerBalanceRial,400);
- assert.equal(result.totals.controlAccountBalanceRial,700);
- assert.equal(result.totals.controlVsLedgerDeltaRial,300);
+ assert.equal(result.totals.controlAccountBalanceRial,400);
+ assert.equal(result.totals.controlVsLedgerDeltaRial,0);
 });
 
 test("opening balances in control accounts reconcile even when their counterpart is opening equity",()=>{

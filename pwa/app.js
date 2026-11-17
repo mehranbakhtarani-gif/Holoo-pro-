@@ -147,17 +147,21 @@ async function reverseTreasuryAllocationPwa(id){
   return
  }
  if(!Number.isSafeInteger(gain)||gain<0||!Number.isSafeInteger(loss)||loss<0||!Number.isSafeInteger(gain+loss)||(gain>0&&loss>0))throw Error("مبلغ سود/زیان تسعیر تخصیص معتبر نیست");
- const prefix="FX-SETTLEMENT:"+allocation.invoiceNumber+":";
- let original=null;
- if(allocation.fxVoucherReference){const matches=vouchers.filter(v=>v.reference===allocation.fxVoucherReference);if(matches.length!==1)throw Error("سند تسعیر یکتای تخصیص پیدا نشد");original=matches[0]}
- if(!original){
-  const candidates=vouchers.filter(v=>String(v.reference||"").startsWith(prefix)).map(v=>({voucher:v,lines:voucherLines.filter(line=>Number(line.voucherId)===Number(v.id))})).filter(x=>x.lines.length>=2&&x.lines.reduce((n,line)=>n+Number(line.debitRial||0),0)===gain+loss&&x.lines.reduce((n,line)=>n+Number(line.creditRial||0),0)===gain+loss).sort((a,b)=>Math.abs(Number(a.voucher.date||0)-Number(allocation.date||0))-Math.abs(Number(b.voucher.date||0)-Number(allocation.date||0)));
-  if(!candidates.length)throw Error("سند تسعیر اصلی این تخصیص پیدا نشد؛ برگشت امن ممکن نیست");
-  if(candidates.length>1&&Math.abs(Number(candidates[0].voucher.date||0)-Number(allocation.date||0))===Math.abs(Number(candidates[1].voucher.date||0)-Number(allocation.date||0)))throw Error("چند سند تسعیر مشابه پیدا شد؛ تخصیص نیاز به بررسی دستی دارد");
-  original=candidates[0].voucher;
- }
+ if(!allocation.fxVoucherReference)throw Error("مرجع دقیق سند تسعیر روی تخصیص ثبت نشده است؛ انتخاب سند بر اساس مبلغ یا تاریخ ایمن نیست");
+ const fxVoucherMatches=vouchers.filter(v=>v.reference===allocation.fxVoucherReference);
+ if(fxVoucherMatches.length!==1)throw Error("سند تسعیر با مرجع ثبت‌شده یکتا نیست");
+ const original=fxVoucherMatches[0];
+ const counterpartyAccount=invoice.kind==="SALE"?"1103":invoice.kind==="PURCHASE"?"2101":"";
+ if(!counterpartyAccount)throw Error("نوع فاکتور برای تطبیق سند تسعیر مشخص نیست");
+ const expectedFxLines=gain>0?[
+  {accountCode:counterpartyAccount,debitRial:gain,creditRial:0},
+  {accountCode:"4301",debitRial:0,creditRial:gain}
+ ]:[
+  {accountCode:"5501",debitRial:loss,creditRial:0},
+  {accountCode:counterpartyAccount,debitRial:0,creditRial:loss}
+ ];
  const oldLines=voucherLines.filter(line=>Number(line.voucherId)===Number(original.id));
- const reversalLines=validateReversalVoucherLines({voucher:original,lines:oldLines,accounts,expectedTotal:gain+loss,label:"تسعیر تخصیص"});
+ const reversalLines=validateReversalVoucherLines({voucher:original,lines:oldLines,accounts,expectedLines:expectedFxLines,expectedTotal:gain+loss,label:"تسعیر تخصیص"});
  const party=parties.find(row=>Number(row.id)===Number(allocation.partyId));
  if(!party)throw Error("طرف حساب تخصیص پیدا نشد");
  const partySnapshot={...party},reference="FX-SETTLEMENT-REV:"+allocation.id;

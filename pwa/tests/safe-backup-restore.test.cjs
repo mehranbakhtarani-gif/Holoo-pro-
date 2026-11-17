@@ -15,7 +15,7 @@ test("restore validates app version, file size, store names and complete v2 sche
  assert.match(app,/file\.size>50\*1024\*1024/);
  assert.match(app,/\[1,2\]\.includes\(Number\(data\.version\)\)/);
  assert.match(app,/unknown=Object\.keys\(data\.records\)\.filter\(name=>!stores\.includes\(name\)\)/);
- assert.match(app,/Number\(data\.schemaVersion\)!==DB_VERSION/);
+ assert.match(app,/\[DB_VERSION,DB_VERSION-1\]\.includes\(schemaVersion\)/);
  assert.match(app,/data\.counts\[store\]!==rows\.length/);
  assert.match(app,/data\.storeNames\.length!==stores\.length/);
 });
@@ -55,9 +55,9 @@ test("backup download URL is revoked after a delay rather than immediately",()=>
 
 test("restore rejects v2 backups missing a records store or requiring a newer schema",()=>{
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
- assert.match(app,/stores\.some\(name=>!data\.storeNames\.includes\(name\)\)/);
+ assert.match(app,/missingStores\.length!==1\|\|missingStores\[0\]!=="stocktakes"/);
  assert.match(app,/Object\.prototype\.hasOwnProperty\.call\(data\.records,store\)/);
- assert.match(app,/Number\(data\.schemaVersion\)!==DB_VERSION/);
+ assert.match(app,/schemaVersion===DB_VERSION-1\)\{data\.records\.stocktakes=\[\];data\.counts\.stocktakes=0/);
  assert.match(app,/data\.counts\[store\]!==rows\.length/);
 });
 
@@ -65,4 +65,11 @@ test("backup and restore controls surface errors and allow retrying the same fil
  const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
  assert.match(app,/exportBackup\(\)\.catch\(e=>toast\(e\.message\|\|"تهیه پشتیبان ناموفق بود"\)\)/);
  assert.match(app,/finally\(\(\)=>\{e\.target\.value=""\}\)/);
+});
+
+test("restore upgrades the previous v11 backup by adding only the new empty stocktake store",()=>{
+ const app=fs.readFileSync(path.join(root,"app.js"),"utf8");
+ assert.match(app,/schemaVersion===DB_VERSION-1\)\{data\.records\.stocktakes=\[\];data\.counts\.stocktakes=0;sourceStores\.push\("stocktakes"\);\}/);
+ assert.match(app,/missingStores\.length!==1\|\|missingStores\[0\]!=="stocktakes"/);
+ assert.match(app,/sourceStores\.some\(name=>!Object\.prototype\.hasOwnProperty\.call\(data\.records,name\)\)/);
 });

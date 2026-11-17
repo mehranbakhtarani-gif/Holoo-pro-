@@ -66,10 +66,12 @@ function autoMatchBankLines(lines,treasury,toleranceDays=3){
   return {...line,status:"UNMATCHED",matchedTreasuryId:null,candidateTreasuryIds:[]};
  });
 }
-function validateBankManualMatch(line,treasury,matchedTreasuryIds=[]){
+function validateBankManualMatch(line,treasury,matchedTreasuryIds=[],toleranceDays=30){
  if(!line||line.status==="MATCHED")throw new Error("این ردیف قبلاً تطبیق داده شده است");
  if(!treasury||treasury.method!=="بانک"||treasury.status==="REVERSED")throw new Error("گردش انتخابی از حساب بانکی فعال نیست");
  if(!bankIdentityMatches(line,treasury))throw new Error("بانک یا حساب انتخاب‌شده با صورت‌حساب یکسان نیست");
+ const tolerance=Number(toleranceDays)*86400000;
+ if(!Number.isFinite(Number(line.date))||!Number.isFinite(Number(treasury.date))||!Number.isFinite(tolerance)||tolerance<0||Math.abs(Number(treasury.date)-Number(line.date))>tolerance)throw new Error("تاریخ گردش بانکی خارج از بازه مجاز است");
  if(getTreasurySignedAmount(treasury)!==Number(line.signedAmount))throw new Error("مبلغ یا جهت گردش بانکی یکسان نیست");
  if(matchedTreasuryIds.map(Number).includes(Number(treasury.id)))throw new Error("این گردش قبلاً با ردیف دیگری تطبیق داده شده است");
  return true;
